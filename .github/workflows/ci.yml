@@ -23,6 +23,11 @@ jobs:
           workspaces: rust -> target
       - run: cargo fmt --manifest-path rust/Cargo.toml -- --check
       - run: cargo test --manifest-path rust/Cargo.toml
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: cargo build --manifest-path rust/Cargo.toml --example mock_plugin
+      - run: python rust/examples/check_plugin.py --binary rust/target/debug/examples/mock_plugin --plugin-id org.fiex.mock --method mock.echo
       - run: cargo clippy --manifest-path rust/Cargo.toml --all-targets -- -D warnings
   ui-sdk:
     runs-on: ubuntu-latest
