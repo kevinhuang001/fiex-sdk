@@ -1,13 +1,37 @@
 {
+  "schemaVersion": 1,
   "id": "org.fiex.mock",
   "name": "Core Host IPC Fixture",
   "version": "0.1.0",
-  "capabilities": [],
-  "entrypoints": {
-    "linux-x86_64": "mock_plugin",
-    "macos-aarch64": "mock_plugin",
-    "macos-x86_64": "mock_plugin",
-    "windows-x86_64": "mock_plugin.exe"
+  "description": "Mock native plugin used by Core process IPC tests.",
+  "runtime": {
+    "protocolVersion": "2.0",
+    "entrypoints": {
+      "linux-x86_64": "mock_plugin",
+      "macos-aarch64": "mock_plugin",
+      "macos-x86_64": "mock_plugin",
+      "windows-x86_64": "mock_plugin.exe"
+    }
   },
-  "permissions": {}
+  "permissions": {
+    "filesystem": {
+      "read": false,
+      "write": false
+    },
+    "network": {
+      "enabled": false,
+      "domains": []
+    }
+  },
+  "contributions": {
+    "search": [
+      {
+        "id": "mock",
+        "title": "Mock Search",
+        "icon": "magnifying-glass",
+        "scope": "global",
+        "command": "search.query"
+      }
+    ]
+  }
 }
