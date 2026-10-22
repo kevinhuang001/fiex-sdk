@@ -3,7 +3,7 @@ name = "fiex-plugin-sdk"
 version = "0.1.0"
 edition = "2021"
 rust-version = "1.90"
-license = "MIT"
+license = "GPL-3.0-or-later"
 description = "Standalone native process protocol SDK for Fiex plugins"
 
 [dependencies]

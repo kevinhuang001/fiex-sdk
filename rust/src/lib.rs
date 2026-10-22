@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::io::{self, BufRead, BufReader, Write};
 
-pub const PROTOCOL_VERSION: &str = "1.0";
+pub const PROTOCOL_VERSION: &str = "2.0";
 pub const MAX_FRAME: usize = 4 * 1024 * 1024;
 const MAX_HEADER: usize = 8192;
 

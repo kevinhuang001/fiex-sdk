@@ -17,5 +17,6 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "node --test test/*.test.mjs"
-  }
+  },
+  "license": "GPL-3.0-or-later"
 }
