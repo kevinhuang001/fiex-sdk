@@ -11,18 +11,18 @@
 我们要做一个叫 **Hello Fiex** 的插件。向它发送 `hello.greet` 命令和名字 `新手`，它会返回：
 
 ```json
-{"message":"你好，新手！"}
+{ "message": "你好，新手！" }
 ```
 
 你会依次完成：**安装工具 → 创建项目 → 写 1 个 Rust 文件 → 编译 → 调用真实插件进程 → 生成 .fiexplugin 包 → 发布到 GitHub 供 Fiex 安装。**
 
 先记住三个词：
 
-| 名称 | 大白话解释 |
-| --- | --- |
-| **SDK** | 帮你处理插件与 Fiex 之间的消息收发；你只写自己的功能 |
-| **Core / 宿主** | Fiex 主程序，负责启动插件、校验授权、显示工具栏和插件页面 |
-| **manifest.json** | 插件的“身份证”，说明名字、入口程序、界面贡献和需要的权限 |
+| 名称              | 大白话解释                                                |
+| ----------------- | --------------------------------------------------------- |
+| **SDK**           | 帮你处理插件与 Fiex 之间的消息收发；你只写自己的功能      |
+| **Core / 宿主**   | Fiex 主程序，负责启动插件、校验授权、显示工具栏和插件页面 |
+| **manifest.json** | 插件的“身份证”，说明名字、入口程序、界面贡献和需要的权限  |
 
 **Rust SDK 只负责 Native 插件（独立进程）。** 如果要开发 iframe 中的插件界面，应另用同仓库的 [UI SDK](../ui/src/index.ts)；一个插件也可以同时拥有 Native 后端和 UI 界面。
 
@@ -234,12 +234,12 @@ python sdk/rust/examples/check_plugin.py --binary target/debug/fiex-plugin-hello
 
 **重要：上面 `entrypoints` 演示的是 Windows x86-64。** 如果你在别的平台开发，请把**整个** `entrypoints` 对象替换为表格中对应的唯一一行：
 
-| 当前系统 | `entrypoints` 的键 | 值（编译后的文件名） |
-| --- | --- | --- |
-| Windows x86-64 | `windows-x86_64` | `fiex-plugin-hello.exe` |
-| macOS Apple Silicon | `macos-aarch64` | `fiex-plugin-hello` |
-| macOS Intel | `macos-x86_64` | `fiex-plugin-hello` |
-| Linux x86-64 | `linux-x86_64` | `fiex-plugin-hello` |
+| 当前系统            | `entrypoints` 的键 | 值（编译后的文件名）    |
+| ------------------- | ------------------ | ----------------------- |
+| Windows x86-64      | `windows-x86_64`   | `fiex-plugin-hello.exe` |
+| macOS Apple Silicon | `macos-aarch64`    | `fiex-plugin-hello`     |
+| macOS Intel         | `macos-x86_64`     | `fiex-plugin-hello`     |
+| Linux x86-64        | `linux-x86_64`     | `fiex-plugin-hello`     |
 
 例如 Mac Apple Silicon 用 `"entrypoints": {"macos-aarch64": "fiex-plugin-hello"}`。一份包只放**当前平台**的可执行文件即可；要支持其他平台，必须在对应平台分别编译并打包，不能把 Windows 的 `.exe` 改个名字当作 macOS 程序。
 
@@ -369,35 +369,35 @@ fn main() {
 
 SDK 当前公开的关键接口：
 
-| API | 作用 | 什么时候用 |
-| --- | --- | --- |
-| `sdk::serve(id, handler)` | 启动插件、管理 IPC 生命周期 | 只处理宿主发来的命令 |
-| `sdk::serve_with_host(id, handler)` | 处理命令时还可反向调用宿主服务 | 存储、凭据等 |
-| `RpcError::method_not_found(...)` | 不支持的命令 | `match` 的默认分支 |
-| `RpcError::invalid_params(...)` | 请求缺少字段或参数错误 | 用户传来的参数无效 |
-| `RpcError::internal(...)` | 插件内部操作失败 | 底层 I/O 或其他错误 |
-| `HostServices::storage_get/set` | 宿主托管的插件存储 | 需 `storage` 权限 |
-| `HostServices::secret_get/set` | 宿主托管的凭据服务 | 需 `secrets` 权限 |
+| API                                 | 作用                           | 什么时候用           |
+| ----------------------------------- | ------------------------------ | -------------------- |
+| `sdk::serve(id, handler)`           | 启动插件、管理 IPC 生命周期    | 只处理宿主发来的命令 |
+| `sdk::serve_with_host(id, handler)` | 处理命令时还可反向调用宿主服务 | 存储、凭据等         |
+| `RpcError::method_not_found(...)`   | 不支持的命令                   | `match` 的默认分支   |
+| `RpcError::invalid_params(...)`     | 请求缺少字段或参数错误         | 用户传来的参数无效   |
+| `RpcError::internal(...)`           | 插件内部操作失败               | 底层 I/O 或其他错误  |
+| `HostServices::storage_get/set`     | 宿主托管的插件存储             | 需 `storage` 权限    |
+| `HostServices::secret_get/set`      | 宿主托管的凭据服务             | 需 `secrets` 权限    |
 
 具体签名以 [rust/src/lib.rs](src/lib.rs) 为准。当前 SDK 采用**同步处理**：宿主反向调用只在当前请求的 `HostServices` 回调中进行。不要以为它已经提供异步任务、完整二进制流或文件系统沙箱。
 
 ## 8. 常见问题：出错先看这里
 
-| 现象 | 最常见原因与解决方法 |
-| --- | --- |
-| `cargo` / `rustc` 找不到 | Rust 没装好，或者安装后终端尚未重启 |
-| `failed to load source for dependency` | SDK submodule 未初始化，执行 `git submodule update --init --recursive` |
-| Rust 版本太低 | 执行 `rustup update stable`，需 Rust 1.90+ |
-| `cargo run` 好像卡住 | 正常：进程在等待宿主发 IPC 请求；用本文的 `check_plugin.py` 测试 |
-| `找不到可执行文件` | 先运行 `cargo build`；检查 `--binary` 的路径 |
-| `plugin ID mismatch` | 测试脚本中的 `--plugin-id` 必须与 `sdk::serve` 的 ID 一致 |
-| `initialize required` | 宿主必须先发送 `plugin.initialize`，不能一开始直接调用自定义方法 |
-| `Unsupported method` | 命令名拼错，或者 `match` 没处理这个命令 |
-| `插件提前退出 / 无效协议头` | 检查是否误用 `println!`，以及 `stderr` 日志 |
-| 安装器找不到插件包 | 必须在**公开仓库的 GitHub Release** 上传 `.fiexplugin` 资产，且文件名包含当前平台标识 |
-| `plugin has no executable for this operating system / architecture` | manifest 的平台键不匹配，或压缩包根目录没有对应二进制 |
-| `permission denied` | manifest 未声明对应宿主权限，或者用户尚未批准授权 |
-| 安装同 ID 的新版本报错 | 目前需先卸载旧版本，再安装新版；注意保留需要的用户数据 |
+| 现象                                                                | 最常见原因与解决方法                                                                  |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `cargo` / `rustc` 找不到                                            | Rust 没装好，或者安装后终端尚未重启                                                   |
+| `failed to load source for dependency`                              | SDK submodule 未初始化，执行 `git submodule update --init --recursive`                |
+| Rust 版本太低                                                       | 执行 `rustup update stable`，需 Rust 1.90+                                            |
+| `cargo run` 好像卡住                                                | 正常：进程在等待宿主发 IPC 请求；用本文的 `check_plugin.py` 测试                      |
+| `找不到可执行文件`                                                  | 先运行 `cargo build`；检查 `--binary` 的路径                                          |
+| `plugin ID mismatch`                                                | 测试脚本中的 `--plugin-id` 必须与 `sdk::serve` 的 ID 一致                             |
+| `initialize required`                                               | 宿主必须先发送 `plugin.initialize`，不能一开始直接调用自定义方法                      |
+| `Unsupported method`                                                | 命令名拼错，或者 `match` 没处理这个命令                                               |
+| `插件提前退出 / 无效协议头`                                         | 检查是否误用 `println!`，以及 `stderr` 日志                                           |
+| 安装器找不到插件包                                                  | 必须在**公开仓库的 GitHub Release** 上传 `.fiexplugin` 资产，且文件名包含当前平台标识 |
+| `plugin has no executable for this operating system / architecture` | manifest 的平台键不匹配，或压缩包根目录没有对应二进制                                 |
+| `permission denied`                                                 | manifest 未声明对应宿主权限，或者用户尚未批准授权                                     |
+| 安装同 ID 的新版本报错                                              | 目前需先卸载旧版本，再安装新版；注意保留需要的用户数据                                |
 
 ## 9. 安全须知，以及 SDK 目前不负责什么
 

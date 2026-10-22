@@ -12,10 +12,10 @@ The Chinese walkthrough takes you from an empty Rust project to a working native
 
 ### Which SDK should I use? / 该选哪个 SDK？
 
-| 目录 | 用途 |
-| --- | --- |
+| 目录                      | 用途                                                                                                     |
+| ------------------------- | -------------------------------------------------------------------------------------------------------- |
 | [`rust/`](rust/README.md) | Native 插件 / Native process SDK：Rust 命令、文件系统适配器、宿主托管存储与凭据，采用 stdio JSON-RPC 2.0 |
-| [`ui/`](ui/src/index.ts) | UI SDK：在沙箱 iframe 中开发插件面板，通过 MessageChannel 与宿主通信 |
+| [`ui/`](ui/src/index.ts)  | UI SDK：在沙箱 iframe 中开发插件面板，通过 MessageChannel 与宿主通信                                     |
 
 You can build a native-only plugin, a UI panel, or use both. A native plugin runs as a separate executable and must not write logs to stdout (use stderr instead).
 
