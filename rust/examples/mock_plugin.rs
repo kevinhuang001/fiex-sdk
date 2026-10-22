@@ -4,6 +4,12 @@ use serde_json::{json, Value};
 fn main() {
     sdk::serve_with_host("org.fiex.mock", |method, value: Value, host| match method {
         "mock.echo" => Ok(json!({"echo": value})),
+        "mock.directExec" => match std::process::Command::new("git").arg("--version").output() {
+            Ok(_) => Err(RpcError::internal(
+                "plugin process was allowed to execute git",
+            )),
+            Err(error) => Ok(json!({"blocked": true, "error": error.to_string()})),
+        },
         "mock.exec" => {
             let result = host.invoke(
                 "host.exec",
