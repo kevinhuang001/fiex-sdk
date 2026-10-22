@@ -21,6 +21,10 @@
     "network": {
       "enabled": false,
       "domains": []
+    },
+    "commands": {
+      "enabled": true,
+      "allow": ["git"]
     }
   },
   "contributions": {

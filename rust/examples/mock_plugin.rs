@@ -2,8 +2,15 @@ use fiex_plugin_sdk::{self as sdk, RpcError};
 use serde_json::{json, Value};
 
 fn main() {
-    sdk::serve("org.fiex.mock", |method, value: Value| match method {
+    sdk::serve_with_host("org.fiex.mock", |method, value: Value, host| match method {
         "mock.echo" => Ok(json!({"echo": value})),
+        "mock.exec" => {
+            let result = host.invoke(
+                "host.exec",
+                json!({"command": "git", "args": ["--version"]}),
+            )?;
+            Ok(json!({"stdout": result["stdout"]}))
+        }
         "search.query" => Ok(json!({
             "entries": [{
                 "path": "/tmp/fiex-mock-search.txt",
