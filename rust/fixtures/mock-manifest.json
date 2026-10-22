@@ -1,0 +1,13 @@
+{
+  "id": "org.fiex.mock",
+  "name": "Core Host IPC Fixture",
+  "version": "0.1.0",
+  "capabilities": [],
+  "entrypoints": {
+    "linux-x86_64": "mock_plugin",
+    "macos-aarch64": "mock_plugin",
+    "macos-x86_64": "mock_plugin",
+    "windows-x86_64": "mock_plugin.exe"
+  },
+  "permissions": {}
+}
