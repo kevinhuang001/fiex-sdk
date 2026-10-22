@@ -178,14 +178,14 @@ python sdk/rust/examples/check_plugin.py --binary target/debug/fiex-plugin-hello
 测试器会依次做：
 
 1. 启动你刚刚编译出来的可执行文件。
-2. 发起 `plugin.initialize` 握手，协议版本为 `1.0`。
+2. 发起 `plugin.initialize` 握手，协议版本为 `2.0`。
 3. 调用 `hello.greet`，默认发送 `{"name":"新手"}`。
 4. 发起 `plugin.shutdown` 并确认正常退出。
 
 成功时类似这样：
 
 ```text
-✅ 初始化成功： {'pluginId': 'org.example.hello', 'protocolVersion': '1.0', 'ready': True}
+✅ 初始化成功： {'pluginId': 'org.example.hello', 'protocolVersion': '2.0', 'ready': True}
 ✅ 方法调用成功： {"message": "你好，新手！"}
 ✅ 正常退出，三项检查全部通过
 ```
@@ -210,7 +210,7 @@ python sdk/rust/examples/check_plugin.py --binary target/debug/fiex-plugin-hello
   "id": "org.example.hello",
   "name": "Hello Fiex",
   "version": "0.1.0",
-  "protocolVersion": "1.0",
+  "protocolVersion": "2.0",
   "capabilities": ["commands", "toolbar"],
   "entrypoints": {
     "windows-x86_64": "fiex-plugin-hello.exe"
@@ -403,7 +403,7 @@ SDK 当前公开的关键接口：
 
 - **所有插件都需要授权。** Fiex 官方与第三方插件没有权限特权，也不使用插件签名来免除授权。
 - **Native 独立进程不等于操作系统沙箱。** 当前宿主 API 会检查授权，但原生插件仍可能直接访问操作系统允许当前用户访问的文件和网络。只运行信任来源的插件。
-- SDK 处理 `Content-Length` + JSON-RPC 2.0 的 stdin/stdout 协议，当前协议版本 `1.0`，单帧最大 **4 MiB**；不要把大文件直接放入 JSON 返回值。
+- SDK 处理 `Content-Length` + JSON-RPC 2.0 的 stdin/stdout 协议，当前协议版本 `2.0`，单帧最大 **4 MiB**；不要把大文件直接放入 JSON 返回值。
 - 复杂插件的 UI、连接、远程文件系统、取消、流式传输和缓存/同步有各自的职责；**不要把 Fiex Core 的设计提案中的拟议代码当作当前已发布 SDK API。**
 
 ### 继续学习

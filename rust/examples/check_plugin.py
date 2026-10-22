@@ -82,7 +82,7 @@ def main():
     ) as proc:
         try:
             initialized = request(
-                proc, 1, "plugin.initialize", {"protocolVersion": "1.0"}
+                proc, 1, "plugin.initialize", {"protocolVersion": "2.0"}
             )
             if initialized.get("result", {}).get("pluginId") != args.plugin_id:
                 raise RuntimeError(f"插件初始化失败或 ID 不匹配：{initialized!r}")
