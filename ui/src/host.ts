@@ -7,6 +7,7 @@ export type HostSession = {
   frame: HTMLIFrameElement
   allowedMethods: ReadonlySet<string>
   dispatch(method: string, params: unknown): Promise<JsonValue>
+  onReady?: () => void
 }
 export function attachFiexPanel(session: HostSession): () => void {
   const target = session.frame.contentWindow
@@ -34,6 +35,7 @@ export function attachFiexPanel(session: HostSession): () => void {
       if (msg.type === 'fiex.bridge.ready' && msg.nonce === nonce && msg.bridgeVersion === '1.0') {
         ready = true
         clearTimeout(timer)
+        session.onReady?.()
       } else dispose()
       return
     }
