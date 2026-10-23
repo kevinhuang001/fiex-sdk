@@ -141,3 +141,28 @@ pub struct ProcessResult {
     #[serde(default)]
     pub stdout_size: Option<usize>,
 }
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct HttpResponse {
+    pub status: u16,
+    #[serde(default)]
+    pub headers: std::collections::BTreeMap<String, String>,
+    #[serde(default)]
+    pub body: String,
+    #[serde(default)]
+    pub body_buffer: Option<BufferDescriptor>,
+    #[serde(default)]
+    pub body_size: usize,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct TcpStreamHandle {
+    pub stream: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct TcpRead {
+    pub buffer: Option<BufferDescriptor>,
+    pub size: usize,
+    pub eof: bool,
+}

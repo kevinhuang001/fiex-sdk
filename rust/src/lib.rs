@@ -132,6 +132,41 @@ pub fn write_frame(writer: &mut impl Write, value: &Value) -> io::Result<()> {
 /// identifier is accepted from a request body.
 pub trait HostServices {
     fn invoke(&mut self, method: &str, params: Value) -> Result<Value, RpcError>;
+    fn http_request(
+        &mut self,
+        url: &str,
+        method: &str,
+        headers: &std::collections::BTreeMap<String, String>,
+        body: Option<&str>,
+    ) -> Result<crate::ipc::HttpResponse, RpcError> {
+        let value = self.invoke(
+            "host.net.http",
+            json!({"url": url, "method": method, "headers": headers, "bodyBuffer": body}),
+        )?;
+        serde_json::from_value(value)
+            .map_err(|error| RpcError::internal(format!("invalid HTTP response: {error}")))
+    }
+    fn tcp_open(&mut self, host: &str, port: u16) -> Result<crate::ipc::TcpStreamHandle, RpcError> {
+        let value = self.invoke("host.net.tcp.open", json!({"host": host, "port": port}))?;
+        serde_json::from_value(value)
+            .map_err(|error| RpcError::internal(format!("invalid TCP stream: {error}")))
+    }
+    fn tcp_read(&mut self, stream: &str, size: usize) -> Result<crate::ipc::TcpRead, RpcError> {
+        let value = self.invoke("host.net.tcp.read", json!({"stream": stream, "size": size}))?;
+        serde_json::from_value(value)
+            .map_err(|error| RpcError::internal(format!("invalid TCP read: {error}")))
+    }
+    fn tcp_write(&mut self, stream: &str, buffer: &str) -> Result<(), RpcError> {
+        self.invoke(
+            "host.net.tcp.write",
+            json!({"stream": stream, "buffer": buffer}),
+        )?;
+        Ok(())
+    }
+    fn tcp_close(&mut self, stream: &str) -> Result<(), RpcError> {
+        self.invoke("host.net.tcp.close", json!({"stream": stream}))?;
+        Ok(())
+    }
     fn buffer_create(
         &mut self,
         size: usize,
