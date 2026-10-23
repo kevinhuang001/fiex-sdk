@@ -139,9 +139,25 @@ pub trait HostServices {
         headers: &std::collections::BTreeMap<String, String>,
         body: Option<&str>,
     ) -> Result<crate::ipc::HttpResponse, RpcError> {
+        self.http_request_with_options(url, method, headers, body, false)
+    }
+    fn http_request_with_options(
+        &mut self,
+        url: &str,
+        method: &str,
+        headers: &std::collections::BTreeMap<String, String>,
+        body: Option<&str>,
+        allow_invalid_certs: bool,
+    ) -> Result<crate::ipc::HttpResponse, RpcError> {
         let value = self.invoke(
             "host.net.http",
-            json!({"url": url, "method": method, "headers": headers, "bodyBuffer": body}),
+            json!({
+                "url": url,
+                "method": method,
+                "headers": headers,
+                "bodyBuffer": body,
+                "allowInvalidCerts": allow_invalid_certs
+            }),
         )?;
         serde_json::from_value(value)
             .map_err(|error| RpcError::internal(format!("invalid HTTP response: {error}")))
