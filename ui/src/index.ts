@@ -204,14 +204,19 @@ export class FiexUiClient {
   get tasks() {
     return {
       list: () => this.invoke('tasks.list'),
-      create: (title: string, options: { detail?: string; progress?: number } = {}) =>
-        this.invoke<{ taskId: string }>('tasks.create', { title, ...options }),
+      create: (
+        title: string,
+        options: { detail?: string; progress?: number; indeterminate?: boolean } = {},
+      ) => this.invoke<{ taskId: string }>('tasks.create', { title, ...options }),
+      spinner: (title: string, options: { detail?: string } = {}) =>
+        this.invoke<{ taskId: string }>('tasks.spinner', { title, ...options }),
       update: (
         taskId: string,
         patch: {
           label?: string
           detail?: string
           progress?: number
+          indeterminate?: boolean
           done?: number
           total?: number
           step?: string
