@@ -179,6 +179,27 @@ pub trait HostServices {
         Ok(())
     }
 
+    /// Record a failure the host would otherwise never see: background work,
+    /// a partial success, or a renderer that kept running after a response.
+    /// Synchronous failures should return `Err(RpcError)` instead; Core records
+    /// those automatically at the invoke boundary.
+    ///
+    /// Best effort: the host caps reports per plugin per minute and silently
+    /// drops the excess, so this never fails the plugin.
+    fn report_error(
+        &mut self,
+        code: &str,
+        message: &str,
+        detail: Option<&str>,
+    ) -> Result<(), RpcError> {
+        let mut params = json!({"code": code, "message": message});
+        if let Some(detail) = detail {
+            params["detail"] = json!(detail);
+        }
+        self.invoke("host.error.report", params)?;
+        Ok(())
+    }
+
     fn invoke(&mut self, method: &str, params: Value) -> Result<Value, RpcError>;
     fn http_request(
         &mut self,

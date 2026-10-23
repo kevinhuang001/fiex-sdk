@@ -62,7 +62,38 @@ export class FiexUiClient {
   private readyPromise?: Promise<void>
   private closed = false
   private stopHandshake?: () => void
-  constructor(private readonly timeoutMs = 15000) {}
+  private readonly timeoutMs: number
+  private readonly reportUnhandled: boolean
+  private captured = 0
+  private capturedAt = 0
+  constructor(options: number | { timeoutMs?: number; reportUnhandledErrors?: boolean } = {}) {
+    this.timeoutMs = typeof options === 'number' ? options : (options.timeoutMs ?? 15000)
+    this.reportUnhandled =
+      typeof options === 'number' ? true : (options.reportUnhandledErrors ?? true)
+  }
+
+  /** Failures the host cannot observe: uncaught UI exceptions. Rate limited so a
+   * broken render loop cannot flood the host's diagnostic log. */
+  private installErrorCapture(): void {
+    if (!this.reportUnhandled || typeof window === 'undefined') return
+    const report = (message: string, detail?: string) => {
+      const now = Date.now()
+      if (this.closed || this.captured >= 5 || now - this.capturedAt < 1000) return
+      this.captured += 1
+      this.capturedAt = now
+      void this.errors.report(message, detail).catch(() => {})
+    }
+    window.addEventListener('error', (event) => {
+      report(event.message || 'Uncaught error', event.error?.stack)
+    })
+    window.addEventListener('unhandledrejection', (event) => {
+      const reason = event.reason as { message?: unknown; stack?: unknown } | undefined
+      report(
+        String(reason?.message ?? event.reason ?? 'Unhandled rejection'),
+        String(reason?.stack ?? ''),
+      )
+    })
+  }
 
   /** The host sends fiex.bridge.init with a transferred MessagePort after frame load. */
   ready(): Promise<void> {
@@ -107,6 +138,7 @@ export class FiexUiClient {
           nonce: d.nonce,
           bridgeVersion: '1.0',
         })
+        this.installErrorCapture()
         resolve()
       }
       this.stopHandshake = () => {
@@ -291,6 +323,14 @@ export class FiexUiClient {
     return {
       resize: (width: number, height: number) => this.invoke('panel.resize', { width, height }),
       close: () => this.invoke('panel.close'),
+    }
+  }
+  /** Report a failure the host cannot see (for example a failed render).
+   * Transport, process and RPC errors are recorded by Core automatically. */
+  get errors() {
+    return {
+      report: (message: string, detail?: string) =>
+        this.invoke('plugin.error', { message, detail }).catch(() => null as null),
     }
   }
   get theme() {
