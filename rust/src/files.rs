@@ -67,6 +67,7 @@ impl<'a> FileSystem<'a> {
             path: path.into(),
             offset: 0,
             length: entry.size,
+            cache: ReadCache::default(),
         })
     }
     pub fn begin_write(&self, path: &str, create: bool) -> io::Result<FileWriter<'_, 'a>> {
@@ -79,6 +80,8 @@ impl<'a> FileSystem<'a> {
             host: &self.host,
             handle,
             finished: false,
+            pending: Vec::with_capacity(CHUNK),
+            failed: false,
         })
     }
     pub fn write(&self, path: &str, bytes: &[u8]) -> io::Result<()> {
@@ -98,28 +101,19 @@ pub struct FileReader<'h, 'a> {
     path: String,
     offset: u64,
     length: u64,
+    cache: ReadCache,
 }
 impl Read for FileReader<'_, '_> {
     fn read(&mut self, output: &mut [u8]) -> io::Result<usize> {
         if output.is_empty() {
             return Ok(0);
         }
-        let size = output.len().min(CHUNK);
-        let chunk = self
-            .host
-            .borrow_mut()
-            .fs_read_chunk(&self.path, self.offset, size)
-            .map_err(io_error)?;
-        let data = STANDARD.decode(&chunk.base64).map_err(io::Error::other)?;
-        if data.len() > size || data.len() != chunk.size {
-            return Err(io::Error::other("invalid file chunk size"));
-        }
-        output[..data.len()].copy_from_slice(&data);
-        self.offset = self
-            .offset
-            .checked_add(data.len() as u64)
-            .ok_or_else(|| io::Error::other("file offset overflow"))?;
-        Ok(data.len())
+        self.cache.read(
+            &mut **self.host.borrow_mut(),
+            &self.path,
+            &mut self.offset,
+            output,
+        )
     }
 }
 impl Seek for FileReader<'_, '_> {
@@ -142,9 +136,12 @@ pub struct FileWriter<'h, 'a> {
     host: &'h RefCell<&'a mut dyn HostServices>,
     handle: String,
     finished: bool,
+    pending: Vec<u8>,
+    failed: bool,
 }
 impl FileWriter<'_, '_> {
     pub fn commit(mut self) -> io::Result<()> {
+        self.flush()?;
         self.host
             .borrow_mut()
             .fs_commit(&self.handle)
@@ -155,22 +152,28 @@ impl FileWriter<'_, '_> {
 }
 impl Write for FileWriter<'_, '_> {
     fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
-        let size = bytes.len().min(CHUNK);
-        if size == 0 {
-            return Ok(0);
+        if self.failed {
+            return Err(io::Error::other("transaction failed"));
         }
-        self.host
-            .borrow_mut()
-            .fs_write_chunk(&self.handle, &STANDARD.encode(&bytes[..size]))
-            .map_err(io_error)?;
+        if self.pending.len() == CHUNK {
+            self.flush()?;
+        }
+        let size = bytes.len().min(CHUNK - self.pending.len());
+        self.pending.extend_from_slice(&bytes[..size]);
         Ok(size)
     }
     fn flush(&mut self) -> io::Result<()> {
-        Ok(())
+        flush_pending(
+            &mut **self.host.borrow_mut(),
+            &self.handle,
+            &mut self.pending,
+            &mut self.failed,
+        )
     }
 }
 impl Seek for FileWriter<'_, '_> {
     fn seek(&mut self, position: SeekFrom) -> io::Result<u64> {
+        self.flush()?;
         let (kind, offset) = match position {
             SeekFrom::Start(n) => ("start", n as i128),
             SeekFrom::Current(n) => ("current", n as i128),
@@ -206,6 +209,7 @@ pub struct OwnedFileReader {
     path: String,
     offset: u64,
     length: u64,
+    cache: ReadCache,
 }
 impl OwnedFileReader {
     pub fn open(mut host: crate::worker::HostProxy, path: &str) -> io::Result<Self> {
@@ -218,6 +222,7 @@ impl OwnedFileReader {
             path: path.into(),
             offset: 0,
             length: metadata.size,
+            cache: ReadCache::default(),
         })
     }
 }
@@ -226,17 +231,8 @@ impl Read for OwnedFileReader {
         if output.is_empty() {
             return Ok(0);
         }
-        let chunk = self
-            .host
-            .fs_read_chunk(&self.path, self.offset, output.len().min(CHUNK))
-            .map_err(io_error)?;
-        let bytes = STANDARD.decode(chunk.base64).map_err(io::Error::other)?;
-        if bytes.len() > output.len() || bytes.len() != chunk.size {
-            return Err(io::Error::other("invalid file chunk"));
-        }
-        output[..bytes.len()].copy_from_slice(&bytes);
-        self.offset = self.offset.saturating_add(bytes.len() as u64);
-        Ok(bytes.len())
+        self.cache
+            .read(&mut self.host, &self.path, &mut self.offset, output)
     }
 }
 impl Seek for OwnedFileReader {
@@ -256,6 +252,8 @@ pub struct OwnedFileWriter {
     host: crate::worker::HostProxy,
     handle: String,
     finished: bool,
+    pending: Vec<u8>,
+    failed: bool,
 }
 impl OwnedFileWriter {
     pub fn create(mut host: crate::worker::HostProxy, path: &str) -> io::Result<Self> {
@@ -264,9 +262,12 @@ impl OwnedFileWriter {
             host,
             handle,
             finished: false,
+            pending: Vec::with_capacity(CHUNK),
+            failed: false,
         })
     }
     pub fn commit(mut self) -> io::Result<()> {
+        self.flush()?;
         self.host.fs_commit(&self.handle).map_err(io_error)?;
         self.finished = true;
         Ok(())
@@ -274,16 +275,23 @@ impl OwnedFileWriter {
 }
 impl Write for OwnedFileWriter {
     fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
-        let size = bytes.len().min(CHUNK);
-        if size > 0 {
-            self.host
-                .fs_write_chunk(&self.handle, &STANDARD.encode(&bytes[..size]))
-                .map_err(io_error)?;
+        if self.failed {
+            return Err(io::Error::other("transaction failed"));
         }
+        if self.pending.len() == CHUNK {
+            self.flush()?;
+        }
+        let size = bytes.len().min(CHUNK - self.pending.len());
+        self.pending.extend_from_slice(&bytes[..size]);
         Ok(size)
     }
     fn flush(&mut self) -> io::Result<()> {
-        Ok(())
+        flush_pending(
+            &mut self.host,
+            &self.handle,
+            &mut self.pending,
+            &mut self.failed,
+        )
     }
 }
 impl Drop for OwnedFileWriter {
@@ -292,4 +300,62 @@ impl Drop for OwnedFileWriter {
             let _ = self.host.fs_abort(&self.handle);
         }
     }
+}
+
+// One bounded read-ahead window per reader. Seek within it requires no RPC.
+#[derive(Default)]
+struct ReadCache {
+    start: u64,
+    bytes: Vec<u8>,
+}
+impl ReadCache {
+    fn read(
+        &mut self,
+        host: &mut dyn HostServices,
+        path: &str,
+        offset: &mut u64,
+        output: &mut [u8],
+    ) -> io::Result<usize> {
+        if output.is_empty() {
+            return Ok(0);
+        }
+        let cached = offset
+            .checked_sub(self.start)
+            .and_then(|n| usize::try_from(n).ok());
+        if !cached.is_some_and(|n| n < self.bytes.len()) {
+            let chunk = host.fs_read_chunk(path, *offset, CHUNK).map_err(io_error)?;
+            let bytes = STANDARD.decode(&chunk.base64).map_err(io::Error::other)?;
+            if bytes.len() > CHUNK || bytes.len() != chunk.size {
+                return Err(io::Error::other("invalid file chunk size"));
+            }
+            self.start = *offset;
+            self.bytes = bytes;
+        }
+        let start = (*offset - self.start) as usize;
+        let size = output.len().min(self.bytes.len() - start);
+        output[..size].copy_from_slice(&self.bytes[start..start + size]);
+        *offset = offset
+            .checked_add(size as u64)
+            .ok_or_else(|| io::Error::other("file offset overflow"))?;
+        Ok(size)
+    }
+}
+fn flush_pending(
+    host: &mut dyn HostServices,
+    handle: &str,
+    pending: &mut Vec<u8>,
+    failed: &mut bool,
+) -> io::Result<()> {
+    if *failed {
+        return Err(io::Error::other("transaction failed"));
+    }
+    if pending.is_empty() {
+        return Ok(());
+    }
+    if let Err(error) = host.fs_write_chunk(handle, &STANDARD.encode(&*pending)) {
+        *failed = true;
+        return Err(io_error(error));
+    }
+    pending.clear();
+    Ok(())
 }

@@ -144,3 +144,90 @@ fn http_json_is_a_regular_convenience_method() {
         .unwrap();
     assert_eq!(value["ok"], true);
 }
+
+#[test]
+fn small_reads_and_writes_are_batched_and_seek_uses_cached_bytes() {
+    struct Counting {
+        host: Host,
+        reads: usize,
+        writes: usize,
+    }
+    impl HostServices for Counting {
+        fn invoke(&mut self, method: &str, p: Value) -> Result<Value, RpcError> {
+            if method == "host.fs.readChunk" {
+                self.reads += 1;
+            }
+            if method == "host.fs.writeChunk" {
+                self.writes += 1;
+            }
+            self.host.invoke(method, p)
+        }
+    }
+    let mut host = Counting {
+        host: Host {
+            bytes: vec![42; 65536],
+            ..Default::default()
+        },
+        reads: 0,
+        writes: 0,
+    };
+    {
+        let service: &mut dyn HostServices = &mut host;
+        let files = service.files();
+        let mut reader = files.open_read("file").unwrap();
+        for _ in 0..1000 {
+            let mut byte = [0];
+            reader.read_exact(&mut byte).unwrap();
+            assert_eq!(byte, [42]);
+        }
+        reader.seek(SeekFrom::Start(3)).unwrap();
+        let mut byte = [0];
+        reader.read_exact(&mut byte).unwrap();
+        let mut writer = files.begin_write("out", true).unwrap();
+        for _ in 0..1000 {
+            writer.write_all(b"x").unwrap();
+        }
+        writer.commit().unwrap();
+    }
+    assert_eq!(host.reads, 1, "small reads must not incur one IPC each");
+    assert_eq!(host.writes, 1, "small writes must coalesce until commit");
+    assert_eq!(host.host.bytes, vec![b'x'; 1000]);
+}
+
+#[test]
+fn failed_flush_cannot_be_committed_or_retried_as_a_duplicate_write() {
+    struct Failing {
+        attempts: usize,
+        aborted: bool,
+    }
+    impl HostServices for Failing {
+        fn invoke(&mut self, method: &str, _: Value) -> Result<Value, RpcError> {
+            match method {
+                "host.fs.beginWrite" => Ok(json!("write")),
+                "host.fs.writeChunk" => {
+                    self.attempts += 1;
+                    Err(RpcError::internal("connection lost"))
+                }
+                "host.fs.abort" => {
+                    self.aborted = true;
+                    Ok(Value::Null)
+                }
+                _ => panic!("unexpected {method}"),
+            }
+        }
+    }
+    let mut host = Failing {
+        attempts: 0,
+        aborted: false,
+    };
+    {
+        let service: &mut dyn HostServices = &mut host;
+        let files = service.files();
+        let mut writer = files.begin_write("out", true).unwrap();
+        writer.write_all(b"hello").unwrap();
+        assert!(writer.flush().is_err());
+        assert!(writer.commit().is_err());
+    }
+    assert_eq!(host.attempts, 1);
+    assert!(host.aborted);
+}
