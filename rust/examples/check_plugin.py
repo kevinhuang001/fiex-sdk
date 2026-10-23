@@ -56,6 +56,12 @@ def request(proc, request_id, method, params):
 
 
 def main():
+    # GitHub Actions on Windows uses a legacy console encoding by default.
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except AttributeError:
+        pass
     parser = argparse.ArgumentParser(description="Fiex 原生插件的最简进程测试")
     parser.add_argument("--binary", required=True, help="cargo build 生成的可执行文件路径")
     parser.add_argument("--plugin-id", required=True, help="应与 sdk::serve 的 ID 一致")
