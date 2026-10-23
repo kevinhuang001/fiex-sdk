@@ -195,39 +195,6 @@ impl<R: BufRead, W: Write> HostServices for HostClient<'_, R, W> {
 /// services through the provided HostClient.
 pub fn serve_with_host(
     plugin_id: &str,
-    dispatch: impl FnMut(&str, Value, &mut dyn HostServices) -> Result<Value, RpcError>,
-) -> io::Result<()> {
-    serve_loop(plugin_id, None, dispatch)
-}
-
-/// Serve the plugin and return its embedded manifest during `plugin.initialize`.
-///
-/// The manifest should come from `include_str!("../manifest.json")`, so the
-/// executable and the host can prove they are running the same package.
-pub fn serve_with_manifest(
-    plugin_id: &str,
-    manifest_json: &str,
-    mut dispatch: impl FnMut(&str, Value) -> Result<Value, RpcError>,
-) -> io::Result<()> {
-    serve_with_manifest_and_host(plugin_id, manifest_json, |method, params, _host| {
-        dispatch(method, params)
-    })
-}
-
-/// Host-aware variant of [`serve_with_manifest`].
-pub fn serve_with_manifest_and_host(
-    plugin_id: &str,
-    manifest_json: &str,
-    dispatch: impl FnMut(&str, Value, &mut dyn HostServices) -> Result<Value, RpcError>,
-) -> io::Result<()> {
-    let manifest = serde_json::from_str::<Value>(manifest_json)
-        .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?;
-    serve_loop(plugin_id, Some(manifest), dispatch)
-}
-
-fn serve_loop(
-    plugin_id: &str,
-    manifest: Option<Value>,
     mut dispatch: impl FnMut(&str, Value, &mut dyn HostServices) -> Result<Value, RpcError>,
 ) -> io::Result<()> {
     let stdin = io::stdin();
@@ -248,15 +215,9 @@ fn serve_loop(
                     Err(RpcError::invalid_params("unsupported protocol version"))
                 } else {
                     initialized = true;
-                    let mut result = json!({
-                        "pluginId": plugin_id,
-                        "protocolVersion": PROTOCOL_VERSION,
-                        "ready": true
-                    });
-                    if let Some(manifest) = &manifest {
-                        result["manifest"] = manifest.clone();
-                    }
-                    Ok(result)
+                    Ok(
+                        json!({"pluginId":plugin_id,"protocolVersion":PROTOCOL_VERSION,"ready":true}),
+                    )
                 }
             }
             "plugin.ping" if initialized => Ok(json!({"alive":true})),
