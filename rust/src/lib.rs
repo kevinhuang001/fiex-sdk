@@ -132,14 +132,6 @@ pub fn write_frame(writer: &mut impl Write, value: &Value) -> io::Result<()> {
 /// identifier is accepted from a request body.
 pub trait HostServices {
     fn invoke(&mut self, method: &str, params: Value) -> Result<Value, RpcError>;
-    fn current_directory(&mut self) -> Result<String, RpcError> {
-        Ok(self
-            .invoke("host.process.cwd", json!({}))?
-            .get("path")
-            .and_then(Value::as_str)
-            .unwrap_or_default()
-            .to_owned())
-    }
     fn buffer_create(
         &mut self,
         size: usize,
