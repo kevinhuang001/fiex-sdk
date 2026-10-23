@@ -3,6 +3,8 @@
 //! Never use stdout for logging; stderr is available for diagnostics.
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+pub mod ipc;
+
 use std::io::{self, BufRead, BufReader, Write};
 
 pub const PROTOCOL_VERSION: &str = "2.0";
@@ -130,6 +132,27 @@ pub fn write_frame(writer: &mut impl Write, value: &Value) -> io::Result<()> {
 /// identifier is accepted from a request body.
 pub trait HostServices {
     fn invoke(&mut self, method: &str, params: Value) -> Result<Value, RpcError>;
+    fn buffer_create(
+        &mut self,
+        size: usize,
+        writable: bool,
+    ) -> Result<crate::ipc::BufferDescriptor, RpcError> {
+        let value = self.invoke(
+            "host.buffer.create",
+            json!({"size": size, "writable": writable}),
+        )?;
+        serde_json::from_value(value)
+            .map_err(|error| RpcError::internal(format!("invalid buffer descriptor: {error}")))
+    }
+    fn buffer_map(&mut self, id: &str) -> Result<crate::ipc::BufferDescriptor, RpcError> {
+        let value = self.invoke("host.buffer.map", json!({"id": id}))?;
+        serde_json::from_value(value)
+            .map_err(|error| RpcError::internal(format!("invalid buffer descriptor: {error}")))
+    }
+    fn buffer_release(&mut self, id: &str) -> Result<(), RpcError> {
+        self.invoke("host.buffer.release", json!({"id": id}))?;
+        Ok(())
+    }
     fn storage_get(&mut self, scope: &str, key: &str) -> Result<Value, RpcError> {
         self.invoke("host.storage.get", json!({"scope":scope,"key":key}))
     }
