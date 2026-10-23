@@ -10,6 +10,36 @@ fn main() {
             )),
             Err(error) => Ok(json!({"blocked": true, "error": error.to_string()})),
         },
+        "mock.directFile" => {
+            let path = value
+                .get("path")
+                .and_then(Value::as_str)
+                .ok_or_else(|| RpcError::invalid_params("missing path"))?;
+            match std::fs::read(path) {
+                Ok(_) => Err(RpcError::internal("plugin directly read a user file")),
+                Err(error) => Ok(json!({"blocked":true,"error":error.to_string()})),
+            }
+        }
+        "mock.directNet" => {
+            let address = value
+                .get("address")
+                .and_then(Value::as_str)
+                .ok_or_else(|| RpcError::invalid_params("missing address"))?;
+            match std::net::TcpStream::connect(address) {
+                Ok(_) => Err(RpcError::internal("plugin opened a network socket")),
+                Err(error) => Ok(json!({"blocked":true,"error":error.to_string()})),
+            }
+        }
+        "mock.readFile" => {
+            let path = value
+                .get("path")
+                .and_then(Value::as_str)
+                .ok_or_else(|| RpcError::invalid_params("missing path"))?;
+            let files = host.files();
+            Ok(json!(files
+                .read_to_string(path)
+                .map_err(|e| RpcError::internal(e.to_string()))?))
+        }
         "mock.exec" => {
             let result = host.invoke(
                 "host.exec",

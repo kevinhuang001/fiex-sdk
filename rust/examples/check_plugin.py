@@ -56,6 +56,12 @@ def request(proc, request_id, method, params):
 
 
 def main():
+    # GitHub Actions on Windows uses a legacy console encoding by default.
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except AttributeError:
+        pass
     parser = argparse.ArgumentParser(description="Fiex 原生插件的最简进程测试")
     parser.add_argument("--binary", required=True, help="cargo build 生成的可执行文件路径")
     parser.add_argument("--plugin-id", required=True, help="应与 sdk::serve 的 ID 一致")
@@ -86,12 +92,12 @@ def main():
             )
             if initialized.get("result", {}).get("pluginId") != args.plugin_id:
                 raise RuntimeError(f"插件初始化失败或 ID 不匹配：{initialized!r}")
-            print("✅ 初始化成功：", initialized["result"])
+            print("[OK] 初始化成功：", initialized["result"])
 
             answer = request(proc, 2, args.method, params)
             if "error" in answer:
                 raise RuntimeError(f"方法调用失败：{answer['error']!r}")
-            print("✅ 方法调用成功：", json.dumps(
+            print("[OK] 方法调用成功：", json.dumps(
                 answer["result"], ensure_ascii=False
             ))
 
@@ -101,9 +107,9 @@ def main():
             proc.stdin.close()
             if proc.wait(timeout=10) != 0:
                 raise RuntimeError(f"插件退出码为 {proc.returncode}")
-            print("✅ 正常退出，三项检查全部通过")
+            print("[OK] 正常退出，三项检查全部通过")
         except Exception as exc:
-            print(f"❌ 测试失败：{exc}", file=sys.stderr)
+            print(f"[FAIL] 测试失败：{exc}", file=sys.stderr)
             if proc.poll() is None:
                 proc.kill()
                 proc.wait()

@@ -9,3 +9,5 @@ description = "Standalone native process protocol SDK for Fiex plugins"
 [dependencies]
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+shared_memory = "0.12"
+base64 = "0.22"

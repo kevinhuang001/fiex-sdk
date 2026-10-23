@@ -28,10 +28,16 @@ type BridgeEvent = {
   payload: JsonValue
 }
 export type ExplorerContext = {
-  directory?: ResourceRef
-  selection: ResourceRef[]
+  directoryPath: string
+  selectionPaths: string[]
   windowId?: string
   paneId?: string
+  /** Contribution id that opened this panel; lets one panel serve several
+   * toolbar or context-menu entries without duplicating its HTML. */
+  panelId?: string
+  panelTitle?: string
+  /** How the panel was opened. */
+  source?: 'toolbar' | 'contextMenu'
 }
 export class FiexBridgeError extends Error {
   constructor(
@@ -54,10 +60,44 @@ export class FiexUiClient {
   private pending = new Map<string, Pending>()
   private listeners = new Map<string, Set<(value: JsonValue) => void>>()
   private readyPromise?: Promise<void>
-  constructor(private readonly timeoutMs = 15000) {}
+  private closed = false
+  private stopHandshake?: () => void
+  private readonly timeoutMs: number
+  private readonly reportUnhandled: boolean
+  private captured = 0
+  private capturedAt = 0
+  constructor(options: number | { timeoutMs?: number; reportUnhandledErrors?: boolean } = {}) {
+    this.timeoutMs = typeof options === 'number' ? options : (options.timeoutMs ?? 15000)
+    this.reportUnhandled =
+      typeof options === 'number' ? true : (options.reportUnhandledErrors ?? true)
+  }
+
+  /** Failures the host cannot observe: uncaught UI exceptions. Rate limited so a
+   * broken render loop cannot flood the host's diagnostic log. */
+  private installErrorCapture(): void {
+    if (!this.reportUnhandled || typeof window === 'undefined') return
+    const report = (message: string, detail?: string) => {
+      const now = Date.now()
+      if (this.closed || this.captured >= 5 || now - this.capturedAt < 1000) return
+      this.captured += 1
+      this.capturedAt = now
+      void this.errors.report(message, detail).catch(() => {})
+    }
+    window.addEventListener('error', (event) => {
+      report(event.message || 'Uncaught error', event.error?.stack)
+    })
+    window.addEventListener('unhandledrejection', (event) => {
+      const reason = event.reason as { message?: unknown; stack?: unknown } | undefined
+      report(
+        String(reason?.message ?? event.reason ?? 'Unhandled rejection'),
+        String(reason?.stack ?? ''),
+      )
+    })
+  }
 
   /** The host sends fiex.bridge.init with a transferred MessagePort after frame load. */
   ready(): Promise<void> {
+    if (this.closed) return Promise.reject(new FiexBridgeError('closed', 'Panel is closed'))
     if (this.readyPromise) return this.readyPromise
     this.readyPromise = new Promise<void>((resolve, reject) => {
       const timeout = setTimeout(() => {
@@ -65,6 +105,10 @@ export class FiexUiClient {
         reject(new FiexBridgeError('timeout', 'Fiex UI Bridge handshake timed out'))
       }, this.timeoutMs)
       const init = (event: MessageEvent) => {
+        if (event.source === window.parent && event.data?.type === 'fiex.bridge.probe') {
+          window.parent.postMessage({ type: 'fiex.bridge.listening' }, '*')
+          return
+        }
         const d = event.data as {
           type?: string
           bridgeVersion?: string
@@ -94,9 +138,16 @@ export class FiexUiClient {
           nonce: d.nonce,
           bridgeVersion: '1.0',
         })
+        this.installErrorCapture()
         resolve()
       }
+      this.stopHandshake = () => {
+        clearTimeout(timeout)
+        window.removeEventListener('message', init)
+        reject(new FiexBridgeError('closed', 'Panel is closed'))
+      }
       window.addEventListener('message', init)
+      window.parent.postMessage({ type: 'fiex.bridge.listening' }, '*')
     })
     return this.readyPromise
   }
@@ -112,13 +163,16 @@ export class FiexUiClient {
       if (msg.error) pending.reject(new FiexBridgeError(msg.error.code, msg.error.message))
       else pending.resolve(msg.result ?? null)
     } else if (msg.type === 'event' && typeof msg.name === 'string') {
+      if (msg.name === 'theme.changed') applyTheme(msg.payload ?? null)
+      if (msg.name === 'panel.visibility')
+        document.documentElement.dataset.panelVisible = String(msg.payload === true)
       this.listeners.get(msg.name)?.forEach((listener) => listener(msg.payload ?? null))
     }
   }
   async invoke<T = JsonValue>(
     method: string,
     params?: unknown,
-    options?: { signal?: AbortSignal },
+    options?: { signal?: AbortSignal; timeoutMs?: number },
   ): Promise<T> {
     await this.ready()
     if (!this.port) throw new FiexBridgeError('closed', 'Panel is closed')
@@ -136,14 +190,14 @@ export class FiexUiClient {
         if (pending) {
           clearTimeout(pending.timer)
           this.pending.delete(requestId)
-          reject(new FiexBridgeError('cancelled', 'Request cancelled'))
+          pending.reject(new FiexBridgeError('cancelled', 'Request cancelled'))
         }
       }
       const timer = setTimeout(() => {
         this.pending.delete(requestId)
         options?.signal?.removeEventListener('abort', abort)
         reject(new FiexBridgeError('timeout', 'Host request timed out'))
-      }, this.timeoutMs)
+      }, options?.timeoutMs ?? this.timeoutMs)
       this.pending.set(requestId, {
         timer,
         resolve: (v) => {
@@ -190,8 +244,13 @@ export class FiexUiClient {
       invoke: <T = JsonValue>(
         command: string,
         args?: JsonValue,
-        options?: { signal?: AbortSignal },
-      ) => this.invoke<T>('plugin.invoke', { command, arguments: args ?? null }, options),
+        options?: { signal?: AbortSignal; timeoutMs?: number },
+      ) =>
+        this.invoke<T>(
+          'plugin.invoke',
+          { method: command, params: args ?? null },
+          { timeoutMs: 120000, ...options },
+        ),
     }
   }
   get vfs() {
@@ -204,14 +263,23 @@ export class FiexUiClient {
   get tasks() {
     return {
       list: () => this.invoke('tasks.list'),
-      create: (title: string, options: { detail?: string; progress?: number } = {}) =>
-        this.invoke<{ taskId: string }>('tasks.create', { title, ...options }),
+      create: (
+        title: string,
+        options: {
+          detail?: string
+          progress?: number
+          indeterminate?: boolean
+        } = {},
+      ) => this.invoke<{ taskId: string }>('tasks.create', { title, ...options }),
+      spinner: (title: string, options: { detail?: string } = {}) =>
+        this.invoke<{ taskId: string }>('tasks.spinner', { title, ...options }),
       update: (
         taskId: string,
         patch: {
           label?: string
           detail?: string
           progress?: number
+          indeterminate?: boolean
           done?: number
           total?: number
           step?: string
@@ -225,10 +293,20 @@ export class FiexUiClient {
   /** Native file chooser is rendered by Fiex, never by plugin HTML. */
   get dialog() {
     return {
-      openFile: (options: { title?: string; directory?: string; extensions?: string[] } = {}) =>
-        this.invoke<string | null>('dialog.openFile', options),
-      openFiles: (options: { title?: string; directory?: string; extensions?: string[] } = {}) =>
-        this.invoke<string[] | null>('dialog.openFiles', options),
+      openFile: (
+        options: {
+          title?: string
+          directory?: string
+          extensions?: string[]
+        } = {},
+      ) => this.invoke<string | null>('dialog.openFile', options),
+      openFiles: (
+        options: {
+          title?: string
+          directory?: string
+          extensions?: string[]
+        } = {},
+      ) => this.invoke<string[] | null>('dialog.openFiles', options),
       openDirectory: (options: { title?: string; directory?: string } = {}) =>
         this.invoke<string | null>('dialog.openDirectory', options),
       saveFile: (
@@ -247,6 +325,14 @@ export class FiexUiClient {
       close: () => this.invoke('panel.close'),
     }
   }
+  /** Report a failure the host cannot see (for example a failed render).
+   * Transport, process and RPC errors are recorded by Core automatically. */
+  get errors() {
+    return {
+      report: (message: string, detail?: string) =>
+        this.invoke('plugin.error', { message, detail }).catch(() => null as null),
+    }
+  }
   get theme() {
     return {
       get: () => this.invoke('theme.get'),
@@ -254,9 +340,14 @@ export class FiexUiClient {
     }
   }
   get events() {
-    return { on: (name: string, h: (v: JsonValue) => void) => this.on(name, h) }
+    return {
+      on: (name: string, h: (v: JsonValue) => void) => this.on(name, h),
+    }
   }
   dispose(reason = 'closed'): void {
+    this.closed = true
+    this.stopHandshake?.()
+    this.stopHandshake = undefined
     this.port?.close()
     this.port = undefined
     for (const pending of this.pending.values()) {
@@ -268,3 +359,23 @@ export class FiexUiClient {
   }
 }
 export const fiex = new FiexUiClient()
+
+export type ThemeSnapshot = {
+  mode: 'light' | 'dark'
+  tokens: Record<string, string>
+}
+export function applyTheme(value: JsonValue): void {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return
+  const theme = value as unknown as ThemeSnapshot
+  if (theme.mode !== 'dark' && theme.mode !== 'light') return
+  document.documentElement.style.colorScheme = theme.mode
+  document.documentElement.classList.toggle('dark', theme.mode === 'dark')
+  for (const [key, token] of Object.entries(theme.tokens || {})) {
+    if (
+      /^[a-z][a-z0-9-]*$/.test(key) &&
+      typeof token === 'string' &&
+      !/[;{}]|url\s*\(/i.test(token)
+    )
+      document.documentElement.style.setProperty('--' + key, token)
+  }
+}
