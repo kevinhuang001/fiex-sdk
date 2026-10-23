@@ -32,6 +32,12 @@ export type ExplorerContext = {
   selectionPaths: string[]
   windowId?: string
   paneId?: string
+  /** Contribution id that opened this panel; lets one panel serve several
+   * toolbar or context-menu entries without duplicating its HTML. */
+  panelId?: string
+  panelTitle?: string
+  /** How the panel was opened. */
+  source?: 'toolbar' | 'contextMenu'
 }
 export class FiexBridgeError extends Error {
   constructor(
