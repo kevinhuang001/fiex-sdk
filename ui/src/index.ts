@@ -191,7 +191,7 @@ export class FiexUiClient {
         command: string,
         args?: JsonValue,
         options?: { signal?: AbortSignal },
-      ) => this.invoke<T>('plugin.invoke', { command, arguments: args ?? null }, options),
+      ) => this.invoke<T>('plugin.invoke', { method: command, params: args ?? null }, options),
     }
   }
   get vfs() {

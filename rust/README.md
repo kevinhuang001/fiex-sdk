@@ -6,6 +6,59 @@
 
 [返回 SDK 首页](../README.md) · [实际可用的最小示例](examples/mock_plugin.rs) · [真实进程测试工具](examples/check_plugin.py) · [官方插件源码](https://github.com/kevinhuang001/fiex-official-plugins)
 
+## 文件和网络：直接用这些接口
+
+插件不能自己调用 `std::fs`、建立 Socket 或启动子进程。用户在 Fiex 中激活插件并逐项同意后，由 Core 代为访问资源。SDK 已经处理分块和 IPC，不需要学习 buffer 或共享内存。
+
+在 `serve_with_host` 的回调里使用：
+
+```rust,no_run
+# use fiex_plugin_sdk::{HostServices, RpcError};
+# fn example(host: &mut dyn HostServices) -> Result<(), Box<dyn std::error::Error>> {
+let files = host.files();
+let text = files.read_to_string("notes.txt")?;
+let bytes = files.read("photo.png")?;
+files.write("notes.txt", b"updated")?; // 修改已有文件
+files.create("new.txt", b"hello")?;   // 创建新文件，已存在则报错
+# Ok(()) }
+```
+
+大文件使用标准 Rust 流式接口，内存占用不会随文件大小增长：
+
+```rust,no_run
+# use fiex_plugin_sdk::HostServices;
+# use std::io::Write;
+# fn example(host: &mut dyn HostServices) -> Result<(), Box<dyn std::error::Error>> {
+let files = host.files();
+let mut input = files.open_read("large.bin")?;
+let mut output = files.begin_write("copy.bin", true)?;
+std::io::copy(&mut input, &mut output)?;
+output.commit()?;
+# Ok(()) }
+```
+
+`begin_write` 后的数据由 Core 暂存。只有 `commit` 成功才会替换目标；原文件发生变化时返回冲突。没有提交就释放 writer，会自动取消暂存。`read` 最多读取 64 MiB；更大文件用 `open_read`。路径限于该任务绑定的目录及其子目录。
+
+HTTP 调用也不接触底层数据缓冲区：
+
+```rust,no_run
+# use fiex_plugin_sdk::HostServices;
+# fn example(host: &mut dyn HostServices) -> Result<(), Box<dyn std::error::Error>> {
+let http = host.http();
+let text = http.get("https://example.com/info").send()?.error_for_status()?.text()?;
+let data: serde_json::Value = http.post("https://example.com/api")
+    .bearer_auth("token")
+    .json(&serde_json::json!({"name": "demo"}))?
+    .send()?.error_for_status()?.json()?;
+# Ok(()) }
+```
+
+可设置 `header`、`timeout`、`basic_auth` 和请求 `body`。HTTP 响应实现 `Read`，可以流式处理下载；`bytes`、`text`、`json` 最多收集 64 MiB，内联请求体最多 1 MiB。重定向由 Core 逐跳校验授权，不会把认证头带到不同来源。
+
+HTTP 和 TCP 共用 manifest 的 `network.domains`，包括精确域名与 IP，不区分 HTTP/TCP 授权。批准主机允许访问其有效端口；localhost 也需要授权。TCP 只用于非 HTTP 协议，提供 `Read`/`Write` 字节流，可在 `worker::with_host_worker` 中接入需要独立拥有传输对象的协议库。
+
+外部命令属于另一种授权：`process_run` 通过 Host 执行 PATH 中已批准的程序。该程序在插件沙箱外以当前用户身份运行，可能访问其他文件、联网或启动其他程序。不要把命令授权理解成文件和网络 SDK 的范围限制。
+
 ## 你最终会做出什么？
 
 我们要做一个叫 **Hello Fiex** 的插件。向它发送 `hello.greet` 命令和名字 `新手`，它会返回：

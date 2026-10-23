@@ -3,7 +3,11 @@
 //! Never use stdout for logging; stderr is available for diagnostics.
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+pub mod files;
+pub mod http;
 pub mod ipc;
+pub mod tcp;
+pub mod worker;
 
 use std::io::{self, BufRead, BufReader, Write};
 
@@ -54,7 +58,11 @@ pub fn read_frame(reader: &mut impl BufRead) -> io::Result<Option<Value>> {
     let mut header_bytes = 0;
     loop {
         let mut line = String::new();
-        let count = reader.read_line(&mut line)?;
+        // Bound the read itself: read_line followed by a length check can
+        // allocate unbounded memory before an attacker sends a newline.
+        let remaining = MAX_HEADER.saturating_sub(header_bytes);
+        let count =
+            std::io::Read::take(reader.by_ref(), (remaining + 1) as u64).read_line(&mut line)?;
         if count == 0 {
             if header_bytes == 0 {
                 return Ok(None);
@@ -131,6 +139,46 @@ pub fn write_frame(writer: &mut impl Write, value: &Value) -> io::Result<()> {
 /// The host binds the request to the authenticated plugin process; no plugin
 /// identifier is accepted from a request body.
 pub trait HostServices {
+    fn worker_proxy(&self) -> Option<crate::worker::HostProxy> {
+        None
+    }
+    /// Binary-safe bounded reads through the host; no local file access.
+    fn fs_read_chunk(
+        &mut self,
+        path: &str,
+        offset: u64,
+        length: usize,
+    ) -> Result<crate::ipc::FileChunk, RpcError> {
+        let value = self.invoke(
+            "host.fs.readChunk",
+            json!({"path": path, "offset": offset, "length": length.min(256 * 1024)}),
+        )?;
+        serde_json::from_value(value).map_err(|error| RpcError::internal(error.to_string()))
+    }
+    fn fs_begin_write(&mut self, path: &str, create: bool) -> Result<String, RpcError> {
+        self.invoke(
+            "host.fs.beginWrite",
+            json!({"path": path, "create": create}),
+        )?
+        .as_str()
+        .map(str::to_owned)
+        .ok_or_else(|| RpcError::internal("missing write handle"))
+    }
+    fn fs_write_chunk(&mut self, handle: &str, base64: &str) -> Result<(), RpcError> {
+        self.invoke(
+            "host.fs.writeChunk",
+            json!({"handle": handle, "base64": base64}),
+        )?;
+        Ok(())
+    }
+    fn fs_commit(&mut self, handle: &str) -> Result<Value, RpcError> {
+        self.invoke("host.fs.commit", json!({"handle": handle}))
+    }
+    fn fs_abort(&mut self, handle: &str) -> Result<(), RpcError> {
+        self.invoke("host.fs.abort", json!({"handle": handle}))?;
+        Ok(())
+    }
+
     fn invoke(&mut self, method: &str, params: Value) -> Result<Value, RpcError>;
     fn http_request(
         &mut self,
@@ -267,8 +315,26 @@ pub trait HostServices {
             "host.process.run",
             json!({"command": command, "args": args, "stdin": stdin}),
         )?;
-        serde_json::from_value(value)
-            .map_err(|error| RpcError::internal(format!("invalid process result: {error}")))
+        let mut result: crate::ipc::ProcessResult = serde_json::from_value(value)
+            .map_err(|error| RpcError::internal(format!("invalid process result: {error}")))?;
+        use base64::Engine;
+        if let Some(encoded) = &result.stdout_base64 {
+            result.stdout = String::from_utf8_lossy(
+                &base64::engine::general_purpose::STANDARD
+                    .decode(encoded)
+                    .map_err(|e| RpcError::internal(e.to_string()))?,
+            )
+            .into_owned();
+        }
+        if let Some(encoded) = &result.stderr_base64 {
+            result.stderr = String::from_utf8_lossy(
+                &base64::engine::general_purpose::STANDARD
+                    .decode(encoded)
+                    .map_err(|e| RpcError::internal(e.to_string()))?,
+            )
+            .into_owned();
+        }
+        Ok(result)
     }
     fn storage_get(&mut self, scope: &str, key: &str) -> Result<Value, RpcError> {
         self.invoke("host.storage.get", json!({"scope":scope,"key":key}))

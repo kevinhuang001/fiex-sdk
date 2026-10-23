@@ -14,17 +14,27 @@
     }
   },
   "permissions": {
-    "filesystem": {
-      "read": false,
-      "write": false
-    },
     "network": {
       "enabled": false,
       "domains": []
     },
     "commands": {
       "enabled": true,
-      "allow": ["git"]
+      "allow": [
+        "git"
+      ]
+    },
+    "folders": {
+      "read": {
+        "enabled": true
+      },
+      "create": true,
+      "delete": false,
+      "rename": false
+    },
+    "files": {
+      "read": true,
+      "write": true
     }
   },
   "contributions": {

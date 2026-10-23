@@ -78,6 +78,16 @@ impl SharedBuffer {
         self.descriptor.size
     }
 
+    /// Host-only initialization; the public descriptor can stay read-only.
+    pub fn fill(&mut self, bytes: &[u8]) -> Result<(), String> {
+        if bytes.len() > self.shmem.len() {
+            return Err("shared buffer is too small".into());
+        }
+        // SAFETY: called by the owner before publishing the buffer.
+        (unsafe { self.shmem.as_slice_mut() })[..bytes.len()].copy_from_slice(bytes);
+        Ok(())
+    }
+
     pub fn as_slice(&self) -> &[u8] {
         // SAFETY: the mapping lives for the lifetime of `self`. The host
         // serializes access through the plugin request boundary.
@@ -115,6 +125,7 @@ mod tests {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Entry {
     pub path: String,
     pub name: String,
@@ -128,6 +139,7 @@ pub struct Entry {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ProcessResult {
     pub code: Option<i32>,
     #[serde(default)]
@@ -140,9 +152,14 @@ pub struct ProcessResult {
     pub stdout_buffer: Option<BufferDescriptor>,
     #[serde(default)]
     pub stdout_size: Option<usize>,
+    #[serde(default)]
+    pub stdout_base64: Option<String>,
+    #[serde(default)]
+    pub stderr_base64: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct HttpResponse {
     pub status: u16,
     #[serde(default)]
@@ -153,6 +170,8 @@ pub struct HttpResponse {
     pub body_buffer: Option<BufferDescriptor>,
     #[serde(default)]
     pub body_size: usize,
+    #[serde(default)]
+    pub body_base64: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -165,4 +184,47 @@ pub struct TcpRead {
     pub buffer: Option<BufferDescriptor>,
     pub size: usize,
     pub eof: bool,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FileChunk {
+    pub base64: String,
+    pub size: usize,
+    pub eof: bool,
+}
+
+#[cfg(test)]
+mod wire_tests {
+    use super::*;
+    #[test]
+    fn host_camel_case_fields_are_preserved() {
+        let response: HttpResponse =
+            serde_json::from_str(r#"{"status":200,"bodySize":3,"bodyBase64":"AP+A"}"#).unwrap();
+        assert_eq!(response.body_size, 3);
+        assert_eq!(response.body_base64.as_deref(), Some("AP+A"));
+        let process: ProcessResult =
+            serde_json::from_str(r#"{"code":0,"stdoutSize":8192}"#).unwrap();
+        assert_eq!(process.stdout_size, Some(8192));
+    }
+    #[test]
+    fn owner_can_initialize_read_only_buffer() {
+        let (mut buffer, descriptor) = SharedBuffer::create(4, false).unwrap();
+        buffer.fill(b"test").unwrap();
+        assert_eq!(buffer.as_slice(), b"test");
+        assert!(!descriptor.writable);
+        assert!(buffer.as_mut_slice().is_err());
+    }
+}
+
+impl ProcessResult {
+    pub fn stdout_bytes(&self) -> Result<Vec<u8>, String> {
+        use base64::Engine;
+        match &self.stdout_base64 {
+            Some(value) => base64::engine::general_purpose::STANDARD
+                .decode(value)
+                .map_err(|e| e.to_string()),
+            None => Ok(self.stdout.as_bytes().to_vec()),
+        }
+    }
 }
