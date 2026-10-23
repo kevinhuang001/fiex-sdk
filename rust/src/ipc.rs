@@ -113,3 +113,31 @@ mod tests {
         assert!(buffer.as_mut_slice().is_err());
     }
 }
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Entry {
+    pub path: String,
+    pub name: String,
+    pub is_dir: bool,
+    pub size: u64,
+    pub modified: u64,
+    pub extension: String,
+    pub mime: String,
+    pub readonly: bool,
+    pub symlink: bool,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ProcessResult {
+    pub code: Option<i32>,
+    #[serde(default)]
+    pub stdout: String,
+    #[serde(default)]
+    pub stderr: String,
+    #[serde(default)]
+    pub truncated: bool,
+    #[serde(default)]
+    pub stdout_buffer: Option<BufferDescriptor>,
+    #[serde(default)]
+    pub stdout_size: Option<usize>,
+}
