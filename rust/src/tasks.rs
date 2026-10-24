@@ -8,7 +8,7 @@ use crate::{
     runtime::session::Session,
     RpcError,
 };
-use serde_json::json;
+use serde_json::{json, Value};
 use std::{
     collections::{HashMap, VecDeque},
     panic::{catch_unwind, AssertUnwindSafe},
@@ -32,7 +32,7 @@ pub enum TaskStatus {
 struct TaskInner {
     status: TaskStatus,
     progress: (u64, Option<u64>),
-    result: Option<Result<(), RpcError>>,
+    result: Option<Result<Value, RpcError>>,
     done: bool,
 }
 
@@ -94,7 +94,7 @@ impl TaskRecord {
         self.inner.lock().map(|inner| inner.done).unwrap_or(true)
     }
 
-    fn complete(&self, status: TaskStatus, result: Result<(), RpcError>) {
+    fn complete(&self, status: TaskStatus, result: Result<Value, RpcError>) {
         if let Ok(mut inner) = self.inner.lock() {
             inner.status = status;
             inner.result = Some(result);
@@ -103,7 +103,7 @@ impl TaskRecord {
         self.changed.notify_all();
     }
 
-    fn wait(&self) -> Result<(), RpcError> {
+    fn wait(&self) -> Result<Value, RpcError> {
         let mut inner = self
             .inner
             .lock()
@@ -157,7 +157,7 @@ impl TaskHandle {
     }
 
     /// Block until the task completes or is cancelled.
-    pub fn wait(&self) -> Result<(), RpcError> {
+    pub fn wait(&self) -> Result<Value, RpcError> {
         self.record.wait()
     }
 }
@@ -185,9 +185,13 @@ impl TaskManager {
         }
     }
 
-    pub(crate) fn spawn<F>(parent: &ContextInner, work: F) -> Result<TaskHandle, RpcError>
+    pub(crate) fn spawn<F>(
+        parent: &ContextInner,
+        label: &str,
+        work: F,
+    ) -> Result<TaskHandle, RpcError>
     where
-        F: FnOnce(TaskContext) -> Result<(), RpcError> + Send + 'static,
+        F: FnOnce(TaskContext) -> Result<Value, RpcError> + Send + 'static,
     {
         let id = {
             let mut state = parent
@@ -219,7 +223,7 @@ impl TaskManager {
             .get(&id)
             .cloned()
             .ok_or_else(|| RpcError::internal("task registration failed"))?;
-        if let Err(error) = parent.call("host.task.start", json!({"taskId": id})) {
+        if let Err(error) = parent.call("host.task.start", json!({"taskId": id, "label": label})) {
             if let Ok(mut state) = parent.tasks().state.lock() {
                 state.tasks.remove(&id);
             }
@@ -235,7 +239,7 @@ impl TaskManager {
             .spawn(move || {
                 let outcome = catch_unwind(AssertUnwindSafe(|| work(task_context)));
                 let result = match outcome {
-                    Ok(Ok(())) => Ok(()),
+                    Ok(Ok(value)) => Ok(value),
                     Ok(Err(error)) => Err(error),
                     Err(_) => Err(RpcError::internal("task panicked")),
                 };
@@ -261,6 +265,7 @@ impl TaskManager {
                     json!({
                         "taskId": record_for_thread.id(),
                         "status": label,
+                        "result": final_result.as_ref().ok(),
                         "error": final_result.as_ref().err().map(|error| error.message.clone()),
                     }),
                 );

@@ -1,12 +1,5 @@
 use fiex_plugin_sdk::{self as sdk, RpcError};
 use serde_json::{json, Value};
-use std::sync::{
-    atomic::{AtomicBool, Ordering},
-    Mutex,
-};
-
-static TASK_DONE: AtomicBool = AtomicBool::new(false);
-static TASK_TEXT: Mutex<String> = Mutex::new(String::new());
 
 fn main() {
     sdk::serve("org.fiex.mock", |ctx| match ctx.method() {
@@ -64,18 +57,10 @@ fn main() {
                     .read_to_string(&path)
                     .map_err(|error| RpcError::internal(error.to_string()))?;
                 task.progress(1, Some(1));
-                *TASK_TEXT
-                    .lock()
-                    .map_err(|_| RpcError::internal("task lock"))? = text;
-                TASK_DONE.store(true, Ordering::Release);
-                Ok(())
+                Ok(json!(text))
             })?;
             Ok(json!({"taskId": task.id()}))
         }
-        "mock.taskResult" => Ok(json!({
-            "done": TASK_DONE.load(Ordering::Acquire),
-            "text": TASK_TEXT.lock().map(|text| text.clone()).unwrap_or_default()
-        })),
         "mock.rendezvous" => {
             use std::sync::{Barrier, OnceLock};
             static BARRIER: OnceLock<Barrier> = OnceLock::new();

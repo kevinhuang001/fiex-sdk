@@ -229,9 +229,9 @@ impl RequestContext {
     /// operation's approved authorization scope but not its request lifetime.
     pub fn spawn_task<F>(&self, work: F) -> Result<TaskHandle, RpcError>
     where
-        F: FnOnce(TaskContext) -> Result<(), RpcError> + Send + 'static,
+        F: FnOnce(TaskContext) -> Result<Value, RpcError> + Send + 'static,
     {
-        TaskManager::spawn(&self.inner, work)
+        TaskManager::spawn(&self.inner, &self.method, work)
     }
 
     pub fn is_cancelled(&self) -> bool {

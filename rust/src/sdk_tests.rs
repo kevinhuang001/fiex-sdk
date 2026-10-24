@@ -518,7 +518,7 @@ fn spawned_task_inherits_authorization_and_reports_completion() {
                 .map_err(|error| RpcError::internal(error.to_string()))?;
             assert_eq!(data, "task data");
             task.progress(2, Some(2));
-            Ok(())
+            Ok(Value::Null)
         })
         .unwrap();
     handle.wait().unwrap();
@@ -548,7 +548,7 @@ fn task_cancellation_is_cooperative_and_reported() {
             while !task.is_cancelled() {
                 std::thread::sleep(Duration::from_millis(1));
             }
-            Ok(())
+            Ok(Value::Null)
         })
         .unwrap();
     handle.cancel();
@@ -575,12 +575,14 @@ fn task_limit_is_enforced() {
                     while !task.is_cancelled() {
                         std::thread::sleep(Duration::from_millis(1));
                     }
-                    Ok(())
+                    Ok(Value::Null)
                 })
                 .unwrap(),
         );
     }
-    assert!(context.spawn_task(|_: TaskContext| Ok(())).is_err());
+    assert!(context
+        .spawn_task(|_: TaskContext| Ok(Value::Null))
+        .is_err());
     for handle in &handles {
         handle.cancel();
     }

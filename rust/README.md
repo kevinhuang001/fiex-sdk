@@ -88,14 +88,14 @@ let task = ctx.spawn_task(|task| {
             return Err(RpcError::cancelled());
         }
     }
-    Ok(())
+    Ok(serde_json::Value::Null)
 })?;
 // 请求可以先返回 task.id()，任务继续在后台运行。
 let _ = task.id();
 # Ok(()) }
 ```
 
-`TaskHandle` 提供 `cancel()`、`is_finished()`、`status()`、`progress()` 和 `wait()`。SDK 默认最多同时运行 8 个后台任务，并在任务完成、取消或失败后通知 Core 回收资源。`ctx.invoke`、`storage_get/set` 和 `secret_get/set` 仍可用于通用宿主能力；但普通插件不需要再接触 `HostProxy`、worker 或 IPC 细节。
+`TaskHandle` 提供 `cancel()`、`is_finished()`、`status()`、`progress()` 和 `wait()`；任务闭包返回的 JSON 可通过 `wait()` 取得最终结果。SDK 默认最多同时运行 8 个后台任务，并在任务完成、取消或失败后通知 Core 回收资源。`ctx.invoke`、`storage_get/set` 和 `secret_get/set` 仍可用于通用宿主能力；但普通插件不需要再接触 `HostProxy`、worker 或 IPC 细节。
 
 外部命令属于另一种授权：`process_run` 通过 Host 执行 PATH 中已批准的程序。该程序在插件沙箱外以当前用户身份运行，可能访问其他文件、联网或启动其他程序。不要把命令授权理解成文件和网络 SDK 的范围限制。
 
