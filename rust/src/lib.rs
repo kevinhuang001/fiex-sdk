@@ -1,16 +1,31 @@
-//! Fiex native plugin IPC SDK. The public wire format is independent of Rust.
-//! Control channel: Content-Length framed JSON-RPC 2.0 over stdin/stdout.
+//! Fiex native plugin SDK.
+//!
+//! A plugin process stays resident. Every incoming request gets its own
+//! [`RequestContext`]; requests run concurrently while one runtime dispatcher
+//! owns the framed control channel. Files, HTTP, TCP, shared memory and
+//! background tasks all go through the same runtime, so plugin code only deals
+//! with ordinary Rust I/O traits and JSON values.
+//!
+//! The wire format is Content-Length framed JSON-RPC 2.0 over stdin/stdout.
 //! Never use stdout for logging; stderr is available for diagnostics.
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::Value;
+use std::io::{self, BufRead, Write};
+
+mod context;
 pub mod files;
-pub mod host;
 pub mod http;
 pub mod ipc;
+mod runtime;
+pub mod tasks;
 pub mod tcp;
-pub mod worker;
 
-use std::io::{self, BufRead, BufReader, Write};
+pub use context::{RequestContext, TaskContext};
+pub use files::{FileReader, FileWriter, Files};
+pub use http::{HttpClient, Request, Response};
+pub use ipc::{Entry, ProcessResult};
+pub use tasks::{TaskHandle, TaskStatus};
+pub use tcp::{TcpClient, TcpStream};
 
 pub const PROTOCOL_VERSION: &str = "2.0";
 pub const MAX_FRAME: usize = 4 * 1024 * 1024;
@@ -23,6 +38,7 @@ pub struct RpcError {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub data: Option<Value>,
 }
+
 impl RpcError {
     pub fn method_not_found(method: &str) -> Self {
         Self {
@@ -31,6 +47,7 @@ impl RpcError {
             data: None,
         }
     }
+
     pub fn invalid_params(message: impl Into<String>) -> Self {
         Self {
             code: -32602,
@@ -38,6 +55,7 @@ impl RpcError {
             data: None,
         }
     }
+
     pub fn internal(message: impl Into<String>) -> Self {
         Self {
             code: -32603,
@@ -45,12 +63,22 @@ impl RpcError {
             data: None,
         }
     }
+
+    pub fn cancelled() -> Self {
+        Self {
+            code: -32800,
+            message: "task cancelled".into(),
+            data: None,
+        }
+    }
 }
+
 impl std::fmt::Display for RpcError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}: {}", self.code, self.message)
     }
 }
+
 impl std::error::Error for RpcError {}
 
 /// Reads one complete frame. EOF is returned only between frames.
@@ -100,17 +128,17 @@ pub fn read_frame(reader: &mut impl BufRead) -> io::Result<Option<Value>> {
                     "duplicate length",
                 ));
             }
-            let n = value
+            let size = value
                 .trim()
                 .parse::<usize>()
                 .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "invalid length"))?;
-            if n > MAX_FRAME {
+            if size > MAX_FRAME {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidData,
                     "frame too large",
                 ));
             }
-            length = Some(n);
+            length = Some(size);
         }
     }
     let size =
@@ -118,7 +146,7 @@ pub fn read_frame(reader: &mut impl BufRead) -> io::Result<Option<Value>> {
     let mut bytes = vec![0u8; size];
     reader.read_exact(&mut bytes)?;
     let value = serde_json::from_slice(&bytes)
-        .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+        .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?;
     Ok(Some(value))
 }
 
@@ -135,74 +163,34 @@ pub fn write_frame(writer: &mut impl Write, value: &Value) -> io::Result<()> {
     writer.flush()
 }
 
-pub use host::{HostClient, HostServices};
-
-/// Same external process protocol for all implementations, including third parties.
-/// Native plugin commands can call the host's namespaced storage and credential
-/// services through the provided HostClient.
-pub fn serve_with_host(
-    plugin_id: &str,
-    mut dispatch: impl FnMut(&str, Value, &mut dyn HostServices) -> Result<Value, RpcError>,
-) -> io::Result<()> {
-    let stdin = io::stdin();
-    let mut input = BufReader::new(stdin.lock());
-    let stdout = io::stdout();
-    let mut output = stdout.lock();
-    let mut initialized = false;
-    while let Some(request) = read_frame(&mut input)? {
-        let Some(id) = request.get("id").cloned() else {
-            continue;
-        };
-        let method = request.get("method").and_then(Value::as_str).unwrap_or("");
-        let params = request.get("params").cloned().unwrap_or(Value::Null);
-        let response = match method {
-            "plugin.initialize" => {
-                let version = params.get("protocolVersion").and_then(Value::as_str);
-                if version != Some(PROTOCOL_VERSION) {
-                    Err(RpcError::invalid_params("unsupported protocol version"))
-                } else {
-                    initialized = true;
-                    Ok(
-                        json!({"pluginId":plugin_id,"protocolVersion":PROTOCOL_VERSION,"ready":true}),
-                    )
-                }
-            }
-            "plugin.ping" if initialized => Ok(json!({"alive":true})),
-            "plugin.shutdown" if initialized => {
-                write_frame(&mut output, &json!({"jsonrpc":"2.0","id":id,"result":null}))?;
-                break;
-            }
-            _ if !initialized => Err(RpcError::invalid_params("initialize required")),
-            other => {
-                let mut host = HostClient {
-                    reader: &mut input,
-                    writer: &mut output,
-                    sequence: 0,
-                };
-                dispatch(other, params, &mut host)
-            }
-        };
-        let message = match response {
-            Ok(value) => json!({"jsonrpc":"2.0","id":id,"result":value}),
-            Err(error) => json!({"jsonrpc":"2.0","id":id,"error":error}),
-        };
-        write_frame(&mut output, &message)?;
-    }
-    Ok(())
+/// Start the resident plugin process. The callback runs once per request on a
+/// worker thread; all requests share the same process and runtime.
+///
+/// ```no_run
+/// use fiex_plugin_sdk::{self as sdk, RpcError};
+/// sdk::serve("org.fiex.example", |ctx| match ctx.method() {
+///     "example.ping" => Ok(serde_json::json!({"ok": true})),
+///     other => Err(RpcError::method_not_found(other)),
+/// })
+/// .expect("plugin runtime failed");
+/// ```
+pub fn serve<F>(plugin_id: &str, dispatch: F) -> io::Result<()>
+where
+    F: Fn(RequestContext) -> Result<Value, RpcError> + Send + Sync + 'static,
+{
+    runtime::serve(plugin_id, dispatch)
 }
 
-/// Convenience wrapper for plugins without host-side service calls.
-pub fn serve(
-    plugin_id: &str,
-    mut dispatch: impl FnMut(&str, Value) -> Result<Value, RpcError>,
-) -> io::Result<()> {
-    serve_with_host(plugin_id, |method, params, _host| dispatch(method, params))
-}
+#[cfg(test)]
+mod sdk_tests;
 
-/// Single threaded, deterministic in-memory harness for parser and SDK tests.
+/// Single threaded, deterministic framing tests.
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
+    use std::io::BufReader;
+
     #[test]
     fn utf8_round_trip() {
         let value = json!({"jsonrpc":"2.0","id":"中文","result":{"name":"项目会议"}});
@@ -213,43 +201,19 @@ mod tests {
             Some(value)
         );
     }
+
     #[test]
     fn oversized_frame_is_rejected() {
         let data = format!("Content-Length: {}\r\n\r\n", MAX_FRAME + 1);
         assert!(read_frame(&mut BufReader::new(data.as_bytes())).is_err());
     }
+
     #[test]
     fn incomplete_body_is_rejected() {
         assert!(read_frame(&mut BufReader::new(
             b"Content-Length: 20\r\n\r\n{}".as_slice()
         ))
         .is_err());
-    }
-    #[test]
-    fn host_storage_round_trip_is_namespaced_and_framed() {
-        let mut host_reply = Vec::new();
-        write_frame(
-            &mut host_reply,
-            &json!({"jsonrpc":"2.0","id":"host-1","result":{"cursor":"opaque"}}),
-        )
-        .unwrap();
-        let mut input = BufReader::new(host_reply.as_slice());
-        let mut output = Vec::new();
-        let mut api = HostClient {
-            reader: &mut input,
-            writer: &mut output,
-            sequence: 0,
-        };
-        assert_eq!(
-            api.storage_get("account-example", "syncCursor").unwrap(),
-            json!({"cursor":"opaque"})
-        );
-        let sent = read_frame(&mut BufReader::new(output.as_slice()))
-            .unwrap()
-            .unwrap();
-        assert_eq!(sent["method"], "host.storage.get");
-        assert_eq!(sent["params"]["scope"], "account-example");
-        assert_eq!(sent["params"]["key"], "syncCursor");
     }
 
     #[test]

@@ -1,9 +1,16 @@
 use fiex_plugin_sdk::{self as sdk, RpcError};
 use serde_json::{json, Value};
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Mutex,
+};
+
+static TASK_DONE: AtomicBool = AtomicBool::new(false);
+static TASK_TEXT: Mutex<String> = Mutex::new(String::new());
 
 fn main() {
-    sdk::serve_with_host("org.fiex.mock", |method, value: Value, host| match method {
-        "mock.echo" => Ok(json!({"echo": value})),
+    sdk::serve("org.fiex.mock", |ctx| match ctx.method() {
+        "mock.echo" => Ok(json!({"echo": ctx.params()})),
         "mock.directExec" => match std::process::Command::new("git").arg("--version").output() {
             Ok(_) => Err(RpcError::internal(
                 "plugin process was allowed to execute git",
@@ -11,7 +18,8 @@ fn main() {
             Err(error) => Ok(json!({"blocked": true, "error": error.to_string()})),
         },
         "mock.directFile" => {
-            let path = value
+            let path = ctx
+                .params()
                 .get("path")
                 .and_then(Value::as_str)
                 .ok_or_else(|| RpcError::invalid_params("missing path"))?;
@@ -21,7 +29,8 @@ fn main() {
             }
         }
         "mock.directNet" => {
-            let address = value
+            let address = ctx
+                .params()
                 .get("address")
                 .and_then(Value::as_str)
                 .ok_or_else(|| RpcError::invalid_params("missing address"))?;
@@ -31,17 +40,50 @@ fn main() {
             }
         }
         "mock.readFile" => {
-            let path = value
+            let path = ctx
+                .params()
                 .get("path")
                 .and_then(Value::as_str)
                 .ok_or_else(|| RpcError::invalid_params("missing path"))?;
-            let files = host.files();
+            let files = ctx.files();
             Ok(json!(files
                 .read_to_string(path)
-                .map_err(|e| RpcError::internal(e.to_string()))?))
+                .map_err(|error| RpcError::internal(error.to_string()))?))
+        }
+        "mock.spawnTask" => {
+            let path = ctx
+                .params()
+                .get("path")
+                .and_then(Value::as_str)
+                .ok_or_else(|| RpcError::invalid_params("missing path"))?
+                .to_owned();
+            let task = ctx.spawn_task(move |task| {
+                std::thread::sleep(std::time::Duration::from_millis(150));
+                let text = task
+                    .files()
+                    .read_to_string(&path)
+                    .map_err(|error| RpcError::internal(error.to_string()))?;
+                task.progress(1, Some(1));
+                *TASK_TEXT
+                    .lock()
+                    .map_err(|_| RpcError::internal("task lock"))? = text;
+                TASK_DONE.store(true, Ordering::Release);
+                Ok(())
+            })?;
+            Ok(json!({"taskId": task.id()}))
+        }
+        "mock.taskResult" => Ok(json!({
+            "done": TASK_DONE.load(Ordering::Acquire),
+            "text": TASK_TEXT.lock().map(|text| text.clone()).unwrap_or_default()
+        })),
+        "mock.rendezvous" => {
+            use std::sync::{Barrier, OnceLock};
+            static BARRIER: OnceLock<Barrier> = OnceLock::new();
+            BARRIER.get_or_init(|| Barrier::new(2)).wait();
+            Ok(json!({"met": true}))
         }
         "mock.exec" => {
-            let result = host.invoke(
+            let result = ctx.invoke(
                 "host.exec",
                 json!({"command": "git", "args": ["--version"]}),
             )?;
@@ -65,7 +107,7 @@ fn main() {
             }],
             "truncated": false
         })),
-        _ => Err(RpcError::method_not_found(method)),
+        other => Err(RpcError::method_not_found(other)),
     })
     .expect("mock IPC process failed");
 }
