@@ -79,6 +79,7 @@ impl Request {
     pub fn body_reader(mut self, reader: crate::files::FileReader) -> Self {
         self.body.clear();
         self.body_reader = Some(reader);
+        self.timeout = self.timeout.max(Duration::from_secs(3600));
         self
     }
 
@@ -127,7 +128,7 @@ impl Request {
                     "headers": self.headers,
                     "bodyBase64": STANDARD.encode(self.body),
                     "bodyReadHandle": self.body_reader.as_ref().map(|reader| reader.http_handle()),
-                    "timeoutMs": self.timeout.as_millis().min(120000) as u64,
+                    "timeoutMs": self.timeout.as_millis().min(if self.body_reader.is_some() { 86_400_000 } else { 120_000 }) as u64,
                     "allowInvalidCerts": self.allow_invalid_certs,
                 }),
             )
