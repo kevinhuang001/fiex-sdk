@@ -240,7 +240,17 @@ impl RequestContext {
     where
         F: FnOnce(TaskContext) -> Result<Value, RpcError> + Send + 'static,
     {
-        TaskManager::spawn(&self.inner, label, work)
+        TaskManager::spawn(&self.inner, label, false, work)
+    }
+
+    /// Start a background task that is an implementation detail rather than a
+    /// user-visible operation. Core keeps its authorization but the status
+    /// centre does not create an entry for it.
+    pub fn spawn_internal_task<F>(&self, label: &str, work: F) -> Result<TaskHandle, RpcError>
+    where
+        F: FnOnce(TaskContext) -> Result<Value, RpcError> + Send + 'static,
+    {
+        TaskManager::spawn(&self.inner, label, true, work)
     }
 
     pub fn is_cancelled(&self) -> bool {

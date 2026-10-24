@@ -188,6 +188,7 @@ impl TaskManager {
     pub(crate) fn spawn<F>(
         parent: &ContextInner,
         label: &str,
+        internal: bool,
         work: F,
     ) -> Result<TaskHandle, RpcError>
     where
@@ -223,7 +224,10 @@ impl TaskManager {
             .get(&id)
             .cloned()
             .ok_or_else(|| RpcError::internal("task registration failed"))?;
-        if let Err(error) = parent.call("host.task.start", json!({"taskId": id, "label": label})) {
+        if let Err(error) = parent.call(
+            "host.task.start",
+            json!({"taskId": id, "label": label, "internal": internal}),
+        ) {
             if let Ok(mut state) = parent.tasks().state.lock() {
                 state.tasks.remove(&id);
             }
