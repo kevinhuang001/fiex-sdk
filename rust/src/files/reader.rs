@@ -22,6 +22,10 @@ impl FileReader {
         }
     }
 
+    pub(crate) fn http_handle(&self) -> &str {
+        &self.handle
+    }
+
     pub fn len(&self) -> u64 {
         self.length
     }

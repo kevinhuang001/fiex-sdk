@@ -28,6 +28,7 @@ impl HttpClient {
             url: url.into(),
             headers: BTreeMap::new(),
             body: Vec::new(),
+            body_reader: None,
             timeout: Duration::from_secs(90),
             allow_invalid_certs: false,
         }
@@ -56,6 +57,7 @@ pub struct Request {
     url: String,
     headers: BTreeMap<String, String>,
     body: Vec<u8>,
+    body_reader: Option<crate::files::FileReader>,
     timeout: Duration,
     allow_invalid_certs: bool,
 }
@@ -67,11 +69,21 @@ impl Request {
     }
 
     pub fn body(mut self, body: impl AsRef<[u8]>) -> Self {
+        self.body_reader = None;
         self.body = body.as_ref().to_vec();
         self
     }
 
+    /// Stream a Core-authorized file directly to HTTP, without buffering it
+    /// in the plugin or copying its bytes through IPC. Consumes the reader.
+    pub fn body_reader(mut self, reader: crate::files::FileReader) -> Self {
+        self.body.clear();
+        self.body_reader = Some(reader);
+        self
+    }
+
     pub fn json<T: Serialize>(mut self, value: &T) -> io::Result<Self> {
+        self.body_reader = None;
         self.body = serde_json::to_vec(value).map_err(io::Error::other)?;
         self.headers
             .insert("content-type".into(), "application/json".into());
@@ -114,6 +126,7 @@ impl Request {
                     "url": self.url,
                     "headers": self.headers,
                     "bodyBase64": STANDARD.encode(self.body),
+                    "bodyReadHandle": self.body_reader.as_ref().map(|reader| reader.http_handle()),
                     "timeoutMs": self.timeout.as_millis().min(120000) as u64,
                     "allowInvalidCerts": self.allow_invalid_certs,
                 }),
