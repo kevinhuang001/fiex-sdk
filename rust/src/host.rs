@@ -11,43 +11,6 @@ pub trait HostServices {
     fn worker_proxy(&self) -> Option<crate::worker::HostProxy> {
         None
     }
-    /// Binary-safe bounded reads through the host; no local file access.
-    fn fs_read_chunk(
-        &mut self,
-        path: &str,
-        offset: u64,
-        length: usize,
-    ) -> Result<crate::ipc::FileChunk, RpcError> {
-        let value = self.invoke(
-            "host.fs.readChunk",
-            json!({"path": path, "offset": offset, "length": length.min(256 * 1024)}),
-        )?;
-        serde_json::from_value(value).map_err(|error| RpcError::internal(error.to_string()))
-    }
-    fn fs_begin_write(&mut self, path: &str, create: bool) -> Result<String, RpcError> {
-        self.invoke(
-            "host.fs.beginWrite",
-            json!({"path": path, "create": create}),
-        )?
-        .as_str()
-        .map(str::to_owned)
-        .ok_or_else(|| RpcError::internal("missing write handle"))
-    }
-    fn fs_write_chunk(&mut self, handle: &str, base64: &str) -> Result<(), RpcError> {
-        self.invoke(
-            "host.fs.writeChunk",
-            json!({"handle": handle, "base64": base64}),
-        )?;
-        Ok(())
-    }
-    fn fs_commit(&mut self, handle: &str) -> Result<Value, RpcError> {
-        self.invoke("host.fs.commit", json!({"handle": handle}))
-    }
-    fn fs_abort(&mut self, handle: &str) -> Result<(), RpcError> {
-        self.invoke("host.fs.abort", json!({"handle": handle}))?;
-        Ok(())
-    }
-
     /// Record a failure the host would otherwise never see: background work,
     /// a partial success, or a renderer that kept running after a response.
     /// Synchronous failures should return `Err(RpcError)` instead; Core records
@@ -140,59 +103,6 @@ pub trait HostServices {
     }
     fn buffer_release(&mut self, id: &str) -> Result<(), RpcError> {
         self.invoke("host.buffer.release", json!({"id": id}))?;
-        Ok(())
-    }
-    fn fs_list(&mut self, path: &str) -> Result<Vec<crate::ipc::Entry>, RpcError> {
-        let value = self.invoke("host.fs.list", json!({"path": path}))?;
-        serde_json::from_value(value)
-            .map_err(|error| RpcError::internal(format!("invalid directory listing: {error}")))
-    }
-    fn fs_stat(&mut self, path: &str) -> Result<crate::ipc::Entry, RpcError> {
-        let value = self.invoke("host.fs.stat", json!({"path": path}))?;
-        serde_json::from_value(value)
-            .map_err(|error| RpcError::internal(format!("invalid file stat: {error}")))
-    }
-    fn fs_read(
-        &mut self,
-        path: &str,
-        offset: u64,
-        length: usize,
-    ) -> Result<crate::ipc::BufferDescriptor, RpcError> {
-        let value = self.invoke(
-            "host.fs.read",
-            json!({"path": path, "offset": offset, "length": length}),
-        )?;
-        let buffer = value
-            .get("buffer")
-            .cloned()
-            .ok_or_else(|| RpcError::internal("missing read buffer"))?;
-        serde_json::from_value(buffer)
-            .map_err(|error| RpcError::internal(format!("invalid read buffer: {error}")))
-    }
-    fn fs_create(&mut self, path: &str) -> Result<crate::ipc::Entry, RpcError> {
-        let value = self.invoke("host.fs.create", json!({"path": path}))?;
-        serde_json::from_value(value)
-            .map_err(|error| RpcError::internal(format!("invalid created entry: {error}")))
-    }
-    fn fs_write(
-        &mut self,
-        path: &str,
-        buffer: &str,
-        mode: &str,
-    ) -> Result<crate::ipc::Entry, RpcError> {
-        let value = self.invoke(
-            "host.fs.write",
-            json!({"path": path, "buffer": buffer, "mode": mode}),
-        )?;
-        serde_json::from_value(value)
-            .map_err(|error| RpcError::internal(format!("invalid written entry: {error}")))
-    }
-    fn fs_remove(&mut self, path: &str) -> Result<(), RpcError> {
-        self.invoke("host.fs.remove", json!({"path": path}))?;
-        Ok(())
-    }
-    fn fs_rename(&mut self, from: &str, to: &str) -> Result<(), RpcError> {
-        self.invoke("host.fs.rename", json!({"from": from, "to": to}))?;
         Ok(())
     }
     fn process_run(

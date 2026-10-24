@@ -9,6 +9,7 @@
 //! without changing the plugin-facing API.
 use serde::{Deserialize, Serialize};
 use shared_memory::{Shmem, ShmemConf};
+use std::io::{self, Read};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BufferDescriptor {
@@ -86,6 +87,18 @@ impl SharedBuffer {
         // SAFETY: called by the owner before publishing the buffer.
         (unsafe { self.shmem.as_slice_mut() })[..bytes.len()].copy_from_slice(bytes);
         Ok(())
+    }
+
+    /// Host-side bounded transfer into an already allocated window.
+    pub fn fill_from(&mut self, reader: &mut impl Read, limit: usize) -> io::Result<usize> {
+        if limit > self.shmem.len() {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "shared buffer too small",
+            ));
+        }
+        // The host serializes transfers and publishes the valid length after read.
+        reader.read(&mut unsafe { self.shmem.as_slice_mut() }[..limit])
     }
 
     pub fn as_slice(&self) -> &[u8] {

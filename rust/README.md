@@ -39,6 +39,10 @@ output.commit()?;
 
 `begin_write` 后的数据由 Core 暂存。只有 `commit` 成功才会替换目标；原文件发生变化时返回冲突。没有提交就释放 writer，会自动取消暂存。`read` 最多读取 64 MiB；更大文件用 `open_read`。文件访问限于宿主为本次操作授权的所选文件或目录；文件选择框返回路径后，还需在面板提交操作时将该路径传给 `plugin.invoke`。未提交的写入在操作结束时取消。
 
+普通文件接口集中在 `host.files()`：`read`、`read_to_string`、`open_read`、`write`、`create`、`begin_write`、`list`、`metadata`、`create_dir_all`、`remove`、`rename`。`open_read` 返回标准 `Read + Seek`，`begin_write` 返回 `Write + Seek` 并要求显式 `commit()`。SDK 自动对小读取使用 256 KiB IPC 缓存，对大块读取复用最多 4 MiB 的共享缓冲；大块写入复用 256 KiB 共享缓冲。共享缓冲不可分配时退回有界 IPC。缓冲占用不随文件长度增长。`list` 每次最多返回 5000 项，超出时返回明确错误。Archive 等需要持有 `'static` 输入的库可用 `files::OwnedFileReader` 和 `OwnedFileWriter`。
+
+底层 JSON-RPC 方法由 SDK 的文件适配器调用；普通插件无需调用 `HostServices::fs_*`。`HostServices::invoke` 仍是通用 RPC 入口，真正的文件授权由 Core 对每次请求和句柄执行，隐藏 SDK 方法不是权限边界。
+
 HTTP 调用也不接触底层数据缓冲区：
 
 ```rust,no_run
