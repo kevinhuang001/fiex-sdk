@@ -231,7 +231,16 @@ impl RequestContext {
     where
         F: FnOnce(TaskContext) -> Result<Value, RpcError> + Send + 'static,
     {
-        TaskManager::spawn(&self.inner, &self.method, work)
+        self.spawn_task_with_label(&self.method, work)
+    }
+
+    /// Same as [`RequestContext::spawn_task`] with a user-facing label for the
+    /// status centre instead of the request method.
+    pub fn spawn_task_with_label<F>(&self, label: &str, work: F) -> Result<TaskHandle, RpcError>
+    where
+        F: FnOnce(TaskContext) -> Result<Value, RpcError> + Send + 'static,
+    {
+        TaskManager::spawn(&self.inner, label, work)
     }
 
     pub fn is_cancelled(&self) -> bool {
