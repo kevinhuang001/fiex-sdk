@@ -181,6 +181,7 @@ impl Runtime {
                             Err(RpcError::invalid_params("unsupported protocol version")),
                         );
                     }
+                    self.request_shutdown(Some("unsupported protocol version".into()));
                     return true;
                 }
                 self.initialized.store(true, Ordering::Release);
