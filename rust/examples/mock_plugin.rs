@@ -61,6 +61,15 @@ fn main() {
             })?;
             Ok(json!({"taskId": task.id()}))
         }
+        "mock.longTask" => {
+            let task = ctx.spawn_task(|task| {
+                while !task.is_cancelled() {
+                    std::thread::sleep(std::time::Duration::from_millis(10));
+                }
+                Ok(Value::Null)
+            })?;
+            Ok(json!({"taskId": task.id()}))
+        }
         "mock.rendezvous" => {
             use std::sync::{Barrier, OnceLock};
             static BARRIER: OnceLock<Barrier> = OnceLock::new();
