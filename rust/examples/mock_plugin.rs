@@ -1,5 +1,8 @@
-use fiex_plugin_sdk::{self as sdk, RpcError};
+use fiex_plugin_sdk::{self as sdk, Files, RpcError};
 use serde_json::{json, Value};
+use std::sync::Mutex;
+
+static LATE_FILES: Mutex<Option<Files>> = Mutex::new(None);
 
 fn main() {
     sdk::serve("org.fiex.mock", |ctx| match ctx.method() {
@@ -60,6 +63,26 @@ fn main() {
                 Ok(json!(text))
             })?;
             Ok(json!({"taskId": task.id()}))
+        }
+        "mock.captureTaskScope" => {
+            let task = ctx.spawn_task(|task| {
+                *LATE_FILES
+                    .lock()
+                    .map_err(|_| RpcError::internal("scope lock"))? = Some(task.files());
+                Ok(Value::Null)
+            })?;
+            Ok(json!({"taskId": task.id()}))
+        }
+        "mock.useFinishedTaskScope" => {
+            let files = LATE_FILES
+                .lock()
+                .map_err(|_| RpcError::internal("scope lock"))?
+                .take()
+                .ok_or_else(|| RpcError::internal("no captured task scope"))?;
+            files
+                .read_to_string("secret.txt")
+                .map_err(|error| RpcError::internal(error.to_string()))?;
+            Err(RpcError::internal("stale task scope was still authorized"))
         }
         "mock.longTask" => {
             let task = ctx.spawn_task(|task| {
