@@ -95,7 +95,7 @@ let _ = task.id();
 # Ok(()) }
 ```
 
-`TaskHandle` 提供 `cancel()`、`is_finished()`、`status()`、`progress()` 和 `wait()`；任务闭包返回的 JSON 可通过 `wait()` 取得最终结果。SDK 默认最多同时运行 8 个后台任务，并在任务完成、取消或失败后通知 Core 回收资源。`ctx.invoke`、`storage_get/set` 和 `secret_get/set` 仍可用于通用宿主能力；但普通插件不需要再接触 `HostProxy`、worker 或 IPC 细节。
+`TaskHandle` 提供 `cancel()`、`is_finished()`、`status()`、`progress()` 和 `wait()`；任务闭包返回的 JSON 可通过 `wait()` 取得最终结果。Core 会把任务注册到状态中心，用户可以在那里取消；SDK 收到取消通知后设置协作取消标记，任务应轮询 `is_cancelled()`。SDK 默认最多同时运行 8 个后台任务，并在任务完成、取消或失败后通知 Core 回收资源。`spawn_task_with_label` 可以给状态中心提供比方法名更友好的标题。`ctx.invoke`、`storage_get/set` 和 `secret_get/set` 仍可用于通用宿主能力；但普通插件不需要再接触 `HostProxy`、worker 或 IPC 细节。
 
 外部命令属于另一种授权：`process_run` 通过 Host 执行 PATH 中已批准的程序。该程序在插件沙箱外以当前用户身份运行，可能访问其他文件、联网或启动其他程序。不要把命令授权理解成文件和网络 SDK 的范围限制。
 
@@ -462,18 +462,19 @@ fn main() {
 
 SDK 当前公开的关键接口：
 
-| API                               | 作用                           | 什么时候用           |
-| --------------------------------- | ------------------------------ | -------------------- |
-| `sdk::serve(id, handler)`         | 启动常驻插件、并发分发请求     | 所有 Native 插件     |
-| `RequestContext::method/params`   | 当前请求的方法与参数           | 请求分发             |
-| `RequestContext::files/http/tcp`  | 宿主托管的文件、HTTP、TCP 能力 | 访问用户授权资源     |
-| `RequestContext::spawn_task`      | 创建独立生命周期的后台任务     | 大文件、长耗时操作   |
-| `TaskHandle::cancel/status/wait`  | 任务取消、状态与完成等待       | 需要进度或取消的界面 |
-| `RpcError::method_not_found(...)` | 不支持的命令                   | `match` 的默认分支   |
-| `RpcError::invalid_params(...)`   | 请求缺少字段或参数错误         | 用户传来的参数无效   |
-| `RpcError::internal(...)`         | 插件内部操作失败               | 底层 I/O 或其他错误  |
-| `RequestContext::storage_get/set` | 宿主托管的插件存储             | 需 `storage` 权限    |
-| `RequestContext::secret_get/set`  | 宿主托管的凭据服务             | 需 `secrets` 权限    |
+| API                                     | 作用                           | 什么时候用           |
+| --------------------------------------- | ------------------------------ | -------------------- |
+| `sdk::serve(id, handler)`               | 启动常驻插件、并发分发请求     | 所有 Native 插件     |
+| `RequestContext::method/params`         | 当前请求的方法与参数           | 请求分发             |
+| `RequestContext::files/http/tcp`        | 宿主托管的文件、HTTP、TCP 能力 | 访问用户授权资源     |
+| `RequestContext::spawn_task`            | 创建独立生命周期的后台任务     | 大文件、长耗时操作   |
+| `RequestContext::spawn_task_with_label` | 为状态中心提供任务标题         | 需要友好名称的长任务 |
+| `TaskHandle::cancel/status/wait`        | 任务取消、状态与完成等待       | 需要进度或取消的界面 |
+| `RpcError::method_not_found(...)`       | 不支持的命令                   | `match` 的默认分支   |
+| `RpcError::invalid_params(...)`         | 请求缺少字段或参数错误         | 用户传来的参数无效   |
+| `RpcError::internal(...)`               | 插件内部操作失败               | 底层 I/O 或其他错误  |
+| `RequestContext::storage_get/set`       | 宿主托管的插件存储             | 需 `storage` 权限    |
+| `RequestContext::secret_get/set`        | 宿主托管的凭据服务             | 需 `secrets` 权限    |
 
 具体签名以 [rust/src/context.rs](src/context.rs)、[rust/src/files/mod.rs](src/files/mod.rs) 和 [rust/src/tasks.rs](src/tasks.rs) 为准。SDK 的 IPC、共享内存和线程由 `rust/src/runtime/` 内部管理，不属于普通插件 API。
 
