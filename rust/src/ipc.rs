@@ -1,14 +1,12 @@
-//! Shared-memory data plane for large payloads.
+//! Wire data types and the shared-memory data plane for bulk payloads.
 //!
-//! The control channel remains JSON-RPC. Only bulk file contents, command
-//! output and network bodies use these buffers.
-//!
-//! The first implementation uses named shared memory for portability. The
-//! descriptor is deliberately opaque to callers; a later sandboxed transport
-//! can replace `name` with an inherited file descriptor or Windows HANDLE
-//! without changing the plugin-facing API.
+//! The control channel remains JSON-RPC. Only file contents, command output and
+//! network bodies use these buffers. The descriptor is opaque to plugins and
+//! can later be replaced by an inherited descriptor without changing the SDK
+//! surface.
 use serde::{Deserialize, Serialize};
 use shared_memory::{Shmem, ShmemConf};
+use std::io::{self, Read};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BufferDescriptor {
@@ -88,6 +86,17 @@ impl SharedBuffer {
         Ok(())
     }
 
+    /// Host-side bounded transfer into an already allocated window.
+    pub fn fill_from(&mut self, reader: &mut impl Read, limit: usize) -> io::Result<usize> {
+        if limit > self.shmem.len() {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "shared buffer too small",
+            ));
+        }
+        reader.read(&mut unsafe { self.shmem.as_slice_mut() }[..limit])
+    }
+
     pub fn as_slice(&self) -> &[u8] {
         // SAFETY: the mapping lives for the lifetime of `self`. The host
         // serializes access through the plugin request boundary.
@@ -101,26 +110,6 @@ impl SharedBuffer {
         // SAFETY: the mapping lives for the lifetime of `self`. Callers must
         // not hold this borrow across the IPC boundary.
         Ok(unsafe { self.shmem.as_slice_mut() })
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn create_write_and_reopen() {
-        let (mut buffer, descriptor) = SharedBuffer::create(4096, true).unwrap();
-        buffer.as_mut_slice().unwrap()[..4].copy_from_slice(b"fiex");
-        let reopened = SharedBuffer::open(&descriptor).unwrap();
-        assert_eq!(&reopened.as_slice()[..4], b"fiex");
-    }
-
-    #[test]
-    fn read_only_buffers_reject_writes() {
-        let (_buffer, descriptor) = SharedBuffer::create(16, false).unwrap();
-        let mut buffer = SharedBuffer::open(&descriptor).unwrap();
-        assert!(buffer.as_mut_slice().is_err());
     }
 }
 
@@ -158,55 +147,37 @@ pub struct ProcessResult {
     pub stderr_base64: Option<String>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct HttpResponse {
-    pub status: u16,
-    #[serde(default)]
-    pub headers: std::collections::BTreeMap<String, String>,
-    #[serde(default)]
-    pub body: String,
-    #[serde(default)]
-    pub body_buffer: Option<BufferDescriptor>,
-    #[serde(default)]
-    pub body_size: usize,
-    #[serde(default)]
-    pub body_base64: Option<String>,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct TcpStreamHandle {
-    pub stream: String,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct TcpRead {
-    pub buffer: Option<BufferDescriptor>,
-    pub size: usize,
-    pub eof: bool,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct FileChunk {
-    pub base64: String,
-    pub size: usize,
-    pub eof: bool,
+impl ProcessResult {
+    pub fn stdout_bytes(&self) -> Result<Vec<u8>, String> {
+        use base64::Engine;
+        match &self.stdout_base64 {
+            Some(value) => base64::engine::general_purpose::STANDARD
+                .decode(value)
+                .map_err(|error| error.to_string()),
+            None => Ok(self.stdout.as_bytes().to_vec()),
+        }
+    }
 }
 
 #[cfg(test)]
-mod wire_tests {
+mod tests {
     use super::*;
+
     #[test]
-    fn host_camel_case_fields_are_preserved() {
-        let response: HttpResponse =
-            serde_json::from_str(r#"{"status":200,"bodySize":3,"bodyBase64":"AP+A"}"#).unwrap();
-        assert_eq!(response.body_size, 3);
-        assert_eq!(response.body_base64.as_deref(), Some("AP+A"));
-        let process: ProcessResult =
-            serde_json::from_str(r#"{"code":0,"stdoutSize":8192}"#).unwrap();
-        assert_eq!(process.stdout_size, Some(8192));
+    fn create_write_and_reopen() {
+        let (mut buffer, descriptor) = SharedBuffer::create(4096, true).unwrap();
+        buffer.as_mut_slice().unwrap()[..4].copy_from_slice(b"fiex");
+        let reopened = SharedBuffer::open(&descriptor).unwrap();
+        assert_eq!(&reopened.as_slice()[..4], b"fiex");
     }
+
+    #[test]
+    fn read_only_buffers_reject_writes() {
+        let (_buffer, descriptor) = SharedBuffer::create(16, false).unwrap();
+        let mut buffer = SharedBuffer::open(&descriptor).unwrap();
+        assert!(buffer.as_mut_slice().is_err());
+    }
+
     #[test]
     fn owner_can_initialize_read_only_buffer() {
         let (mut buffer, descriptor) = SharedBuffer::create(4, false).unwrap();
@@ -215,16 +186,11 @@ mod wire_tests {
         assert!(!descriptor.writable);
         assert!(buffer.as_mut_slice().is_err());
     }
-}
 
-impl ProcessResult {
-    pub fn stdout_bytes(&self) -> Result<Vec<u8>, String> {
-        use base64::Engine;
-        match &self.stdout_base64 {
-            Some(value) => base64::engine::general_purpose::STANDARD
-                .decode(value)
-                .map_err(|e| e.to_string()),
-            None => Ok(self.stdout.as_bytes().to_vec()),
-        }
+    #[test]
+    fn host_camel_case_fields_are_preserved() {
+        let process: ProcessResult =
+            serde_json::from_str(r#"{"code":0,"stdoutSize":8192}"#).unwrap();
+        assert_eq!(process.stdout_size, Some(8192));
     }
 }

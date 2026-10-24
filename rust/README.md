@@ -8,14 +8,14 @@
 
 ## 文件和网络：直接用这些接口
 
-插件不能自己调用 `std::fs`、建立 Socket 或启动子进程。用户在 Fiex 中激活插件并逐项同意后，由 Core 代为访问资源。SDK 已经处理分块和 IPC，不需要学习 buffer 或共享内存。
+插件不能自己调用 `std::fs`、建立 Socket 或启动子进程。用户在 Fiex 中激活插件并逐项同意后，由 Core 代为访问资源。SDK 已经处理分块、并发和 IPC，不需要学习 buffer 或共享内存。
 
-在 `serve_with_host` 的回调里使用：
+在 `sdk::serve` 的回调里使用本次请求的 `ctx`：
 
 ```rust,no_run
-# use fiex_plugin_sdk::{HostServices, RpcError};
-# fn example(host: &mut dyn HostServices) -> Result<(), Box<dyn std::error::Error>> {
-let files = host.files();
+# use fiex_plugin_sdk::{self as sdk, RpcError};
+# fn example(ctx: &sdk::RequestContext) -> Result<(), Box<dyn std::error::Error>> {
+let files = ctx.files();
 let text = files.read_to_string("notes.txt")?;
 let bytes = files.read("photo.png")?;
 files.write("notes.txt", b"updated")?; // 修改已有文件
@@ -26,10 +26,10 @@ files.create("new.txt", b"hello")?;   // 创建新文件，已存在则报错
 大文件使用标准 Rust 流式接口，内存占用不会随文件大小增长：
 
 ```rust,no_run
-# use fiex_plugin_sdk::HostServices;
+# use fiex_plugin_sdk::{self as sdk, RpcError};
 # use std::io::Write;
-# fn example(host: &mut dyn HostServices) -> Result<(), Box<dyn std::error::Error>> {
-let files = host.files();
+# fn example(ctx: &sdk::RequestContext) -> Result<(), Box<dyn std::error::Error>> {
+let files = ctx.files();
 let mut input = files.open_read("large.bin")?;
 let mut output = files.begin_write("copy.bin", true)?;
 std::io::copy(&mut input, &mut output)?;
@@ -37,14 +37,16 @@ output.commit()?;
 # Ok(()) }
 ```
 
-`begin_write` 后的数据由 Core 暂存。只有 `commit` 成功才会替换目标；原文件发生变化时返回冲突。没有提交就释放 writer，会自动取消暂存。`read` 最多读取 64 MiB；更大文件用 `open_read`。路径限于该任务绑定的目录及其子目录。
+`begin_write` 后的数据由 Core 暂存。只有 `commit` 成功才会替换目标；原文件发生变化时返回冲突。没有提交就释放 writer，会自动取消暂存。`read` 最多读取 64 MiB；更大文件用 `open_read`。文件访问限于宿主为本次操作授权的所选文件或目录；文件选择框返回路径后，还需在面板提交操作时将该路径传给 `plugin.invoke`。未提交的写入在操作结束时取消。
+
+普通文件接口集中在 `ctx.files()`：`read`、`read_to_string`、`open_read`、`write`、`create`、`begin_write`、`list`、`metadata`、`create_dir_all`、`remove`、`rename`。`open_read` 返回实现 `Read + Seek + Send + 'static` 的 `FileReader`，`begin_write` 返回实现 `Write + Seek + Send + 'static` 的 `FileWriter`，并要求显式 `commit()`。Reader/Writer 自己持有 SDK 内部通信句柄，可以先 `drop(files)` 再继续使用；`'static` 只表示类型不依赖临时借用，文件授权仍由 Core 按操作作用域校验。SDK 自动对小读取使用 256 KiB IPC 缓存，对大块读取复用最多 4 MiB 的共享缓冲；大块写入复用 256 KiB 共享缓冲。共享缓冲不可分配时退回有界 IPC。缓冲占用不随文件长度增长。
 
 HTTP 调用也不接触底层数据缓冲区：
 
 ```rust,no_run
-# use fiex_plugin_sdk::HostServices;
-# fn example(host: &mut dyn HostServices) -> Result<(), Box<dyn std::error::Error>> {
-let http = host.http();
+# use fiex_plugin_sdk::{self as sdk, RpcError};
+# fn example(ctx: &sdk::RequestContext) -> Result<(), Box<dyn std::error::Error>> {
+let http = ctx.http();
 let text = http.get("https://example.com/info").send()?.error_for_status()?.text()?;
 let data: serde_json::Value = http.post("https://example.com/api")
     .bearer_auth("token")
@@ -55,7 +57,45 @@ let data: serde_json::Value = http.post("https://example.com/api")
 
 可设置 `header`、`timeout`、`basic_auth` 和请求 `body`。HTTP 响应实现 `Read`，可以流式处理下载；`bytes`、`text`、`json` 最多收集 64 MiB，内联请求体最多 1 MiB。重定向由 Core 逐跳校验授权，不会把认证头带到不同来源。
 
-HTTP 和 TCP 共用 manifest 的 `network.domains`，包括精确域名与 IP，不区分 HTTP/TCP 授权。批准主机允许访问其有效端口；localhost 也需要授权。TCP 只用于非 HTTP 协议，提供 `Read`/`Write` 字节流，可在 `worker::with_host_worker` 中接入需要独立拥有传输对象的协议库。
+HTTP 和 TCP 共用 manifest 的 `network.domains`，包括精确域名与 IP，不区分 HTTP/TCP 授权。批准主机允许访问其有效端口；localhost 也需要授权。TCP 只用于非 HTTP 协议，返回标准字节流：
+
+```rust,no_run
+# use fiex_plugin_sdk::{self as sdk, RpcError};
+# use std::io::{Read, Write};
+# fn example(ctx: &sdk::RequestContext) -> Result<(), Box<dyn std::error::Error>> {
+let mut stream = ctx.tcp().connect("192.168.1.100", 445)?;
+stream.write_all(b"request")?;
+let mut response = [0; 4];
+stream.read_exact(&mut response)?;
+# Ok(()) }
+```
+
+`TcpStream` 实现 `Read + Write + Send + 'static`，由 Core 创建、授权和关闭。
+
+长时间任务使用显式后台任务 API，任务拥有独立生命周期并继承本次操作已批准的授权范围：
+
+```rust,no_run
+# use fiex_plugin_sdk::{self as sdk, RpcError};
+# fn example(ctx: &sdk::RequestContext) -> Result<(), Box<dyn std::error::Error>> {
+let task = ctx.spawn_task(|task| {
+    let files = task.files();
+    let mut reader = files.open_read("large.rar")
+        .map_err(|error| RpcError::internal(error.to_string()))?;
+    let mut block = [0u8; 65536];
+    use std::io::Read;
+    while reader.read(&mut block).map_err(|error| RpcError::internal(error.to_string()))? > 0 {
+        if task.is_cancelled() {
+            return Err(RpcError::cancelled());
+        }
+    }
+    Ok(serde_json::Value::Null)
+})?;
+// 请求可以先返回 task.id()，任务继续在后台运行。
+let _ = task.id();
+# Ok(()) }
+```
+
+`TaskHandle` 提供 `cancel()`、`is_finished()`、`status()`、`progress()` 和 `wait()`；任务闭包返回的 JSON 可通过 `wait()` 取得最终结果。Core 会把任务注册到状态中心，用户可以在那里取消；SDK 收到取消通知后设置协作取消标记，任务应轮询 `is_cancelled()`。SDK 默认最多同时运行 8 个后台任务，并在任务完成、取消或失败后通知 Core 回收资源。`spawn_task_with_label` 可以给状态中心提供比方法名更友好的标题；`spawn_internal_task` 用于 SMB 读取流这类不应出现在状态中心的内部资源任务。`ctx.invoke`、`storage_get/set` 和 `secret_get/set` 仍可用于通用宿主能力；但普通插件不需要再接触 `HostProxy`、worker 或 IPC 细节。
 
 外部命令属于另一种授权：`process_run` 通过 Host 执行 PATH 中已批准的程序。该程序在插件沙箱外以当前用户身份运行，可能访问其他文件、联网或启动其他程序。不要把命令授权理解成文件和网络 SDK 的范围限制。
 
@@ -177,7 +217,9 @@ use fiex_plugin_sdk::{self as sdk, RpcError};
 use serde_json::{json, Value};
 
 // Fiex 向插件发送命令时，就会调用这个函数。
-fn handle(method: &str, params: Value) -> Result<Value, RpcError> {
+fn handle(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
+    let method = ctx.method();
+    let params = ctx.params();
     match method {
         "hello.greet" => {
             // 用户没传名字，就使用默认名字 "Fiex"。
@@ -381,30 +423,28 @@ Fiex 当前的安装入口是 **「设置 → 插件 → 从 GitHub 安装」**�
 
 ## 7. 下一步：真的使用宿主能力
 
-Hello 插件不需要宿主权限。比如你想实现“点一下计数器就加 1，并且下次打开仍然保留”，应该使用 `serve_with_host`，而不是自己在 Fiex 目录里偷偷保存文件。
+Hello 插件不需要宿主权限。比如你想实现“点一下计数器就加 1，并且下次打开仍然保留”，应该使用宿主存储，而不是自己在 Fiex 目录里偷偷保存文件。
 
 把 `src/main.rs` 替换成下面的进阶示例：
 
 ```rust
-use fiex_plugin_sdk::{self as sdk, RpcError, HostServices};
+use fiex_plugin_sdk::{self as sdk, RpcError};
 use serde_json::{json, Value};
 
 fn main() {
-    if let Err(error) = sdk::serve_with_host(
-        "org.example.hello",
-        |method: &str, _params: Value, host: &mut dyn HostServices| {
-            match method {
-                "hello.count" => {
-                    // 从宿主提供的、按插件隔离的存储读取计数。
-                    let old = host.storage_get("default", "counter")?;
-                    let next = old.as_u64().unwrap_or(0) + 1;
-                    host.storage_set("default", "counter", json!(next))?;
-                    Ok(json!({ "count": next }))
-                }
-                _ => Err(RpcError::method_not_found(method)),
+    if let Err(error) = sdk::serve("org.example.hello", |ctx| {
+        let method = ctx.method();
+        match method {
+            "hello.count" => {
+                // 从宿主提供的、按插件隔离的存储读取计数。
+                let old = ctx.storage_get("default", "counter")?;
+                let next = old.as_u64().unwrap_or(0) + 1;
+                ctx.storage_set("default", "counter", json!(next))?;
+                Ok(json!({ "count": next }))
             }
-        },
-    ) {
+            _ => Err(RpcError::method_not_found(method)),
+        }
+    }) {
         eprintln!("插件出错：{error}");
         std::process::exit(1);
     }
@@ -418,21 +458,25 @@ fn main() {
 
 重新编译并重新打包。这个例子**必须通过真正的 Fiex 宿主**运行并由用户授权 `storage`；刚才的独立测试器只模拟插件握手，不实现 `host.storage.*` 回调，**不能**用来测试这个计数器。安装器当前对已安装的同 ID 插件不支持直接覆盖，需要先卸载再安装新版本。
 
-如果你需要凭据，请查阅 `HostServices::secret_get / secret_set` 并声明 `"secrets": true`。不要将密码硬编码到程序或输出到日志。
+如果你需要凭据，请查阅 `ctx.secret_get / ctx.secret_set` 并声明 `"secrets": true`。不要将密码硬编码到程序或输出到日志。
 
 SDK 当前公开的关键接口：
 
-| API                                 | 作用                           | 什么时候用           |
-| ----------------------------------- | ------------------------------ | -------------------- |
-| `sdk::serve(id, handler)`           | 启动插件、管理 IPC 生命周期    | 只处理宿主发来的命令 |
-| `sdk::serve_with_host(id, handler)` | 处理命令时还可反向调用宿主服务 | 存储、凭据等         |
-| `RpcError::method_not_found(...)`   | 不支持的命令                   | `match` 的默认分支   |
-| `RpcError::invalid_params(...)`     | 请求缺少字段或参数错误         | 用户传来的参数无效   |
-| `RpcError::internal(...)`           | 插件内部操作失败               | 底层 I/O 或其他错误  |
-| `HostServices::storage_get/set`     | 宿主托管的插件存储             | 需 `storage` 权限    |
-| `HostServices::secret_get/set`      | 宿主托管的凭据服务             | 需 `secrets` 权限    |
+| API                                     | 作用                           | 什么时候用           |
+| --------------------------------------- | ------------------------------ | -------------------- |
+| `sdk::serve(id, handler)`               | 启动常驻插件、并发分发请求     | 所有 Native 插件     |
+| `RequestContext::method/params`         | 当前请求的方法与参数           | 请求分发             |
+| `RequestContext::files/http/tcp`        | 宿主托管的文件、HTTP、TCP 能力 | 访问用户授权资源     |
+| `RequestContext::spawn_task`            | 创建独立生命周期的后台任务     | 大文件、长耗时操作   |
+| `RequestContext::spawn_task_with_label` | 为状态中心提供任务标题         | 需要友好名称的长任务 |
+| `TaskHandle::cancel/status/wait`        | 任务取消、状态与完成等待       | 需要进度或取消的界面 |
+| `RpcError::method_not_found(...)`       | 不支持的命令                   | `match` 的默认分支   |
+| `RpcError::invalid_params(...)`         | 请求缺少字段或参数错误         | 用户传来的参数无效   |
+| `RpcError::internal(...)`               | 插件内部操作失败               | 底层 I/O 或其他错误  |
+| `RequestContext::storage_get/set`       | 宿主托管的插件存储             | 需 `storage` 权限    |
+| `RequestContext::secret_get/set`        | 宿主托管的凭据服务             | 需 `secrets` 权限    |
 
-具体签名以 [rust/src/lib.rs](src/lib.rs) 为准。当前 SDK 采用**同步处理**：宿主反向调用只在当前请求的 `HostServices` 回调中进行。不要以为它已经提供异步任务、完整二进制流或文件系统沙箱。
+具体签名以 [rust/src/context.rs](src/context.rs)、[rust/src/files/mod.rs](src/files/mod.rs) 和 [rust/src/tasks.rs](src/tasks.rs) 为准。SDK 的 IPC、共享内存和线程由 `rust/src/runtime/` 内部管理，不属于普通插件 API。
 
 ## 8. 常见问题：出错先看这里
 
