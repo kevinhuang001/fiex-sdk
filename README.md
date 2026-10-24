@@ -45,3 +45,19 @@ See [fiex-official-plugins](https://github.com/kevinhuang001/fiex-official-plugi
 The APIs are **experimental** and may evolve with the Fiex Core development branch. Fiex does not bundle any official plugins or exempt official plugins from permission approval. **Native plugins currently do not run inside an OS-level sandbox.** Only install plugins you trust.
 
 Pin the SDK with a Git submodule when developing a plugin so that your SDK version matches the version tested with your host and plugin project.
+
+## Core-owned VFS views and connection eligibility
+
+A standalone virtual tree declares `contributions.vfs: [{"id":"history","title":"Git history","readOnly":true}]`.
+A connection factory declares `contributions.connections`; it implicitly supports internal VFS and must not repeat a scheme or VFS declaration.
+UI contributions never confer provider eligibility. `scheme`, `schemes`, `uriPrefix`, `mountId`, and `mountPath` are forbidden in these contributions.
+
+Within a selected-resource request, call `ctx.open_vfs_view("history", selected_root, immutable_context)`.
+Core authenticates the process identity, contribution ownership, and resource scope, and returns a `fiex://mount/<id>/` navigation URI.
+The plugin must not construct URIs. Core sends contributionId/viewContext/nodeId with vfs.list/stat/readSmall/search; return opaque nodeId plus Entry metadata, and relativePath for search. Root nodeId is empty.
+Core binds returned entries to its mount and retains only explicitly saved small view descriptors across restarts.
+
+Connection-specific fs.* provider requests are Core-only and require an installed, active connection factory bound to that instance.
+Ordinary VFS registration does not grant sync, pin, eviction, conflict, or cache control. Generic files/HTTP/TCP remain subject to their existing operation/network grants.
+These are application navigation URIs, not OS mounts. Connection files stream to Core-managed cache files before external opening.
+Standalone readSmall exports are bounded (1 MiB complete file); larger exports fail explicitly pending a streaming VFS contract.

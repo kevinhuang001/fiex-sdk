@@ -178,6 +178,22 @@ impl RequestContext {
         self.inner.call(method, params)
     }
 
+    /// Open a lightweight view of this plugin's explicit `contributions.vfs`
+    /// item. Core checks the current selected-resource scope and returns its URI.
+    /// Connections use their Core-assigned instance mount instead.
+    pub fn open_vfs_view(
+        &self,
+        contribution_id: &str,
+        resource_root: &str,
+        view_context: Value,
+    ) -> Result<String, RpcError> {
+        let result = self.invoke("host.vfs.openView", serde_json::json!({"contributionId":contribution_id,"resourceRoot":resource_root,"viewContext":view_context}))?;
+        result
+            .as_str()
+            .map(str::to_string)
+            .ok_or_else(|| RpcError::internal("Core returned no view URI"))
+    }
+
     pub fn report_error(
         &self,
         code: &str,

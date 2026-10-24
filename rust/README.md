@@ -305,13 +305,12 @@ python sdk/rust/examples/check_plugin.py --binary target/debug/fiex-plugin-hello
   "id": "org.example.hello",
   "name": "Hello Fiex",
   "version": "0.1.0",
-  "protocolVersion": "2.0",
-  "capabilities": ["commands", "toolbar"],
-  "entrypoints": {
-    "windows-x86_64": "fiex-plugin-hello.exe"
+  "runtime": {
+    "protocolVersion": "2.0",
+    "entrypoints": { "windows-x86_64": "fiex-plugin-hello.exe" }
   },
   "permissions": {},
-  "contributes": {
+  "contributions": {
     "toolbar": [
       {
         "id": "hello.main",
@@ -341,8 +340,7 @@ python sdk/rust/examples/check_plugin.py --binary target/debug/fiex-plugin-hello
 还需理解几个字段：
 
 - `id`：插件唯一 ID；必须跟 `sdk::serve` 里的字符串一致。
-- `capabilities`：告诉宿主该插件提供哪些类别的功能。
-- `contributes.toolbar[].command`：让工具栏按钮调用 `hello.greet`。
+- `contributions.toolbar[].command`：让工具栏按钮调用 `hello.greet`。
 - `permissions`：这个示例不通过宿主 API 访问文件、存储或凭据，因此是空对象。
 - `author`：设置页面展示的作者信息，**不会赋予额外权限或官方身份**。
 
@@ -512,3 +510,19 @@ SDK 当前公开的关键接口：
 - **Fiex Core 插件技术文档：** [docs/plugins](https://github.com/kevinhuang001/fiex/tree/main/docs/plugins)（注意其中包含标注为“拟议”的设计，不都是当前 API）
 
 **一句话总结：** 先学会 `sdk::serve` + `match` + JSON 返回值，跑通真实进程测试；再用 `manifest.json` 声明入口和权限，最后打包成 `.fiexplugin` 通过 GitHub Release 分发。
+
+## Core-owned VFS views and connection eligibility
+
+A standalone virtual tree declares `contributions.vfs: [{"id":"history","title":"Git history","readOnly":true}]`.
+A connection factory declares `contributions.connections`; it implicitly supports internal VFS and must not repeat a scheme or VFS declaration.
+UI contributions never confer provider eligibility. `scheme`, `schemes`, `uriPrefix`, `mountId`, and `mountPath` are forbidden in these contributions.
+
+Within a selected-resource request, call `ctx.open_vfs_view("history", selected_root, immutable_context)`.
+Core authenticates the process identity, contribution ownership, and resource scope, and returns a `fiex://mount/<id>/` navigation URI.
+The plugin must not construct URIs. Core sends contributionId/viewContext/nodeId with vfs.list/stat/readSmall/search; return opaque nodeId plus Entry metadata, and relativePath for search. Root nodeId is empty.
+Core binds returned entries to its mount and retains only explicitly saved small view descriptors across restarts.
+
+Connection-specific fs.* provider requests are Core-only and require an installed, active connection factory bound to that instance.
+Ordinary VFS registration does not grant sync, pin, eviction, conflict, or cache control. Generic files/HTTP/TCP remain subject to their existing operation/network grants.
+These are application navigation URIs, not OS mounts. Connection files stream to Core-managed cache files before external opening.
+Standalone readSmall exports are bounded (1 MiB complete file); larger exports fail explicitly pending a streaming VFS contract.

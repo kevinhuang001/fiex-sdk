@@ -46,7 +46,7 @@ impl ReadCache {
         let cached = offset
             .checked_sub(self.start)
             .and_then(|value| usize::try_from(value).ok());
-        if !cached.is_some_and(|index| index < self.bytes.len()) {
+        if cached.is_none_or(|index| index >= self.bytes.len()) {
             if (output.len() >= CHUNK || self.misses >= 2) && self.shared.is_none() {
                 if let Ok(descriptor) = context
                     .call(
