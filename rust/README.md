@@ -462,18 +462,18 @@ fn main() {
 
 SDK 当前公开的关键接口：
 
-| API                                 | 作用                           | 什么时候用           |
-| ----------------------------------- | ------------------------------ | -------------------- |
-| `sdk::serve(id, handler)`          | 启动常驻插件、并发分发请求       | 所有 Native 插件       |
-| `RequestContext::method/params`    | 当前请求的方法与参数             | 请求分发               |
-| `RequestContext::files/http/tcp`   | 宿主托管的文件、HTTP、TCP 能力   | 访问用户授权资源       |
-| `RequestContext::spawn_task`       | 创建独立生命周期的后台任务       | 大文件、长耗时操作     |
-| `TaskHandle::cancel/status/wait`   | 任务取消、状态与完成等待         | 需要进度或取消的界面   |
-| `RpcError::method_not_found(...)`  | 不支持的命令                     | `match` 的默认分支     |
-| `RpcError::invalid_params(...)`    | 请求缺少字段或参数错误           | 用户传来的参数无效     |
-| `RpcError::internal(...)`          | 插件内部操作失败                 | 底层 I/O 或其他错误    |
-| `RequestContext::storage_get/set`  | 宿主托管的插件存储               | 需 `storage` 权限      |
-| `RequestContext::secret_get/set`   | 宿主托管的凭据服务               | 需 `secrets` 权限      |
+| API                               | 作用                           | 什么时候用           |
+| --------------------------------- | ------------------------------ | -------------------- |
+| `sdk::serve(id, handler)`         | 启动常驻插件、并发分发请求     | 所有 Native 插件     |
+| `RequestContext::method/params`   | 当前请求的方法与参数           | 请求分发             |
+| `RequestContext::files/http/tcp`  | 宿主托管的文件、HTTP、TCP 能力 | 访问用户授权资源     |
+| `RequestContext::spawn_task`      | 创建独立生命周期的后台任务     | 大文件、长耗时操作   |
+| `TaskHandle::cancel/status/wait`  | 任务取消、状态与完成等待       | 需要进度或取消的界面 |
+| `RpcError::method_not_found(...)` | 不支持的命令                   | `match` 的默认分支   |
+| `RpcError::invalid_params(...)`   | 请求缺少字段或参数错误         | 用户传来的参数无效   |
+| `RpcError::internal(...)`         | 插件内部操作失败               | 底层 I/O 或其他错误  |
+| `RequestContext::storage_get/set` | 宿主托管的插件存储             | 需 `storage` 权限    |
+| `RequestContext::secret_get/set`  | 宿主托管的凭据服务             | 需 `secrets` 权限    |
 
 具体签名以 [rust/src/context.rs](src/context.rs)、[rust/src/files/mod.rs](src/files/mod.rs) 和 [rust/src/tasks.rs](src/tasks.rs) 为准。SDK 的 IPC、共享内存和线程由 `rust/src/runtime/` 内部管理，不属于普通插件 API。
 
