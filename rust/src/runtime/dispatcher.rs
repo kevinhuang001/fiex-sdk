@@ -38,6 +38,18 @@ impl Dispatcher {
         if self.closed.load(Ordering::Acquire) {
             return Err(RpcError::internal("host session is closed"));
         }
+        let timeout =
+            if method == "host.net.http.open" && params["bodyReadHandle"].as_str().is_some() {
+                Duration::from_millis(
+                    params["timeoutMs"]
+                        .as_u64()
+                        .unwrap_or(3_600_000)
+                        .clamp(1, 86_400_000)
+                        + 5_000,
+                )
+            } else {
+                HOST_TIMEOUT
+            };
         let id = self.next_id.fetch_add(1, Ordering::Relaxed) + 1;
         let (sender, receiver) = mpsc::channel();
         self.pending
@@ -65,7 +77,7 @@ impl Dispatcher {
             }
             return Err(RpcError::internal(error.to_string()));
         }
-        match receiver.recv_timeout(HOST_TIMEOUT) {
+        match receiver.recv_timeout(timeout) {
             Ok(result) => result,
             Err(mpsc::RecvTimeoutError::Timeout) => {
                 if let Ok(mut pending) = self.pending.lock() {
