@@ -37,7 +37,7 @@ output.commit()?;
 # Ok(()) }
 ```
 
-`begin_write` 后的数据由 Core 暂存。只有 `commit` 成功才会替换目标；原文件发生变化时返回冲突。没有提交就释放 writer，会自动取消暂存。`read` 最多读取 64 MiB；更大文件用 `open_read`。路径限于该任务绑定的目录及其子目录。
+`begin_write` 后的数据由 Core 暂存。只有 `commit` 成功才会替换目标；原文件发生变化时返回冲突。没有提交就释放 writer，会自动取消暂存。`read` 最多读取 64 MiB；更大文件用 `open_read`。文件访问限于宿主为本次操作授权的所选文件或目录；文件选择框返回路径后，还需在面板提交操作时将该路径传给 `plugin.invoke`。未提交的写入在操作结束时取消。
 
 HTTP 调用也不接触底层数据缓冲区：
 
@@ -432,7 +432,7 @@ SDK 当前公开的关键接口：
 | `HostServices::storage_get/set`     | 宿主托管的插件存储             | 需 `storage` 权限    |
 | `HostServices::secret_get/set`      | 宿主托管的凭据服务             | 需 `secrets` 权限    |
 
-具体签名以 [rust/src/lib.rs](src/lib.rs) 为准。当前 SDK 采用**同步处理**：宿主反向调用只在当前请求的 `HostServices` 回调中进行。不要以为它已经提供异步任务、完整二进制流或文件系统沙箱。
+具体签名以 [rust/src/host.rs](src/host.rs) 为准。当前 SDK 采用**同步处理**：宿主反向调用只在当前请求的 `HostServices` 回调中进行。不要以为它已经提供异步任务、完整二进制流或文件系统沙箱。
 
 ## 8. 常见问题：出错先看这里
 
