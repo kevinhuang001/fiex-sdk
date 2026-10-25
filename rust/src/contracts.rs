@@ -22,6 +22,8 @@ pub struct ResourceMetadata {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub extension: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mime: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub size: Option<u64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub modified: Option<i64>,
@@ -157,6 +159,7 @@ mod tests {
                     name: "a.txt".into(),
                     kind: "file".into(),
                     extension: Some("txt".into()),
+                    mime: Some("text/plain".into()),
                     size: Some(1),
                     modified: None,
                 }),
