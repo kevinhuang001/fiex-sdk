@@ -273,14 +273,14 @@ python sdk/rust/examples/check_plugin.py --binary target/debug/fiex-plugin-hello
 测试器会依次做：
 
 1. 启动你刚刚编译出来的可执行文件。
-2. 发起 `plugin.initialize` 握手，协议版本为 `2.0`。
+2. 发起 `plugin.initialize` 握手，协议版本为 `3.0`。
 3. 调用 `hello.greet`，默认发送 `{"name":"新手"}`。
 4. 发起 `plugin.shutdown` 并确认正常退出。
 
 成功时类似这样：
 
 ```text
-✅ 初始化成功： {'pluginId': 'org.example.hello', 'protocolVersion': '2.0', 'ready': True}
+✅ 初始化成功： {'pluginId': 'org.example.hello', 'protocolVersion': '3.0', 'ready': True}
 ✅ 方法调用成功： {"message": "你好，新手！"}
 ✅ 正常退出，三项检查全部通过
 ```

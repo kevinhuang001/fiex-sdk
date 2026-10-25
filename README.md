@@ -42,15 +42,15 @@ The Rust SDK currently requires **Rust 1.90+**. For full explanations of each co
 
 See [fiex-official-plugins](https://github.com/kevinhuang001/fiex-official-plugins) for examples of Checksum, Archive, Git, SMB, and WebDAV plugins, including GitHub Actions packaging.
 
-The APIs are **experimental** and may evolve with the Fiex Core development branch. Fiex does not bundle any official plugins or exempt official plugins from permission approval. **Native plugins currently do not run inside an OS-level sandbox.** Only install plugins you trust.
+The APIs are **experimental** and may evolve with the Fiex Core development branch. Fiex does not bundle any official plugins or exempt official plugins from permission approval. Native plugins run inside Core's OS sandbox (Landlock/seccomp on Linux, Seatbelt on macOS, AppContainer and a Job Object on Windows); approved external commands run outside it as the current user. Only install plugins you trust.
 
 Pin the SDK with a Git submodule when developing a plugin so that your SDK version matches the version tested with your host and plugin project.
 
 ## Core-owned VFS views and connection eligibility
 
-A standalone virtual tree declares `contributions.vfs: [{"id":"history","title":"Git history","readOnly":true}]`.
-A connection factory declares `contributions.connections`; it implicitly supports internal VFS and must not repeat a scheme or VFS declaration.
-UI contributions never confer provider eligibility. `scheme`, `schemes`, `uriPrefix`, `mountId`, and `mountPath` are forbidden in these contributions.
+A standalone virtual tree declares `extensions.vfs: [{"id":"history","title":"Git history","readOnly":true}]`.
+A connection factory declares `extensions.connections` and additionally declares `extensions.vfs` when it exposes files; providers must not declare a scheme or construct mount identifiers.
+UI extensions never confer provider eligibility. `scheme`, `schemes`, `uriPrefix`, `mountId`, and `mountPath` are forbidden in these extensions.
 
 Within a selected-resource request, call `ctx.open_vfs_view("history", selected_root, immutable_context)`.
 Core authenticates the process identity, contribution ownership, and resource scope, and returns a `fiex://mount/<id>/` navigation URI.
