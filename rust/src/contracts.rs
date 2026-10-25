@@ -68,6 +68,8 @@ pub struct InfoContext {
 pub struct InfoRow {
     pub label: String,
     pub value: String,
+    #[serde(default)]
+    pub copyable: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
