@@ -144,8 +144,7 @@ mod tests {
                     modified: None,
                 }),
                 read: None,
-            },
-        }],
+            }],
         };
         assert_eq!(context.targets[0].name(), Some("a.txt"));
         let encoded = serde_json::to_value(&context).unwrap();
