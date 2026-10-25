@@ -60,11 +60,9 @@
     }
   },
   "extensions": {
-    "search": [
-      {
-        "icon": "magnifying-glass",
-        "scope": "global"
-      }
-    ]
+    "search": {
+      "icon": "magnifying-glass",
+      "scope": "global"
+    }
   }
 }
