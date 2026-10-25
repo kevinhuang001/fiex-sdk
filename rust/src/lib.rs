@@ -30,7 +30,7 @@ pub use files::{FileReader, FileWriter, Files};
 pub use http::{HttpClient, Request, Response};
 pub use ipc::{Entry, ProcessResult};
 pub use tasks::{TaskHandle, TaskStatus};
-pub use tcp::{TcpClient, TcpStream};
+pub use tcp::{TcpClient, TcpReadHalf, TcpStream, TcpWriteHalf};
 
 pub const PROTOCOL_VERSION: &str = "3.0";
 pub const MAX_FRAME: usize = 4 * 1024 * 1024;

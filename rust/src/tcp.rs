@@ -70,6 +70,13 @@ pub struct TcpStream {
 }
 
 impl TcpStream {
+    /// Split one Core-brokered connection into independently owned read and write
+    /// halves. They can be sent to different threads; dropping one half does
+    /// not close the other half's connection.
+    pub fn into_split(self) -> (TcpReadHalf, TcpWriteHalf) {
+        (TcpReadHalf(self.clone()), TcpWriteHalf(self))
+    }
+
     pub fn peer_addr(&self) -> SocketAddr {
         self.connection.address
     }
@@ -145,5 +152,50 @@ impl Write for TcpStream {
 
     fn flush(&mut self) -> io::Result<()> {
         Ok(())
+    }
+}
+
+
+/// The read half of a host-brokered TCP connection.
+pub struct TcpReadHalf(TcpStream);
+
+impl TcpReadHalf {
+    pub fn peer_addr(&self) -> SocketAddr {
+        self.0.peer_addr()
+    }
+
+    /// Stop receiving, preserving the other half's ability to write.
+    pub fn shutdown(&self) -> io::Result<()> {
+        self.0.shutdown(Shutdown::Read)
+    }
+}
+
+impl Read for TcpReadHalf {
+    fn read(&mut self, output: &mut [u8]) -> io::Result<usize> {
+        self.0.read(output)
+    }
+}
+
+/// The write half of a host-brokered TCP connection.
+pub struct TcpWriteHalf(TcpStream);
+
+impl TcpWriteHalf {
+    pub fn peer_addr(&self) -> SocketAddr {
+        self.0.peer_addr()
+    }
+
+    /// Send a TCP FIN without preventing the read half from receiving.
+    pub fn shutdown(&self) -> io::Result<()> {
+        self.0.shutdown(Shutdown::Write)
+    }
+}
+
+impl Write for TcpWriteHalf {
+    fn write(&mut self, data: &[u8]) -> io::Result<usize> {
+        self.0.write(data)
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        self.0.flush()
     }
 }

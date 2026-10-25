@@ -74,3 +74,13 @@ Connection-specific fs.* provider requests are Core-only and require an installe
 Ordinary VFS registration does not grant sync, pin, eviction, conflict, or cache control. Generic files/HTTP/TCP remain subject to their existing operation/network grants.
 These are application navigation URIs, not OS mounts. Connection files stream to Core-managed cache files before external opening.
 Standalone readSmall exports are bounded (1 MiB complete file); larger exports fail explicitly pending a streaming VFS contract.
+
+## TCP split and half-close
+
+`let (reader, writer) = ctx.tcp().connect(host, port)?.into_split();`
+returns separately owned `TcpReadHalf: Read + Send` and
+`TcpWriteHalf: Write + Send`. The host has independent TCP read/write locks,
+so the two halves can be moved to separate worker threads. Call
+`writer.shutdown()` for a TCP FIN while continuing to read a server response
+through `reader`. This API remains **blocking**; asynchronous Tokio I/O
+requires separate async trait adapters and cancellation handling.
