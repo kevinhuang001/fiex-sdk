@@ -27,7 +27,7 @@ pub use ipc::{Entry, ProcessResult};
 pub use tasks::{TaskHandle, TaskStatus};
 pub use tcp::{TcpClient, TcpStream};
 
-pub const PROTOCOL_VERSION: &str = "2.0";
+pub const PROTOCOL_VERSION: &str = "3.0";
 pub const MAX_FRAME: usize = 4 * 1024 * 1024;
 const MAX_HEADER: usize = 8192;
 

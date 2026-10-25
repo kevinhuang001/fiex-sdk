@@ -105,6 +105,34 @@ impl Files {
             .map_err(|error| io::Error::other(format!("invalid file metadata: {error}")))
     }
 
+    /// Resolve metadata for the current selection with a single host request.
+    /// A denied or missing entry fails independently without exposing its data.
+    pub fn stat_batch(&self, paths: &[&str]) -> io::Result<Vec<io::Result<Entry>>> {
+        let value = self
+            .context
+            .call("host.fs.statBatch", json!({"paths": paths}))
+            .map_err(rpc_to_io)?;
+        let results = value["results"]
+            .as_array()
+            .filter(|results| results.len() == paths.len())
+            .ok_or_else(|| io::Error::other("invalid stat batch response"))?;
+        Ok(results
+            .iter()
+            .map(|result| {
+                if let Some(metadata) = result.get("metadata") {
+                    serde_json::from_value(metadata.clone()).map_err(|error| {
+                        io::Error::new(io::ErrorKind::InvalidData, error)
+                    })
+                } else {
+                    Err(io::Error::new(
+                        io::ErrorKind::PermissionDenied,
+                        result["error"].as_str().unwrap_or("metadata unavailable"),
+                    ))
+                }
+            })
+            .collect())
+    }
+
     pub fn create_dir_all(&self, path: &str) -> io::Result<()> {
         self.context
             .call("host.fs.mkdir", json!({"path": path}))

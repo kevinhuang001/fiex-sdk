@@ -178,7 +178,7 @@ impl RequestContext {
         self.inner.call(method, params)
     }
 
-    /// Open a lightweight view of this plugin's explicit `contributions.vfs`
+    /// Open a lightweight view of this plugin's explicit `extensions.vfs`
     /// item. Core checks the current selected-resource scope and returns its URI.
     /// Connections use their Core-assigned instance mount instead.
     pub fn open_vfs_view(

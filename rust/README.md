@@ -301,16 +301,16 @@ python sdk/rust/examples/check_plugin.py --binary target/debug/fiex-plugin-hello
 
 ```json
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "org.example.hello",
   "name": "Hello Fiex",
   "version": "0.1.0",
   "runtime": {
-    "protocolVersion": "2.0",
+    "protocolVersion": "3.0",
     "entrypoints": { "windows-x86_64": "fiex-plugin-hello.exe" }
   },
   "permissions": {},
-  "contributions": {
+  "extensions": {
     "toolbar": [
       {
         "id": "hello.main",
@@ -340,7 +340,7 @@ python sdk/rust/examples/check_plugin.py --binary target/debug/fiex-plugin-hello
 还需理解几个字段：
 
 - `id`：插件唯一 ID；必须跟 `sdk::serve` 里的字符串一致。
-- `contributions.toolbar[].command`：让工具栏按钮调用 `hello.greet`。
+- `extensions.toolbar[].command`：让工具栏按钮调用 `hello.greet`。
 - `permissions`：这个示例不通过宿主 API 访问文件、存储或凭据，因此是空对象。
 - `author`：设置页面展示的作者信息，**不会赋予额外权限或官方身份**。
 
@@ -513,9 +513,9 @@ SDK 当前公开的关键接口：
 
 ## Core-owned VFS views and connection eligibility
 
-A standalone virtual tree declares `contributions.vfs: [{"id":"history","title":"Git history","readOnly":true}]`.
-A connection factory declares `contributions.connections`; it implicitly supports internal VFS and must not repeat a scheme or VFS declaration.
-UI contributions never confer provider eligibility. `scheme`, `schemes`, `uriPrefix`, `mountId`, and `mountPath` are forbidden in these contributions.
+A standalone virtual tree declares `extensions.vfs: [{"id":"history","title":"Git history","readOnly":true}]`.
+A connection factory declares `extensions.connections`; file browsing also requires `extensions.vfs`. Core assigns the mount ID and URI.
+UI extensions never confer provider eligibility. `scheme`, `schemes`, `uriPrefix`, `mountId`, and `mountPath` are forbidden in these extensions.
 
 Within a selected-resource request, call `ctx.open_vfs_view("history", selected_root, immutable_context)`.
 Core authenticates the process identity, contribution ownership, and resource scope, and returns a `fiex://mount/<id>/` navigation URI.

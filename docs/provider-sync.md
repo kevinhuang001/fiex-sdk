@@ -2,9 +2,9 @@
 
 Core owns on-demand materialization, persistent offline directory metadata, recursive pins, eviction, local change detection, retries and conflict presentation. Providers implement protocol I/O only. This applies to every connection type, without provider IDs hard-coded in Core.
 
-Declare a connection factory under `contributions.connections`. No `capabilities` configuration is needed or accepted. Implement `fs.stat({connection,nodeId}) -> {revision,size?}` and `fs.writeFile({connection,nodeId,source,size,ifRevision}) -> {revision}`. Directory entries should include stable node IDs and revisions. A missing listing revision is obtained with stat at download time.
+Declare a connection factory under `extensions.connections`. No `capabilities` configuration is needed or accepted. Implement `fs.stat({connection,nodeId}) -> {revision,size?}` and `fs.writeFile({connection,nodeId,source,size,ifRevision}) -> {revision}`. Directory entries should include stable node IDs and revisions. A missing listing revision is obtained with stat at download time.
 
-`source` is a logical filename. Only the exact Core-created upload snapshot is granted to this operation. Declare `permissions.files.read: true`; this remains subject to user approval. Open it with `ctx.files().open_read(source)`. SMB providers can copy bounded chunks to a server-side staging file and rename after validation.
+`source` is a logical filename. Only the exact Core-created upload snapshot is granted to this operation. Declare `permissions.files.read.enabled: true`; this remains subject to user approval. Open it with `ctx.files().open_read(source)`. SMB providers can copy bounded chunks to a server-side staging file and rename after validation.
 
 For HTTP backends use `ctx.http().put(url).body_reader(reader).send()`. The SDK consumes the reader. Core verifies ownership of the read handle and sends the file directly through its HTTP client, so no entire-file buffers or absolute paths cross IPC. Inline `.body(...)` and `.json(...)` clear the file body. Request/task cleanup closes the original handle. Redirects remain subject to network allowlists; a redirect to GET drops the file body.
 
@@ -14,9 +14,9 @@ Revisions must change when remote content changes. Check `ifRevision` before wri
 
 ## Core-owned VFS views and connection eligibility
 
-A standalone virtual tree declares `contributions.vfs: [{"id":"history","title":"Git history","readOnly":true}]`.
-A connection factory declares `contributions.connections`; it implicitly supports internal VFS and must not repeat a scheme or VFS declaration.
-UI contributions never confer provider eligibility. `scheme`, `schemes`, `uriPrefix`, `mountId`, and `mountPath` are forbidden in these contributions.
+A standalone virtual tree declares `extensions.vfs: [{"id":"history","title":"Git history","readOnly":true}]`.
+A connection factory declares `extensions.connections`; a connection that navigates to files must additionally declare `extensions.vfs`. Core owns the mount ID and URI for each connection.
+UI extensions never confer provider eligibility. `scheme`, `schemes`, `uriPrefix`, `mountId`, and `mountPath` are forbidden in these extensions.
 
 Within a selected-resource request, call `ctx.open_vfs_view("history", selected_root, immutable_context)`.
 Core authenticates the process identity, contribution ownership, and resource scope, and returns a `fiex://mount/<id>/` navigation URI.
