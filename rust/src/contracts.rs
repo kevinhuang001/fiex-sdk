@@ -1,9 +1,8 @@
 //! Standard event DTOs shared with Core.
 //!
-//! `info.resolve` receives an [`InfoContext`] and returns an
-//! [`InfoResponse`]; `preview.open` receives a [`PreviewContext`] and returns
-//! a [`PreviewView`]. Contexts contain opaque resource references and optional
-//! metadata/read capabilities, never a host path.
+//! All Core system events receive one [`EventContext`] with a `targets` array.
+//! The JSON-RPC `method` determines the event. Targets contain opaque refs and
+//! optional, permission-projected metadata/read capabilities, never host paths.
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -54,15 +53,12 @@ impl ResourceContext {
     }
 }
 
+/// Common system-event parameters; the RPC method identifies the event.
 #[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct InfoContext {
-    #[serde(default)]
-    pub version: u32,
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct EventContext {
     pub session_id: String,
-    #[serde(rename = "intent", default)]
-    pub intent: String,
-    pub resource: ResourceContext,
+    pub targets: Vec<ResourceContext>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -88,17 +84,6 @@ pub struct InfoSection {
 pub struct InfoResponse {
     #[serde(default)]
     pub sections: Vec<InfoSection>,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct PreviewContext {
-    #[serde(default)]
-    pub version: u32,
-    pub session_id: String,
-    #[serde(rename = "intent", default)]
-    pub intent: String,
-    pub resource: ResourceContext,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -143,11 +128,9 @@ mod tests {
 
     #[test]
     fn context_projects_optional_metadata_and_read() {
-        let context = InfoContext {
-            version: 1,
+        let context = EventContext {
             session_id: "s".into(),
-            intent: "info".into(),
-            resource: ResourceContext {
+            targets: vec![ResourceContext {
                 reference: ResourceRef {
                     mount_id: "local".into(),
                     node_id: "opaque".into(),
@@ -162,11 +145,13 @@ mod tests {
                 }),
                 read: None,
             },
+        }],
         };
-        assert_eq!(context.resource.name(), Some("a.txt"));
-        assert!(serde_json::to_value(&context).unwrap()["resource"]
-            .get("read")
-            .is_none());
+        assert_eq!(context.targets[0].name(), Some("a.txt"));
+        let encoded = serde_json::to_value(&context).unwrap();
+        assert_eq!(encoded["targets"][0]["ref"]["nodeId"], "opaque");
+        assert!(encoded["targets"][0].get("read").is_none());
+        assert!(encoded.get("resource").is_none());
     }
 
     #[test]

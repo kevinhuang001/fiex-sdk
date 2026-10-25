@@ -23,8 +23,8 @@ pub mod tcp;
 
 pub use context::{RequestContext, TaskContext};
 pub use contracts::{
-    InfoContext, InfoResponse, InfoRow, InfoSection, PackageView, PreviewContext, PreviewView,
-    ResourceContext, ResourceMetadata, ResourceRef, ScopedRead,
+    EventContext, InfoResponse, InfoRow, InfoSection, PackageView, PreviewView, ResourceContext,
+    ResourceMetadata, ResourceRef, ScopedRead,
 };
 pub use files::{FileReader, FileWriter, Files};
 pub use http::{HttpClient, Request, Response};

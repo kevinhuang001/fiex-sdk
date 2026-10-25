@@ -143,14 +143,26 @@ pub struct RequestContext {
     inner: ContextInner,
     method: String,
     params: Value,
+    targets: Vec<crate::contracts::ResourceContext>,
 }
 
 impl RequestContext {
     pub(crate) fn new(inner: ContextInner, method: String, params: Value) -> Self {
+        let targets = params
+            .get("targets")
+            .and_then(Value::as_array)
+            .map(|items| {
+                items
+                    .iter()
+                    .filter_map(|item| serde_json::from_value(item.clone()).ok())
+                    .collect()
+            })
+            .unwrap_or_default();
         Self {
             inner,
             method,
             params,
+            targets,
         }
     }
 
@@ -160,6 +172,23 @@ impl RequestContext {
 
     pub fn params(&self) -> &Value {
         &self.params
+    }
+
+    /// Resources affected by this system event. A custom plugin RPC method
+    /// may have no targets; no filesystem or network call is made here.
+    pub fn targets(&self) -> &[crate::contracts::ResourceContext] {
+        &self.targets
+    }
+
+    /// Return metadata already projected into this request; never performs IO.
+    pub fn metadata(
+        &self,
+        reference: &crate::contracts::ResourceRef,
+    ) -> Option<&crate::contracts::ResourceMetadata> {
+        self.targets
+            .iter()
+            .find(|target| &target.reference == reference)
+            .and_then(|target| target.metadata.as_ref())
     }
 
     pub fn files(&self) -> Files {
