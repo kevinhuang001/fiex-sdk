@@ -59,6 +59,25 @@ impl Files {
         Ok(FileReader::new(self.context.clone(), handle.into(), length))
     }
 
+    /// Open the scoped read capability delivered in an Info/Preview context.
+    /// The id is opaque and only valid for the plugin/session Core issued it to.
+    pub fn open_resource(&self, resource_id: &str, session_id: &str) -> io::Result<FileReader> {
+        let value = self
+            .context
+            .call(
+                "host.fs.openRead",
+                json!({"resourceId": resource_id, "sessionId": session_id}),
+            )
+            .map_err(rpc_to_io)?;
+        let handle = value["handle"]
+            .as_str()
+            .ok_or_else(|| io::Error::other("missing read handle"))?;
+        let length = value["size"]
+            .as_u64()
+            .ok_or_else(|| io::Error::other("missing file size"))?;
+        Ok(FileReader::new(self.context.clone(), handle.into(), length))
+    }
+
     pub fn begin_write(&self, path: &str, create: bool) -> io::Result<FileWriter> {
         let handle = self
             .context

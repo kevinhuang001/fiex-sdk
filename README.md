@@ -46,6 +46,16 @@ The APIs are **experimental** and may evolve with the Fiex Core development bran
 
 Pin the SDK with a Git submodule when developing a plugin so that your SDK version matches the version tested with your host and plugin project.
 
+## Standard Info/Preview events
+
+`info.resolve` receives `contracts::InfoContext` and returns
+`contracts::InfoResponse`; `preview.open` receives `contracts::PreviewContext`
+and returns `contracts::PreviewView`. Contexts carry an opaque `ResourceRef`,
+permission-projected `metadata`, and — only with `files.read` — a scoped
+`read.resourceId`. Open it with `ctx.files().open_resource(id, sessionId)`, or
+read `resource.metadata.name` inside the operation scope. Preview HTML is
+package-confined: return `PreviewView::html("ui/preview.html", title)`.
+
 ## Core-owned VFS views and connection eligibility
 
 A standalone virtual tree declares `extensions.vfs: [{"id":"history","title":"Git history","readOnly":true}]`.

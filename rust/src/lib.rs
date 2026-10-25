@@ -13,6 +13,7 @@ use serde_json::Value;
 use std::io::{self, BufRead, Write};
 
 mod context;
+pub mod contracts;
 pub mod files;
 pub mod http;
 pub mod ipc;
@@ -21,6 +22,10 @@ pub mod tasks;
 pub mod tcp;
 
 pub use context::{RequestContext, TaskContext};
+pub use contracts::{
+    InfoContext, InfoResponse, InfoRow, InfoSection, PackageView, PreviewContext, PreviewView,
+    ResourceContext, ResourceMetadata, ResourceRef, ScopedRead,
+};
 pub use files::{FileReader, FileWriter, Files};
 pub use http::{HttpClient, Request, Response};
 pub use ipc::{Entry, ProcessResult};
