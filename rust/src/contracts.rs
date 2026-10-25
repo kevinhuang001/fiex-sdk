@@ -113,8 +113,6 @@ pub struct PackageView {
 pub struct PreviewView {
     pub kind: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub title: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub view: Option<PackageView>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub text: Option<String>,
@@ -125,10 +123,9 @@ pub struct PreviewView {
 }
 
 impl PreviewView {
-    pub fn html(entry: impl Into<String>, title: impl Into<String>) -> Self {
+    pub fn html(entry: impl Into<String>) -> Self {
         Self {
             kind: "html".into(),
-            title: Some(title.into()),
             view: Some(PackageView {
                 source: "package".into(),
                 entry: entry.into(),
@@ -174,7 +171,7 @@ mod tests {
 
     #[test]
     fn preview_html_is_package_confined() {
-        let view = PreviewView::html("ui/preview.html", "Preview");
+        let view = PreviewView::html("ui/preview.html");
         assert_eq!(view.kind, "html");
         assert_eq!(view.view.unwrap().entry, "ui/preview.html");
     }
