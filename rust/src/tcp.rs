@@ -8,7 +8,7 @@ use base64::{engine::general_purpose::STANDARD, Engine};
 use serde_json::json;
 use std::{
     io::{self, Read, Write},
-    net::SocketAddr,
+    net::{Shutdown, SocketAddr},
     sync::Arc,
 };
 
@@ -72,6 +72,26 @@ pub struct TcpStream {
 impl TcpStream {
     pub fn peer_addr(&self) -> SocketAddr {
         self.connection.address
+    }
+
+    /// Half-close either direction without discarding the opposite direction.
+    ///
+    /// Cloned streams share one Core connection. `Shutdown::Write` sends a
+    /// TCP FIN while allowing the remote peer's response to be read.
+    pub fn shutdown(&self, how: Shutdown) -> io::Result<()> {
+        let direction = match how {
+            Shutdown::Read => "read",
+            Shutdown::Write => "write",
+            Shutdown::Both => "both",
+        };
+        self.connection
+            .context
+            .call(
+                "host.net.tcp.shutdown",
+                json!({"stream": self.connection.id, "direction": direction}),
+            )
+            .map_err(rpc_to_io)?;
+        Ok(())
     }
 }
 
