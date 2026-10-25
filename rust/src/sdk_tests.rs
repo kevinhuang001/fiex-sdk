@@ -590,3 +590,21 @@ fn task_limit_is_enforced() {
         let _ = handle.wait();
     }
 }
+
+#[test]
+fn unified_context_exposes_resources_and_business_options() {
+    let mock = std::sync::Arc::new(Mock::new());
+    let request = RequestContext::new(
+        context(mock),
+        "info.resolve".into(),
+        serde_json::json!({
+            "target": {"ref": {"mountId":"local","nodeId":"opaque"}},
+            "selection": [{"ref":{"mountId":"local","nodeId":"opaque"}}],
+            "options": {"format":"short"}
+        }),
+    );
+    assert_eq!(request.target().unwrap()["ref"]["nodeId"], "opaque");
+    assert_eq!(request.selection().len(), 1);
+    assert_eq!(request.params()["format"], "short");
+    assert!(request.params().get("target").is_none());
+}

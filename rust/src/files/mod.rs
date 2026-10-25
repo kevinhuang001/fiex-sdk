@@ -59,15 +59,11 @@ impl Files {
         Ok(FileReader::new(self.context.clone(), handle.into(), length))
     }
 
-    /// Open the scoped read capability delivered in an Info/Preview context.
-    /// The id is opaque and only valid for the plugin/session Core issued it to.
-    pub fn open_resource(&self, resource_id: &str, session_id: &str) -> io::Result<FileReader> {
+    /// Open a resource in this operation. Core checks identity, scope and read permission.
+    pub fn open_ref(&self, reference: &crate::ResourceRef) -> io::Result<FileReader> {
         let value = self
             .context
-            .call(
-                "host.fs.openRead",
-                json!({"resourceId": resource_id, "sessionId": session_id}),
-            )
+            .call("host.fs.openRead", json!({"ref": reference}))
             .map_err(rpc_to_io)?;
         let handle = value["handle"]
             .as_str()

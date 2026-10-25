@@ -159,7 +159,25 @@ impl RequestContext {
     }
 
     pub fn params(&self) -> &Value {
-        &self.params
+        self.params.get("options").unwrap_or(&self.params)
+    }
+
+    /// The operation target as `{ ref, metadata? }`. Identity alone grants no access.
+    pub fn target(&self) -> Option<&Value> {
+        self.params.get("target").filter(|value| !value.is_null())
+    }
+
+    pub fn selection(&self) -> &[Value] {
+        self.params
+            .get("selection")
+            .and_then(Value::as_array)
+            .map(Vec::as_slice)
+            .unwrap_or(&[])
+    }
+
+    /// Fetch current metadata through the same authorized file broker.
+    pub fn metadata(&self, reference: &crate::ResourceRef) -> Result<Value, RpcError> {
+        self.inner.call("host.fs.stat", json!({"ref": reference}))
     }
 
     pub fn files(&self) -> Files {
