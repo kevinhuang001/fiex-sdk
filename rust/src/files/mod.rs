@@ -120,9 +120,8 @@ impl Files {
             .iter()
             .map(|result| {
                 if let Some(metadata) = result.get("metadata") {
-                    serde_json::from_value(metadata.clone()).map_err(|error| {
-                        io::Error::new(io::ErrorKind::InvalidData, error)
-                    })
+                    serde_json::from_value(metadata.clone())
+                        .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))
                 } else {
                     Err(io::Error::new(
                         io::ErrorKind::PermissionDenied,
