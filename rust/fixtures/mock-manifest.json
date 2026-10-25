@@ -20,7 +20,9 @@
     },
     "commands": {
       "enabled": true,
-      "allow": ["git"]
+      "allow": [
+        "git"
+      ]
     },
     "folders": {
       "read": {
@@ -60,11 +62,8 @@
   "extensions": {
     "search": [
       {
-        "id": "mock",
-        "title": "Mock Search",
         "icon": "magnifying-glass",
-        "scope": "global",
-        "command": "search.query"
+        "scope": "global"
       }
     ]
   }
