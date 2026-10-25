@@ -48,13 +48,16 @@ Pin the SDK with a Git submodule when developing a plugin so that your SDK versi
 
 ## Standard Info/Preview events
 
-`info.resolve` receives `contracts::InfoContext` and returns
-`contracts::InfoResponse`; `preview.open` receives `contracts::PreviewContext`
-and returns `contracts::PreviewView`. Contexts carry an opaque `ResourceRef`,
-permission-projected `metadata`, and — only with `files.read` — a scoped
-`read.resourceId`. Open it with `ctx.files().open_resource(id, sessionId)`, or
-read `resource.metadata.name` inside the operation scope. Preview HTML is
-package-confined: return `PreviewView::html("ui/preview.html")`.
+`info.resolve` and `preview.open` receive the same
+`contracts::EventContext` with a `targets` array. The JSON-RPC `method` is the
+system event identifier; no separate `intent`, `target`, or `selection` is
+required. Plugins use `ctx.targets()` to read the operation targets and
+`ctx.metadata(&target.reference)` for permission-projected metadata, without
+performing IO. To access file content, use the scoped file SDK; a target ref
+alone never grants read permission. Info returns `contracts::InfoResponse`;
+Preview returns `contracts::PreviewView` (for example,
+`PreviewView::html("ui/preview.html")`). Custom plugin RPC methods such as
+`checksum.calculate` remain available via the controlled plugin UI bridge.
 
 ## Core-owned VFS views and connection eligibility
 
