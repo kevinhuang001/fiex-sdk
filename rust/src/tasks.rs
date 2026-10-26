@@ -189,6 +189,7 @@ impl TaskManager {
         parent: &ContextInner,
         label: &str,
         internal: bool,
+        locale: crate::i18n::Locale,
         work: F,
     ) -> Result<TaskHandle, RpcError>
     where
@@ -236,7 +237,7 @@ impl TaskManager {
         let cancelled = Arc::new(AtomicBool::new(false));
         let context = parent.fork(Session::Task(id.clone()), Arc::clone(&cancelled));
         let finish = context.clone();
-        let task_context = TaskContext::new(context, Arc::clone(&record));
+        let task_context = TaskContext::new(context, Arc::clone(&record), locale);
         let record_for_thread = Arc::clone(&record);
         let spawned = thread::Builder::new()
             .name(format!("fiex-sdk-{id}"))

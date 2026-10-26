@@ -610,6 +610,8 @@ fn locale_is_request_local_and_inherited_by_background_work() {
     let task = request
         .spawn_task(|task| {
             assert_eq!(task.locale(), crate::i18n::Locale::English);
+            let moved_locale = std::thread::spawn(move || task.locale()).join().unwrap();
+            assert_eq!(moved_locale, crate::i18n::Locale::English);
             Ok(Value::Null)
         })
         .unwrap();

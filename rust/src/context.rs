@@ -292,12 +292,10 @@ impl RequestContext {
     where
         F: FnOnce(TaskContext) -> Result<Value, RpcError> + Send + 'static,
     {
-        {
-            let locale = self.locale();
-            TaskManager::spawn(&self.inner, label, false, move |task| {
-                crate::i18n::with_locale(locale, || work(task))
-            })
-        }
+        let locale = self.locale();
+        TaskManager::spawn(&self.inner, label, false, locale, move |task| {
+            crate::i18n::with_locale(locale, || work(task))
+        })
     }
 
     /// Start a background task that is an implementation detail rather than a
@@ -307,12 +305,10 @@ impl RequestContext {
     where
         F: FnOnce(TaskContext) -> Result<Value, RpcError> + Send + 'static,
     {
-        {
-            let locale = self.locale();
-            TaskManager::spawn(&self.inner, label, true, move |task| {
-                crate::i18n::with_locale(locale, || work(task))
-            })
-        }
+        let locale = self.locale();
+        TaskManager::spawn(&self.inner, label, true, locale, move |task| {
+            crate::i18n::with_locale(locale, || work(task))
+        })
     }
 
     pub fn is_cancelled(&self) -> bool {
@@ -326,14 +322,23 @@ impl RequestContext {
 pub struct TaskContext {
     inner: ContextInner,
     record: Arc<TaskRecord>,
+    locale: crate::i18n::Locale,
 }
 
 impl TaskContext {
     pub fn locale(&self) -> crate::i18n::Locale {
-        crate::i18n::current_locale()
+        self.locale
     }
-    pub(crate) fn new(inner: ContextInner, record: Arc<TaskRecord>) -> Self {
-        Self { inner, record }
+    pub(crate) fn new(
+        inner: ContextInner,
+        record: Arc<TaskRecord>,
+        locale: crate::i18n::Locale,
+    ) -> Self {
+        Self {
+            inner,
+            record,
+            locale,
+        }
     }
 
     pub fn id(&self) -> &str {
