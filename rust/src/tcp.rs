@@ -155,7 +155,6 @@ impl Write for TcpStream {
     }
 }
 
-
 /// The read half of a host-brokered TCP connection.
 pub struct TcpReadHalf(TcpStream);
 
