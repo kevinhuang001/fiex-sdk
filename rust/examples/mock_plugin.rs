@@ -108,7 +108,8 @@ fn main() {
         }
         "search.query" => Ok(json!({
             "entries": [{
-                "path": "/tmp/fiex-mock-search.txt",
+                "path": std::path::Path::new(ctx.params()["root"].as_str().unwrap_or("."))
+                    .join("fiex-mock-search.txt"),
                 "name": "fiex-mock-search.txt",
                 "isDir": false,
                 "isSymlink": false,
