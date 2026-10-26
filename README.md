@@ -54,7 +54,7 @@ system event identifier; no separate `intent`, `target`, or `selection` is
 required. Plugins use `ctx.targets()` to read the operation targets and
 `ctx.metadata(&target.reference)` for permission-projected metadata, without
 performing IO. To access file content, use the scoped file SDK; a target ref
-alone never grants read permission. Info returns `contracts::InfoResponse`;
+alone never grants read permission. Info returns `sections JSON`;
 Preview returns `contracts::PreviewView` (for example,
 `PreviewView::html("ui/preview.html")`). Custom plugin RPC methods such as
 `checksum.calculate` remain available via the controlled plugin UI bridge.

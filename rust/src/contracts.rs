@@ -2,7 +2,7 @@
 //!
 //! All Core system events receive one [`EventContext`] with a `targets` array.
 //! The JSON-RPC `method` determines the event. Targets contain opaque refs and
-//! optional, permission-projected metadata/read capabilities, never host paths.
+//! optional, permission-projected metadata, never host paths.
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -28,12 +28,6 @@ pub struct ResourceMetadata {
     pub modified: Option<i64>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ScopedRead {
-    pub resource_id: String,
-}
-
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ResourceContext {
@@ -41,13 +35,11 @@ pub struct ResourceContext {
     pub reference: ResourceRef,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub metadata: Option<ResourceMetadata>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub read: Option<ScopedRead>,
 }
 
 impl ResourceContext {
-    /// File name inside the operation scope. Safe to pass to
-    /// [`crate::Files::open_read`]; it is not an absolute host path.
+    /// Display name projected by Core. Use `reference` with `Files::open_ref`
+    /// when opening a target; a name does not carry authorization.
     pub fn name(&self) -> Option<&str> {
         self.metadata.as_ref().map(|value| value.name.as_str())
     }
@@ -55,8 +47,9 @@ impl ResourceContext {
 
 /// Common system-event parameters; the RPC method identifies the event.
 #[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct EventContext {
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     pub session_id: String,
     pub targets: Vec<ResourceContext>,
 }
@@ -73,6 +66,13 @@ pub struct InfoRow {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct InfoSection {
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub source: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub provider: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub plugin_id: Option<String>,
+
     pub id: String,
     pub title: String,
     #[serde(default)]
@@ -81,13 +81,7 @@ pub struct InfoSection {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct InfoResponse {
-    #[serde(default)]
-    pub sections: Vec<InfoSection>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct PackageView {
     pub source: String,
     pub entry: String,
@@ -95,6 +89,7 @@ pub struct PackageView {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct PreviewView {
     pub kind: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -143,7 +138,6 @@ mod tests {
                     size: Some(1),
                     modified: None,
                 }),
-                read: None,
             }],
         };
         assert_eq!(context.targets[0].name(), Some("a.txt"));
