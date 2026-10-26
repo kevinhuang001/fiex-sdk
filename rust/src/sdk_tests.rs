@@ -590,3 +590,28 @@ fn task_limit_is_enforced() {
         let _ = handle.wait();
     }
 }
+
+#[test]
+fn locale_is_request_local_and_inherited_by_background_work() {
+    let mock = Arc::new(Mock::new());
+    let request = crate::i18n::with_locale(crate::i18n::Locale::English, || {
+        RequestContext::new(
+            context(mock),
+            "locale.test".into(),
+            json!(["business parameters"]),
+        )
+    });
+    assert_eq!(request.locale(), crate::i18n::Locale::English);
+    assert_eq!(request.params(), &json!(["business parameters"]));
+    assert_eq!(
+        crate::i18n::current_locale(),
+        crate::i18n::Locale::SimplifiedChinese
+    );
+    let task = request
+        .spawn_task(|task| {
+            assert_eq!(task.locale(), crate::i18n::Locale::English);
+            Ok(Value::Null)
+        })
+        .unwrap();
+    task.wait().unwrap();
+}

@@ -526,3 +526,12 @@ Connection-specific fs.* provider requests are Core-only and require an installe
 Ordinary VFS registration does not grant sync, pin, eviction, conflict, or cache control. Generic files/HTTP/TCP remain subject to their existing operation/network grants.
 These are application navigation URIs, not OS mounts. Connection files stream to Core-managed cache files before external opening.
 Standalone readSmall exports are bounded (1 MiB complete file); larger exports fail explicitly pending a streaming VFS contract.
+
+### Request language
+
+`ctx.locale().as_str()` returns `zh-CN`, `zh-TW` or `en`. Core supplies the
+language in the JSON-RPC envelope; business `params` remain unchanged, including
+arrays and an application-owned `params.locale` field. Each request captures its
+own language, and SDK background tasks inherit it (`task.locale()`). The optional
+`i18n::current_locale()` is scoped to the current SDK worker, with unwind-safe
+restoration; unrelated requests and threads do not share mutable locale state.

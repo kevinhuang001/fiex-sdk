@@ -6,6 +6,7 @@ static LATE_FILES: Mutex<Option<Files>> = Mutex::new(None);
 
 fn main() {
     sdk::serve("org.fiex.mock", |ctx| match ctx.method() {
+        "mock.locale" => Ok(json!({"locale": ctx.locale().as_str(), "params": ctx.params()})),
         "mock.echo" => Ok(json!({"echo": ctx.params()})),
         "mock.directExec" => match std::process::Command::new("git").arg("--version").output() {
             Ok(_) => Err(RpcError::internal(

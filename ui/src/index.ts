@@ -1,3 +1,5 @@
+import { normalizeLocale, type Locale } from './i18n.js'
+export * from './i18n.js'
 /** Fiex iframe API. Browser runtime only; no Node.js or Tauri dependencies. */
 export type ResourceRef = { mountId: string; nodeId: string; version?: string }
 export type JsonValue =
@@ -28,6 +30,7 @@ type BridgeEvent = {
   payload: JsonValue
 }
 export type ExplorerContext = {
+  locale?: Locale
   directoryPath: string
   selectionPaths: string[]
   windowId?: string
@@ -56,6 +59,8 @@ type Pending = {
 export class FiexUiClient {
   private port?: MessagePort
   private sessionId = ''
+  private currentLocale: Locale = 'zh-CN'
+  private translateError = (value: string) => value
   private seq = 0
   private pending = new Map<string, Pending>()
   private listeners = new Map<string, Set<(value: JsonValue) => void>>()
@@ -114,6 +119,7 @@ export class FiexUiClient {
           bridgeVersion?: string
           sessionId?: string
           nonce?: string
+          locale?: string
         } | null
         if (
           event.source !== window.parent ||
@@ -127,6 +133,8 @@ export class FiexUiClient {
           return
         clearTimeout(timeout)
         window.removeEventListener('message', init)
+        this.currentLocale = normalizeLocale(d.locale)
+        document.documentElement.lang = this.currentLocale
         this.port = event.ports[0]
         this.sessionId = d.sessionId
         this.port.onmessage = (e) => this.onMessage(e.data)
@@ -160,9 +168,14 @@ export class FiexUiClient {
       if (!pending) return
       this.pending.delete(msg.requestId)
       clearTimeout(pending.timer)
-      if (msg.error) pending.reject(new FiexBridgeError(msg.error.code, msg.error.message))
+      if (msg.error)
+        pending.reject(new FiexBridgeError(msg.error.code, this.translateError(msg.error.message)))
       else pending.resolve(msg.result ?? null)
     } else if (msg.type === 'event' && typeof msg.name === 'string') {
+      if (msg.name === 'locale.changed') {
+        this.currentLocale = normalizeLocale(msg.payload)
+        document.documentElement.lang = this.currentLocale
+      }
       if (msg.name === 'theme.changed') applyTheme(msg.payload ?? null)
       if (msg.name === 'panel.visibility')
         document.documentElement.dataset.panelVisible = String(msg.payload === true)
@@ -237,6 +250,25 @@ export class FiexUiClient {
       get: () => this.invoke<ExplorerContext>('context.get'),
       subscribe: (h: (ctx: ExplorerContext) => void) =>
         this.on('context.changed', (v) => h(v as unknown as ExplorerContext)),
+    }
+  }
+  get i18n() {
+    return {
+      getLocale: async (): Promise<Locale> => {
+        await this.ready()
+        return this.currentLocale
+      },
+      subscribe: (listener: (locale: Locale) => void) =>
+        this.on('locale.changed', (value) => listener(normalizeLocale(value))),
+      bind: async (runtime: {
+        setLocale(value: unknown): void
+        translateMessage?: (value: string) => string
+      }): Promise<() => void> => {
+        await this.ready()
+        runtime.setLocale(this.currentLocale)
+        this.translateError = runtime.translateMessage ?? ((value) => value)
+        return this.on('locale.changed', (value) => runtime.setLocale(value))
+      },
     }
   }
   get plugin() {

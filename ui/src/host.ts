@@ -1,9 +1,12 @@
+import type { Locale } from './i18n.js'
 /** Host-side port bridge. Embed only in Fiex, never in untrusted plugin content. */
 import type { BridgeRequest, BridgeResponse, JsonValue } from './index.js'
 export type HostSession = {
   pluginId: string
   sessionId: string
   origin: string
+  getLocale?: () => Locale
+  subscribeLocale?: (listener: () => void) => () => void
   frame: HTMLIFrameElement
   allowedMethods: ReadonlySet<string>
   dispatch(method: string, params: unknown): Promise<JsonValue>
@@ -22,6 +25,7 @@ export function attachFiexPanel(session: HostSession): () => void {
   let inFlight = 0
   const active = new Set<string>()
   const maxConcurrent = 16
+  let stopLocale: (() => void) | undefined
   let unsubscribe: (() => void) | undefined
   const cancelled = new Set<string>()
   const timer = setTimeout(() => {
@@ -34,6 +38,7 @@ export function attachFiexPanel(session: HostSession): () => void {
     clearTimeout(timer)
     window.removeEventListener('message', listening)
     unsubscribe?.()
+    stopLocale?.()
     channel.port1.close()
     channel.port2.close()
   }
@@ -56,6 +61,15 @@ export function attachFiexPanel(session: HostSession): () => void {
               payload,
             })
         })
+        stopLocale = session.subscribeLocale?.(() =>
+          channel.port1.postMessage({
+            bridgeVersion: '1.0',
+            sessionId: session.sessionId,
+            type: 'event',
+            name: 'locale.changed',
+            payload: session.getLocale?.() ?? 'zh-CN',
+          }),
+        )
         session.onReady?.()
       } else dispose()
       return
@@ -82,7 +96,9 @@ export function attachFiexPanel(session: HostSession): () => void {
           ...r,
         } satisfies BridgeResponse)
     }
-    if (!session.allowedMethods.has(req.method)) {
+    if (req.method === 'locale.get') {
+      respond({ result: session.getLocale?.() ?? 'zh-CN' })
+    } else if (!session.allowedMethods.has(req.method)) {
       respond({
         error: { code: 'permission_denied', message: 'Method not authorized' },
       })
@@ -118,6 +134,7 @@ export function attachFiexPanel(session: HostSession): () => void {
     target.postMessage(
       {
         type: 'fiex.bridge.init',
+        locale: session.getLocale?.() ?? 'zh-CN',
         bridgeVersion: '1.0',
         sessionId: session.sessionId,
         nonce,

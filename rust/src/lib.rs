@@ -16,6 +16,7 @@ mod context;
 pub mod contracts;
 pub mod files;
 pub mod http;
+pub mod i18n;
 pub mod ipc;
 mod runtime;
 pub mod tasks;

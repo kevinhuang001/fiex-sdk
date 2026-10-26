@@ -232,14 +232,26 @@ impl Runtime {
                     return false;
                 }
                 if let Some(id) = message.get("id").and_then(Value::as_u64) {
-                    self.spawn_request(id, method, params);
+                    let locale = crate::i18n::Locale::parse(
+                        message
+                            .get("locale")
+                            .and_then(Value::as_str)
+                            .unwrap_or("zh-CN"),
+                    );
+                    self.spawn_request(id, method, params, locale);
                 }
                 false
             }
         }
     }
 
-    fn spawn_request(self: &Arc<Self>, id: u64, method: &str, params: Value) {
+    fn spawn_request(
+        self: &Arc<Self>,
+        id: u64,
+        method: &str,
+        params: Value,
+        locale: crate::i18n::Locale,
+    ) {
         {
             let Ok(mut active) = self.active_requests.lock() else {
                 return;
@@ -260,7 +272,9 @@ impl Runtime {
             .spawn(move || {
                 let context = runtime.context(session::Session::Operation(id));
                 let result = catch_unwind(AssertUnwindSafe(|| {
-                    (runtime.dispatch)(RequestContext::new(context, method, params))
+                    crate::i18n::with_locale(locale, || {
+                        (runtime.dispatch)(RequestContext::new(context, method, params))
+                    })
                 }))
                 .unwrap_or_else(|_| Err(RpcError::internal("request handler panicked")));
                 runtime.dispatcher.reply(json!(id), result);
