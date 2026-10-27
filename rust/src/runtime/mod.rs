@@ -41,6 +41,7 @@ struct Shutdown {
 
 pub(crate) struct Runtime {
     plugin_id: String,
+    capabilities: Value,
     dispatcher: Arc<dispatcher::Dispatcher>,
     tasks: Arc<TaskManager>,
     dispatch: Arc<dyn Fn(RequestContext) -> Result<Value, RpcError> + Send + Sync>,
@@ -56,18 +57,33 @@ pub(crate) fn serve<F>(plugin_id: &str, dispatch: F) -> io::Result<()>
 where
     F: Fn(RequestContext) -> Result<Value, RpcError> + Send + Sync + 'static,
 {
-    let runtime = Runtime::start(plugin_id, dispatch)?;
+    serve_declaring(plugin_id, Value::Null, dispatch)
+}
+
+/// Start a plugin that advertises `capabilities` from `plugin.initialize`.
+/// The object is merged into the handshake reply, so `{"fs": {...}}` becomes a
+/// top-level `fs` field Core can read before the first business request.
+pub(crate) fn serve_declaring<F>(
+    plugin_id: &str,
+    capabilities: Value,
+    dispatch: F,
+) -> io::Result<()>
+where
+    F: Fn(RequestContext) -> Result<Value, RpcError> + Send + Sync + 'static,
+{
+    let runtime = Runtime::start(plugin_id, capabilities, dispatch)?;
     runtime.wait()
 }
 
 impl Runtime {
-    fn start<F>(plugin_id: &str, dispatch: F) -> io::Result<Arc<Self>>
+    fn start<F>(plugin_id: &str, capabilities: Value, dispatch: F) -> io::Result<Arc<Self>>
     where
         F: Fn(RequestContext) -> Result<Value, RpcError> + Send + Sync + 'static,
     {
         let dispatcher = Arc::new(dispatcher::Dispatcher::new(Box::new(io::stdout())));
         let runtime = Arc::new(Self {
             plugin_id: plugin_id.to_string(),
+            capabilities,
             dispatcher,
             tasks: Arc::new(TaskManager::new(MAX_TASKS)),
             dispatch: Arc::new(dispatch),
@@ -186,16 +202,21 @@ impl Runtime {
                 }
                 self.initialized.store(true, Ordering::Release);
                 if let Some(id) = id {
-                    self.dispatcher.reply(
-                        id,
-                        Ok(json!({
-                            "pluginId": self.plugin_id,
-                            "protocolVersion": PROTOCOL_VERSION,
-                            "ready": true,
-                            "concurrentRequests": true,
-                            "tasks": true,
-                        })),
-                    );
+                    let mut reply = json!({
+                        "pluginId": self.plugin_id,
+                        "protocolVersion": PROTOCOL_VERSION,
+                        "ready": true,
+                        "concurrentRequests": true,
+                        "tasks": true,
+                    });
+                    if let (Some(target), Some(extra)) =
+                        (reply.as_object_mut(), self.capabilities.as_object())
+                    {
+                        for (key, value) in extra {
+                            target.insert(key.clone(), value.clone());
+                        }
+                    }
+                    self.dispatcher.reply(id, Ok(reply));
                 }
                 false
             }

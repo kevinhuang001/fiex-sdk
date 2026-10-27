@@ -8,6 +8,8 @@
 //!
 //! The wire format is Content-Length framed JSON-RPC 2.0 over stdin/stdout.
 //! Never use stdout for logging; stderr is available for diagnostics.
+extern crate self as fiex_plugin_sdk;
+
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::io::{self, BufRead, Write};
@@ -15,6 +17,7 @@ use std::io::{self, BufRead, Write};
 mod context;
 pub mod contracts;
 pub mod files;
+pub mod filesystem;
 pub mod http;
 pub mod i18n;
 pub mod ipc;
@@ -31,13 +34,13 @@ pub use contracts::{
     EventContext, InfoRow, InfoSection, PackageView, PreviewView, ResourceContext,
     ResourceMetadata, ResourceRef,
 };
+pub use fiex_plugin_sdk_macros::filesystem;
 pub use files::{FileReader, FileWriter, Files};
-pub use http::{HttpClient, Request, Response};
+pub use http::{HttpClient, Request, Response, StreamingBody};
 pub use ipc::{Entry, ProcessResult};
 pub use providers::{
-    ConnectionProvider, ConnectionReader, ContextMenuProvider, DecorationProvider, HookProvider,
-    InfoProvider, PreviewProvider, Providers, SearchProvider, SearchResults, ToolbarProvider,
-    VfsProvider,
+    ConnectionProvider, ContextMenuProvider, DecorationProvider, HookProvider, InfoProvider,
+    PreviewProvider, Providers, SearchProvider, SearchResults, ToolbarProvider,
 };
 pub use secrets::{SecretError, Secrets};
 pub use storage::Storage;
@@ -45,7 +48,7 @@ pub use tasks::{TaskHandle, TaskStatus};
 pub use tcp::{TcpClient, TcpReadHalf, TcpStream, TcpWriteHalf};
 pub use terminal::{Terminal, TerminalInput, TerminalSize};
 
-pub const PROTOCOL_VERSION: &str = "4.0";
+pub const PROTOCOL_VERSION: &str = "5.0";
 pub const MAX_FRAME: usize = 4 * 1024 * 1024;
 const MAX_HEADER: usize = 8192;
 
@@ -197,6 +200,16 @@ where
     F: Fn(RequestContext) -> Result<Value, RpcError> + Send + Sync + 'static,
 {
     runtime::serve(plugin_id, dispatch)
+}
+
+/// Start a plugin that advertises provider capabilities in the
+/// `plugin.initialize` reply. Core records the declaration and refuses
+/// operations the plugin never claimed.
+pub fn serve_declaring<F>(plugin_id: &str, capabilities: Value, dispatch: F) -> io::Result<()>
+where
+    F: Fn(RequestContext) -> Result<Value, RpcError> + Send + Sync + 'static,
+{
+    runtime::serve_declaring(plugin_id, capabilities, dispatch)
 }
 
 #[cfg(test)]

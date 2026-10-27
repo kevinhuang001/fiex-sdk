@@ -1,4 +1,4 @@
-# IPC coverage audit (protocol 4.0)
+# IPC coverage audit (protocol 5.0)
 
 This audit compares the Core host and UI bridge surface with the public Rust
 and UI SDKs. It is intentionally versioned with the SDK: add a row when Core
@@ -38,10 +38,13 @@ adds a method, and delete the row when a method is removed.
 | `hooks.invoke`                     | `HookProvider` or manual dispatch                      | Typed provider added                                                                                                                                    |
 | `toolbar.invoke`                   | `ToolbarProvider` or manual dispatch                   | Typed provider added                                                                                                                                    |
 | `connection.validate/open/create`  | `ConnectionProvider`, or manual dispatch               | Typed provider added                                                                                                                                    |
-| `fs.list/stat/writeFile`           | `ConnectionProvider`, or manual dispatch               | Typed provider added                                                                                                                                    |
-| `fs.openRead/readStream/closeRead` | `ConnectionProvider::open_read` + `ConnectionReader`   | Covered: SDK owns stream IDs, offsets and close.                                                                                                        |
-| `fs.readSmall`                     | none                                                   | Core does not use this for connection providers; keep only if a third-party provider still needs a bounded read helper. Candidate for protocol removal. |
-| `vfs.list/stat/readSmall/search`   | `VfsProvider`, or manual dispatch                      | Typed provider added                                                                                                                                    |
+| `fs.list/stat/search`              | `FileSystemProvider::{list,stat,search}` + `#[fiex_sdk::filesystem]` | Covered: one trait for connections and views. |
+| `fs.openRead/readStream/closeRead` | `FileSystemProvider::read` + `FsServer` | Covered: SDK owns stream IDs, offsets and close. |
+| `fs.beginWrite/writeStream/commit/abort` | `FileSystemProvider::write` + `FsWrite` | Covered: providers return a standard `Write`; the commit callback publishes. |
+| `fs.mkdir/rename/remove`           | `FileSystemProvider::{mkdir,rename,remove}` | Covered. |
+| `fs.writeFile`                     | none | Removed in protocol 5; the streaming write path replaces the upload snapshot pull. |
+| `vfs.list/stat/readSmall/search`   | none | Removed in protocol 5; standalone views use the same `fs.*` methods. |
+| `plugin.initialize` capabilities   | `Providers::capabilities` / `serve_declaring` | Added: `{"fs":{"operations":[..]}}`, derived from the impl block. |
 
 `Providers` is optional; existing plugins continue to use `sdk::serve` with a
 method match. `Providers::serve_with` delegates any unregistered method to the
@@ -76,7 +79,9 @@ plugin's custom handler.
    `readBytes/writeBytes`.
 5. `host.exec` was removed; the SDK emits `host.process.run`.
 6. `host.preview.create` was removed; no caller remained.
-7. Connection `fs.readSmall` was removed from the protocol; VFS retains
-   `vfs.readSmall`.
+7. `vfs.*` was removed; standalone views use `fs.*` with contribution
+   identity and stream their reads instead of `vfs.readSmall`.
+8. `fs.writeFile` was removed; all writes use
+   `fs.beginWrite/writeStream/commit/abort`.
 
 `host.buffer.*` stays private. It is not an SDK contract.

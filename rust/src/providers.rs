@@ -4,16 +4,11 @@
 //! system events it implements here. Custom RPC methods still go through the
 //! fallback handler. Provider implementations stay optional and composable;
 //! nothing forces a plugin to implement events it does not own.
-use crate::{InfoSection, PreviewView, RequestContext, RpcError};
-use serde_json::{json, Value};
-use std::{
-    collections::HashMap,
-    io::Read,
-    sync::{
-        atomic::{AtomicU64, Ordering},
-        Arc, Mutex,
-    },
+use crate::{
+    filesystem::{FileSystemProvider, FsDispatch, FsServer},
+    InfoSection, PreviewView, RequestContext, RpcError,
 };
+use serde_json::{json, Value};
 
 /// `info.resolve` rows, grouped into sections by Core.
 pub trait InfoProvider: Send + Sync {
@@ -61,25 +56,9 @@ pub trait ToolbarProvider: Send + Sync {
     fn invoke(&self, ctx: &RequestContext) -> Result<Value, RpcError>;
 }
 
-/// A reader returned by [`ConnectionProvider::open_read`]. Core drives the
-/// `fs.readStream` offset/chunk lifecycle; dropping the stream closes it.
-pub struct ConnectionReader {
-    pub reader: Box<dyn Read + Send>,
-    pub size: Option<u64>,
-}
-
-impl ConnectionReader {
-    pub fn new(reader: impl Read + Send + 'static, size: Option<u64>) -> Self {
-        Self {
-            reader: Box::new(reader),
-            size,
-        }
-    }
-}
-
-/// Connection lifecycle and filesystem events. The default reader serves
-/// `fs.openRead`/`fs.readStream`/`fs.closeRead` from a standard `Read`; a
-/// provider that needs its own framing can still dispatch those methods itself.
+/// Connection lifecycle: validation plus the navigation target a connection
+/// opens. File-system work lives in [`crate::filesystem::FileSystemProvider`],
+/// which connections and standalone views share.
 pub trait ConnectionProvider: Send + Sync {
     fn validate(&self, ctx: &RequestContext) -> Result<Value, RpcError> {
         Err(unsupported(ctx))
@@ -88,35 +67,6 @@ pub trait ConnectionProvider: Send + Sync {
         Err(unsupported(ctx))
     }
     fn create(&self, ctx: &RequestContext) -> Result<Value, RpcError> {
-        Err(unsupported(ctx))
-    }
-    fn list(&self, ctx: &RequestContext) -> Result<Value, RpcError> {
-        Err(unsupported(ctx))
-    }
-    fn stat(&self, ctx: &RequestContext) -> Result<Value, RpcError> {
-        Err(unsupported(ctx))
-    }
-    fn write(&self, ctx: &RequestContext) -> Result<Value, RpcError> {
-        Err(unsupported(ctx))
-    }
-    fn open_read(&self, ctx: &RequestContext) -> Result<ConnectionReader, RpcError> {
-        Err(unsupported(ctx))
-    }
-}
-
-/// Standalone `extensions.vfs` provider events. Entry DTOs stay JSON because
-/// Core binds every returned `nodeId` to its own mount identity.
-pub trait VfsProvider: Send + Sync {
-    fn list(&self, ctx: &RequestContext) -> Result<Vec<Value>, RpcError> {
-        Err(unsupported(ctx))
-    }
-    fn stat(&self, ctx: &RequestContext) -> Result<Value, RpcError> {
-        Err(unsupported(ctx))
-    }
-    fn read_small(&self, ctx: &RequestContext) -> Result<Vec<u8>, RpcError> {
-        Err(unsupported(ctx))
-    }
-    fn search(&self, ctx: &RequestContext) -> Result<Value, RpcError> {
         Err(unsupported(ctx))
     }
 }
@@ -128,14 +78,15 @@ fn unsupported(ctx: &RequestContext) -> RpcError {
 /// Collects optional providers and dispatches their fixed Core event methods.
 /// Methods without a registered provider fall through to the plugin's own
 /// handler, so custom RPC keeps working unchanged.
-struct StreamReader {
-    reader: Box<dyn Read + Send>,
-    offset: u64,
+/// One registered file-system provider plus its stream registry.
+struct FsProvider {
+    dispatch: Box<dyn FsDispatch>,
+    server: FsServer,
 }
 
 #[derive(Default)]
 pub struct Providers {
-    readers: Arc<Mutex<HashMap<String, StreamReader>>>,
+    filesystem: Option<FsProvider>,
     info: Option<Box<dyn InfoProvider>>,
     preview: Option<Box<dyn PreviewProvider>>,
     decorations: Option<Box<dyn DecorationProvider>>,
@@ -144,7 +95,6 @@ pub struct Providers {
     hooks: Option<Box<dyn HookProvider>>,
     toolbar: Option<Box<dyn ToolbarProvider>>,
     connection: Option<Box<dyn ConnectionProvider>>,
-    vfs: Option<Box<dyn VfsProvider>>,
 }
 
 impl Providers {
@@ -183,9 +133,25 @@ impl Providers {
         self.connection = Some(Box::new(provider));
         self
     }
-    pub fn vfs(mut self, provider: impl VfsProvider + 'static) -> Self {
-        self.vfs = Some(Box::new(provider));
+    /// Register a file-system provider. The generated dispatcher decides which
+    /// `fs.*` methods exist, so Core only ever offers the advertised ones.
+    pub fn filesystem<P>(mut self, provider: P) -> Self
+    where
+        P: FileSystemProvider + FsDispatch + 'static,
+    {
+        self.filesystem = Some(FsProvider {
+            dispatch: Box::new(provider),
+            server: FsServer::new(),
+        });
         self
+    }
+
+    /// `plugin.initialize` capabilities for the registered providers.
+    pub fn capabilities(&self) -> Value {
+        match &self.filesystem {
+            Some(fs) => FsServer::capability(fs.dispatch.as_ref()),
+            None => Value::Null,
+        }
     }
 
     /// Run a provider server. Unregistered methods are delegated to `fallback`.
@@ -193,9 +159,12 @@ impl Providers {
     where
         F: Fn(RequestContext) -> Result<Value, RpcError> + Send + Sync + 'static,
     {
-        crate::serve(plugin_id, move |ctx| match self.dispatch(&ctx)? {
-            Some(value) => Ok(value),
-            None => fallback(ctx),
+        let capabilities = self.capabilities();
+        crate::serve_declaring(plugin_id, capabilities, move |ctx| {
+            match self.dispatch(&ctx)? {
+                Some(value) => Ok(value),
+                None => fallback(ctx),
+            }
         })
     }
 
@@ -207,6 +176,11 @@ impl Providers {
     }
 
     fn dispatch(&self, ctx: &RequestContext) -> Result<Option<Value>, RpcError> {
+        if let Some(fs) = &self.filesystem {
+            if let Some(value) = fs.server.serve(fs.dispatch.as_ref(), ctx)? {
+                return Ok(Some(value));
+            }
+        }
         let value = match ctx.method() {
             "info.resolve" => {
                 let sections = self
@@ -277,126 +251,6 @@ impl Providers {
                 .as_ref()
                 .ok_or_else(|| unsupported(ctx))?
                 .create(ctx)?,
-            "fs.list" => self
-                .connection
-                .as_ref()
-                .ok_or_else(|| unsupported(ctx))?
-                .list(ctx)?,
-            "fs.stat" => self
-                .connection
-                .as_ref()
-                .ok_or_else(|| unsupported(ctx))?
-                .stat(ctx)?,
-            "fs.writeFile" => self
-                .connection
-                .as_ref()
-                .ok_or_else(|| unsupported(ctx))?
-                .write(ctx)?,
-            "fs.openRead" => {
-                let opened = self
-                    .connection
-                    .as_ref()
-                    .ok_or_else(|| unsupported(ctx))?
-                    .open_read(ctx)?;
-                static NEXT: AtomicU64 = AtomicU64::new(1);
-                let id = format!("provider-read-{}", NEXT.fetch_add(1, Ordering::Relaxed));
-                self.readers
-                    .lock()
-                    .map_err(|_| RpcError::internal("reader registry unavailable"))?
-                    .insert(
-                        id.clone(),
-                        StreamReader {
-                            reader: opened.reader,
-                            offset: 0,
-                        },
-                    );
-                json!({"streamId":id,"size":opened.size})
-            }
-            "fs.readStream" => {
-                let id = ctx.params()["streamId"]
-                    .as_str()
-                    .ok_or_else(|| RpcError::invalid_params("missing streamId"))?;
-                let offset = ctx.params()["offset"].as_u64().unwrap_or(0);
-                let max_bytes = ctx.params()["maxBytes"]
-                    .as_u64()
-                    .unwrap_or(256 * 1024)
-                    .clamp(1, 8 * 1024 * 1024) as usize;
-                let mut readers = self
-                    .readers
-                    .lock()
-                    .map_err(|_| RpcError::internal("reader registry unavailable"))?;
-                let stream = readers
-                    .get_mut(id)
-                    .ok_or_else(|| RpcError::invalid_params("unknown streamId"))?;
-                if offset < stream.offset {
-                    return Err(RpcError::invalid_params("stream cannot seek backwards"));
-                }
-                let mut skip = offset - stream.offset;
-                let mut scratch = [0u8; 8192];
-                while skip > 0 {
-                    let want = skip.min(scratch.len() as u64) as usize;
-                    let read = stream
-                        .reader
-                        .read(&mut scratch[..want])
-                        .map_err(|error| RpcError::internal(error.to_string()))?;
-                    if read == 0 {
-                        return Err(RpcError::internal("stream ended before requested offset"));
-                    }
-                    skip -= read as u64;
-                    stream.offset += read as u64;
-                }
-                let mut bytes = vec![0u8; max_bytes];
-                let mut read = 0;
-                while read < max_bytes {
-                    match stream.reader.read(&mut bytes[read..]) {
-                        Ok(0) => break,
-                        Ok(count) => read += count,
-                        Err(error) if error.kind() == std::io::ErrorKind::Interrupted => continue,
-                        Err(error) => return Err(RpcError::internal(error.to_string())),
-                    }
-                }
-                bytes.truncate(read);
-                stream.offset += read as u64;
-                use base64::{engine::general_purpose::STANDARD, Engine};
-                json!({"base64":STANDARD.encode(&bytes),"eof":read == 0})
-            }
-            "fs.closeRead" => {
-                let id = ctx.params()["streamId"]
-                    .as_str()
-                    .ok_or_else(|| RpcError::invalid_params("missing streamId"))?;
-                self.readers
-                    .lock()
-                    .map_err(|_| RpcError::internal("reader registry unavailable"))?
-                    .remove(id);
-                Value::Null
-            }
-            "vfs.list" => {
-                let entries = self
-                    .vfs
-                    .as_ref()
-                    .ok_or_else(|| unsupported(ctx))?
-                    .list(ctx)?;
-                json!({"entries":entries})
-            }
-            "vfs.stat" => self
-                .vfs
-                .as_ref()
-                .ok_or_else(|| unsupported(ctx))?
-                .stat(ctx)?,
-            "vfs.readSmall" => {
-                use base64::{engine::general_purpose::STANDARD, Engine};
-                let bytes = self
-                    .vfs
-                    .as_ref()
-                    .ok_or_else(|| unsupported(ctx))?
-                    .read_small(ctx)?;
-                json!({"base64":STANDARD.encode(bytes)})
-            }
-            "vfs.search" => self
-                .vfs
-                .as_ref()
-                .ok_or_else(|| unsupported(ctx))?
-                .search(ctx)?,
             _ => return Ok(None),
         };
         Ok(Some(value))
@@ -406,49 +260,7 @@ impl Providers {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        context::ContextInner,
-        runtime::{session::Session, HostLink},
-        tasks::TaskManager,
-        InfoRow, InfoSection,
-    };
-    use std::{
-        io::Cursor,
-        sync::{atomic::AtomicBool, Arc},
-    };
-
-    struct NoopLink;
-    impl HostLink for NoopLink {
-        fn call(&self, method: &str, _params: Value) -> Result<Value, RpcError> {
-            Err(RpcError::method_not_found(method))
-        }
-        fn closed(&self) -> bool {
-            false
-        }
-    }
-
-    fn request(method: &str, params: Value) -> RequestContext {
-        RequestContext::new(
-            ContextInner::new(
-                Arc::new(NoopLink),
-                Arc::new(TaskManager::new(2)),
-                Session::Operation(1),
-                Arc::new(AtomicBool::new(false)),
-            ),
-            method.into(),
-            params,
-        )
-    }
-
-    struct MemoryConnection;
-    impl ConnectionProvider for MemoryConnection {
-        fn open_read(&self, _ctx: &RequestContext) -> Result<ConnectionReader, RpcError> {
-            Ok(ConnectionReader::new(
-                Cursor::new(b"abcd".to_vec()),
-                Some(4),
-            ))
-        }
-    }
+    use crate::{InfoRow, InfoSection};
 
     struct ExampleInfo;
     impl InfoProvider for ExampleInfo {
@@ -466,52 +278,6 @@ mod tests {
                 }],
             }])
         }
-    }
-
-    #[test]
-    fn connection_reader_serves_offsets_and_closes() {
-        let providers = Providers::new().connection(MemoryConnection);
-        let opened = providers
-            .dispatch(&request("fs.openRead", json!({})))
-            .unwrap()
-            .unwrap();
-        assert_eq!(opened["size"], 4);
-        let stream = opened["streamId"].as_str().unwrap();
-        let first = providers
-            .dispatch(&request(
-                "fs.readStream",
-                json!({"streamId":stream,"offset":0,"maxBytes":2}),
-            ))
-            .unwrap()
-            .unwrap();
-        assert_eq!(first["base64"], "YWI=");
-        assert_eq!(first["eof"], false);
-        let second = providers
-            .dispatch(&request(
-                "fs.readStream",
-                json!({"streamId":stream,"offset":2,"maxBytes":8}),
-            ))
-            .unwrap()
-            .unwrap();
-        assert_eq!(second["base64"], "Y2Q=");
-        assert!(
-            providers
-                .dispatch(&request(
-                    "fs.readStream",
-                    json!({"streamId":stream,"offset":1,"maxBytes":2}),
-                ))
-                .is_err(),
-            "backwards seek must be rejected"
-        );
-        providers
-            .dispatch(&request("fs.closeRead", json!({"streamId":stream})))
-            .unwrap();
-        assert!(providers
-            .dispatch(&request(
-                "fs.readStream",
-                json!({"streamId":stream,"offset":4,"maxBytes":2}),
-            ))
-            .is_err());
     }
 
     #[test]

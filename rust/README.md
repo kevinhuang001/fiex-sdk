@@ -16,7 +16,7 @@
 # use fiex_plugin_sdk::{self as sdk, RpcError};
 # fn example(ctx: &sdk::RequestContext) -> Result<(), Box<dyn std::error::Error>> {
 let files = ctx.files();
-// 协议 4.0 只接受 ResourceRef，不接受宿主路径。
+// 协议 5.0 只接受 ResourceRef，不接受宿主路径。
 let target = ctx.target().ok_or("missing target")?;
 let text = files.read_to_string(&target.reference)?;
 files.write(&target.reference, b"updated")?; // 修改本次操作授权的文件
@@ -44,7 +44,7 @@ output.commit()?;
 # Ok(()) }
 ```
 
-`begin_write` 后的数据由 Core 暂存。只有 `commit` 成功才会替换目标；原文件发生变化时返回冲突。没有提交就释放 writer，会自动取消暂存。`read` 最多读取 64 MiB；更大文件用 `open_read`。文件访问限于宿主为本次操作授权的所选文件或目录。协议 4.0 的公开输入是 `ResourceRef`：系统事件从 `ctx.targets()` 取得，文件/目录选择框也返回 `ResourceContext`；不要再传宿主路径。未提交的写入在操作结束时取消。
+`begin_write` 后的数据由 Core 暂存。只有 `commit` 成功才会替换目标；原文件发生变化时返回冲突。没有提交就释放 writer，会自动取消暂存。`read` 最多读取 64 MiB；更大文件用 `open_read`。文件访问限于宿主为本次操作授权的所选文件或目录。协议 5.0 的公开输入是 `ResourceRef`：系统事件从 `ctx.targets()` 取得，文件/目录选择框也返回 `ResourceContext`；不要再传宿主路径。未提交的写入在操作结束时取消。
 
 普通文件接口集中在 `ctx.files()`：`read`、`read_to_string`、`open_read`、`write`、`create`、`begin_write`、`list`、`metadata`、`child`、`create_dir`、`remove`、`rename`。`open_read` 返回实现 `Read + Seek + Send + 'static` 的 `FileReader`，`begin_write` 返回实现 `Write + Seek + Send + 'static` 的 `FileWriter`，并要求显式 `commit()`。Reader/Writer 自己持有 SDK 内部通信句柄，可以先 `drop(files)` 再继续使用；`'static` 只表示类型不依赖临时借用，文件授权仍由 Core 按操作作用域校验。SDK 自动对小读取使用 256 KiB IPC 缓存，对大块读取复用最多 4 MiB 的共享缓冲；大块写入复用 256 KiB 共享缓冲。共享缓冲不可分配时退回有界 IPC。缓冲占用不随文件长度增长。
 
@@ -299,14 +299,14 @@ python sdk/rust/examples/check_plugin.py --binary target/debug/fiex-plugin-hello
 测试器会依次做：
 
 1. 启动你刚刚编译出来的可执行文件。
-2. 发起 `plugin.initialize` 握手，协议版本为 `4.0`。
+2. 发起 `plugin.initialize` 握手，协议版本为 `5.0`。
 3. 调用 `hello.greet`，默认发送 `{"name":"新手"}`。
 4. 发起 `plugin.shutdown` 并确认正常退出。
 
 成功时类似这样：
 
 ```text
-✅ 初始化成功： {'pluginId': 'org.example.hello', 'protocolVersion': '4.0', 'ready': True}
+✅ 初始化成功： {'pluginId': 'org.example.hello', 'protocolVersion': '5.0', 'ready': True}
 ✅ 方法调用成功： {"message": "你好，新手！"}
 ✅ 正常退出，三项检查全部通过
 ```
@@ -332,7 +332,7 @@ python sdk/rust/examples/check_plugin.py --binary target/debug/fiex-plugin-hello
   "name": "Hello Fiex",
   "version": "0.1.0",
   "runtime": {
-    "protocolVersion": "4.0",
+    "protocolVersion": "5.0",
     "entrypoints": { "windows-x86_64": "fiex-plugin-hello.exe" }
   },
   "permissions": {},
@@ -529,7 +529,7 @@ SDK 当前公开的关键接口：
 
 - **所有插件都需要授权。** Fiex 官方与第三方插件没有权限特权，也不使用插件签名来免除授权。
 - **Native 独立进程不等于操作系统沙箱。** 当前宿主 API 会检查授权，但原生插件仍可能直接访问操作系统允许当前用户访问的文件和网络。只运行信任来源的插件。
-- SDK 处理 `Content-Length` + JSON-RPC 2.0 的 stdin/stdout 协议，当前协议版本 `4.0`，单帧最大 **4 MiB**；不要把大文件直接放入 JSON 返回值。
+- SDK 处理 `Content-Length` + JSON-RPC 2.0 的 stdin/stdout 协议，当前协议版本 `5.0`，单帧最大 **4 MiB**；不要把大文件直接放入 JSON 返回值。
 - 复杂插件的 UI、连接、远程文件系统、取消、流式传输和缓存/同步有各自的职责；**不要把 Fiex Core 的设计提案中的拟议代码当作当前已发布 SDK API。**
 
 ### 继续学习

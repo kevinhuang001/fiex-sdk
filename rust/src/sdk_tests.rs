@@ -34,6 +34,12 @@ struct State {
     http_closed: bool,
     tcp_closed: bool,
     http_position: usize,
+    http_open_params: Vec<Value>,
+    http_body_chunks: Vec<Vec<u8>>,
+    http_body_written: usize,
+    http_body_eof: bool,
+    http_response_calls: usize,
+    fail_http_body: bool,
     shared: Option<SharedBuffer>,
     shared_reads: usize,
     calls: Vec<String>,
@@ -266,9 +272,37 @@ impl HostLink for Mock {
             "host.fs.rename" => Ok(Value::Null),
             "host.net.http.open" => {
                 state.http_position = 0;
-                Ok(
-                    json!({"stream":"response","status":200,"headers":{"content-type":"application/octet-stream"}}),
-                )
+                state.http_open_params.push(params.clone());
+                if params["bodyStream"] == true {
+                    Ok(json!({"handle":"upload"}))
+                } else {
+                    Ok(
+                        json!({"stream":"response","status":200,"headers":{"content-type":"application/octet-stream"}}),
+                    )
+                }
+            }
+            "host.net.http.body" => {
+                if state.fail_http_body {
+                    return Err(RpcError::internal("connection lost"));
+                }
+                if params["handle"] != "upload" {
+                    return Err(RpcError::internal("unknown streaming body"));
+                }
+                let bytes = STANDARD
+                    .decode(params["base64"].as_str().unwrap_or(""))
+                    .map_err(|error| RpcError::internal(error.to_string()))?;
+                state.http_body_written += bytes.len();
+                if !bytes.is_empty() {
+                    state.http_body_chunks.push(bytes);
+                }
+                if params["eof"] == true {
+                    state.http_body_eof = true;
+                }
+                Ok(json!({"written":state.http_body_written,"eof":params["eof"] == true}))
+            }
+            "host.net.http.response" => {
+                state.http_response_calls += 1;
+                Ok(json!({"stream":"upload","status":201,"headers":{"etag":"v1"}}))
             }
             "host.net.http.read" => {
                 let start = state.http_position.min(state.bytes.len());
@@ -435,6 +469,104 @@ fn http_json_is_a_regular_convenience_method() {
         .json()
         .unwrap();
     assert_eq!(value["ok"], true);
+}
+
+#[test]
+fn streaming_body_writes_chunks_as_they_arrive_and_returns_the_response() {
+    let mock = Arc::new(Mock::new());
+    let inner = context(mock.clone());
+    let mut body = inner
+        .http()
+        .put("https://example.com/upload")
+        .header("content-type", "application/octet-stream")
+        .body_stream(5)
+        .unwrap();
+    body.write_chunk(b"he").unwrap();
+    body.write_chunk(b"llo").unwrap();
+    let response = body.finish().unwrap();
+    assert_eq!(response.status, 201);
+    assert_eq!(response.headers["etag"], "v1");
+
+    let state = mock.state();
+    assert_eq!(state.http_open_params.len(), 1);
+    let open = &state.http_open_params[0];
+    assert_eq!(open["bodyStream"], true);
+    assert_eq!(open["contentLength"], 5);
+    // Streaming mode must not look like either buffered body mode.
+    assert!(open.get("bodyBase64").is_none());
+    assert!(open.get("bodyReadHandle").is_none());
+    assert_eq!(
+        state.http_body_chunks,
+        vec![b"he".to_vec(), b"llo".to_vec()]
+    );
+    assert!(state.http_body_eof);
+    assert_eq!(state.http_response_calls, 1);
+}
+
+#[test]
+fn streaming_body_rejects_an_oversized_chunk_and_cancels() {
+    let mock = Arc::new(Mock::new());
+    let inner = context(mock.clone());
+    let mut body = inner
+        .http()
+        .put("https://example.com/upload")
+        .body_stream(3)
+        .unwrap();
+    let error = body.write_chunk(b"four").unwrap_err();
+    assert_eq!(error.kind(), std::io::ErrorKind::InvalidInput);
+    assert!(mock.state().http_closed);
+    // The body is aborted; nothing else can be written.
+    assert!(body.write_chunk(b"a").is_err());
+    drop(body);
+}
+
+#[test]
+fn streaming_body_finish_requires_the_declared_length() {
+    let mock = Arc::new(Mock::new());
+    let inner = context(mock.clone());
+    let mut body = inner
+        .http()
+        .put("https://example.com/upload")
+        .body_stream(4)
+        .unwrap();
+    body.write_chunk(b"ab").unwrap();
+    let error = match body.finish() {
+        Ok(_) => panic!("short streaming body must not produce a response"),
+        Err(error) => error,
+    };
+    assert_eq!(error.kind(), std::io::ErrorKind::InvalidInput);
+    // Core is told to cancel instead of waiting for its deadline.
+    assert!(mock.state().http_closed);
+}
+
+#[test]
+fn dropping_an_unfinished_streaming_body_cancels_the_request() {
+    let mock = Arc::new(Mock::new());
+    let inner = context(mock.clone());
+    {
+        let mut body = inner
+            .http()
+            .put("https://example.com/upload")
+            .body_stream(2)
+            .unwrap();
+        body.write_chunk(b"a").unwrap();
+    }
+    assert!(mock.state().http_closed);
+}
+
+#[test]
+fn a_failed_streaming_write_aborts_the_body() {
+    let mock = Arc::new(Mock::new());
+    mock.state().fail_http_body = true;
+    let inner = context(mock.clone());
+    let mut body = inner
+        .http()
+        .put("https://example.com/upload")
+        .body_stream(2)
+        .unwrap();
+    assert!(body.write_chunk(b"a").is_err());
+    assert!(mock.state().http_closed);
+    assert!(body.write_chunk(b"b").is_err());
 }
 
 #[test]

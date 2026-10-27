@@ -36,7 +36,7 @@ npm --prefix ui run build
 npm --prefix ui test
 ```
 
-The Rust SDK currently requires **Rust 1.90+** and speaks **protocol 4.0**. For full explanations of each command, see the [beginner tutorial](rust/README.md).
+The Rust SDK currently requires **Rust 1.90+** and speaks **protocol 5.0**. For full explanations of each command, see the [beginner tutorial](rust/README.md).
 
 ## Real plugin examples / 真正的插件项目
 
@@ -46,9 +46,10 @@ The APIs are **experimental** and may evolve with the Fiex Core development bran
 
 Pin the SDK with a Git submodule when developing a plugin so that your SDK version matches the version tested with your host and plugin project.
 
-## Protocol 4.0: refs, typed services and providers
+## Protocol 5.0: refs, typed services and providers
 
-Protocol 4.0 removes host paths from the public plugin API. `ResourceRef` is an
+Protocol 5.0 unifies every provider file access behind `fs.*` and removes host
+paths from the public plugin API. `ResourceRef` is an
 opaque `{mountId, nodeId}` identity; Core resolves it only inside the operation
 scope. `ctx.targets()` contains the selected resources and their optional
 permission-projected metadata. Never construct a ref or derive one from a path.
@@ -68,24 +69,77 @@ wraps the six host terminal calls (`ready`, `output`, `input`, `size`, `closed`,
 
 Optional typed event providers live in `contracts`: `InfoProvider`,
 `PreviewProvider`, `DecorationProvider`, `ContextMenuProvider`,
-`SearchProvider`, `HookProvider`, `ToolbarProvider`, plus basic
-`ConnectionProvider` and `VfsProvider` traits. Register only what the plugin
+`SearchProvider`, `HookProvider`, `ToolbarProvider` and `ConnectionProvider`
+(lifecycle only). File-system access is one `FileSystemProvider` trait for
+connections and standalone views alike. Register only what the plugin
 implements; custom RPC still goes through the fallback:
 
 ```rust,ignore
 sdk::Providers::new()
     .info(MyInfo)
     .context_menu(MyMenu)
-    .search(MySearch)
+    .filesystem(MyDrive::new())
     .serve_with("org.example.plugin", |ctx| custom(ctx))
 ```
 
-The connection provider trait covers lifecycle, `fs.list`, `fs.stat`,
-`fs.writeFile` and the streaming reader via `open_read` +
-`ConnectionReader`. The SDK owns `fs.openRead`/`readStream`/`closeRead` stream
-IDs, offsets and cleanup. The `VfsProvider` trait covers `vfs.list`, `vfs.stat`,
-`vfs.readSmall` and `vfs.search`; Core always binds returned `nodeId` values to
-its own mount.
+## File-system providers
+
+Implement the methods you really support and annotate the impl block:
+
+```rust,ignore
+use fiex_plugin_sdk as sdk;
+use sdk::filesystem::{FileSystemProvider, FsEntry, FsListing, FsRead, FsWrite};
+
+#[sdk::filesystem]
+impl FileSystemProvider for MyDrive {
+    fn list(&self, request: &sdk::filesystem::FsRequest<'_>) -> Result<FsListing, sdk::RpcError> {
+        // request.node_id(), request.cursor(), request.limit()
+        Ok(FsListing::default())
+    }
+
+    fn read(&self, request: &sdk::filesystem::FsRequest<'_>) -> Result<FsRead, sdk::RpcError> {
+        Ok(FsRead::new(http_response, Some(size)))
+    }
+
+    fn write(&self, request: &sdk::filesystem::FsRequest<'_>) -> Result<FsWrite, sdk::RpcError> {
+        Ok(FsWrite::with_commit(upload_body, move || {
+            Ok(FsEntry::file("id", "name").with_revision("etag"))
+        }))
+    }
+}
+```
+
+The attribute macro records exactly the methods written in the block as the
+plugin's capability set and generates the `fs.*` dispatcher. Methods inherited
+from the trait's `unsupported` default are never advertised, so Core will not
+offer `rename` or `remove` to a read-only provider. `plugin.initialize`
+automatically replies with `{"fs":{"operations":[...]}}`; Core stores the
+declaration and rejects undeclared operations before they reach the plugin.
+Nodes can narrow the set further with `FsEntry::allowing([..])`.
+
+The SDK owns stream ids, chunk offsets, `closeRead`, sequential write offsets
+and `commit`/`abort`; providers only return standard `Read`/`Write` values.
+Protocol-specific finishing (SMB staging rename, Drive resumable completion)
+belongs in the commit callback.
+
+## Streaming HTTP request bodies
+
+Providers that upload bytes they generate themselves (WebDAV `PUT`, OpenList
+uploads) can stream a request body instead of buffering the whole file:
+
+```rust,ignore
+let mut body = ctx.http().put(url).header("If-Match", etag).body_stream(size)?;
+for chunk in chunks {
+    body.write_chunk(chunk)?;
+}
+let response = body.finish()?.error_for_status()?;
+```
+
+`body_stream` sends `host.net.http.open {bodyStream: true, contentLength}` and
+forwards every `write_chunk` through `host.net.http.body`; Core feeds a bounded
+channel into the request, so memory stays at one chunk. Streamed requests do not
+follow redirects because the body cannot be replayed. `body_reader` still
+exists for Core-authorized `ResourceRef` snapshots.
 
 ## UI SDK wrappers
 
@@ -117,13 +171,13 @@ UI extensions never confer provider eligibility. `scheme`, `schemes`, `uriPrefix
 
 Within a selected-resource request, call `ctx.open_vfs_view("history", selected_root, immutable_context)`.
 Core authenticates the process identity, contribution ownership, and resource scope, and returns a `fiex://mount/<id>/` navigation URI.
-The plugin must not construct URIs. Core sends contributionId/viewContext/nodeId with vfs.list/stat/readSmall/search; return opaque nodeId plus Entry metadata, and relativePath for search. Root nodeId is empty.
+The plugin must not construct URIs. Core sends contributionId/viewContext/mountId/nodeId with the same `fs.*` methods a connection uses; return opaque nodeId plus entry metadata, and relativePath for search. Root nodeId is empty.
 Core binds returned entries to its mount and retains only explicitly saved small view descriptors across restarts.
 
 Connection-specific fs.* provider requests are Core-only and require an installed, active connection factory bound to that instance.
 Ordinary VFS registration does not grant sync, pin, eviction, conflict, or cache control. Generic files/HTTP/TCP remain subject to their existing operation/network grants.
 These are application navigation URIs, not OS mounts. Connection files stream to Core-managed cache files before external opening.
-Standalone readSmall exports are bounded (1 MiB complete file); larger exports fail explicitly pending a streaming VFS contract.
+Standalone views stream through the same `fs.openRead/readStream/closeRead` contract, so exports and previews are no longer limited to 1 MiB.
 
 ## TCP split and half-close
 
