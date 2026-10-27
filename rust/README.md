@@ -262,6 +262,24 @@ fn main() {
 
 **不要用 `println!` 打印调试信息！** 插件用标准输出（`stdout`）跟 Fiex 交换协议消息。`println!` 可能破坏协议，让插件看起来像是“莫名其妙地断开”。要记录日志，请用 `eprintln!`。
 
+如果插件要实现 `info.resolve`、`preview.open`、`contextMenu.resolve` 等标准事件，
+不要手写 `match ctx.method()`。用可选的 `sdk::Providers` 注册对应 trait，自定义
+RPC 交给 fallback：
+
+```rust,ignore
+sdk::Providers::new()
+    .info(MyInfo)
+    .preview(MyPreview)
+    .context_menu(MyMenu)
+    .serve_with("org.example.hello", |ctx| match ctx.method() {
+        "hello.greet" => Ok(serde_json::json!({"message": "你好"})),
+        method => Err(RpcError::method_not_found(method)),
+    })
+```
+
+只实现自己需要的 Provider；没有注册的事件不会暴露。官方示例
+`fiex-official-plugins/example/hello` 已全部迁移到这套 API。
+
 ## 4. 编译、运行真实进程测试
 
 保持终端在 `fiex-plugin-hello/` 项目根目录下：
@@ -511,7 +529,7 @@ SDK 当前公开的关键接口：
 
 - **所有插件都需要授权。** Fiex 官方与第三方插件没有权限特权，也不使用插件签名来免除授权。
 - **Native 独立进程不等于操作系统沙箱。** 当前宿主 API 会检查授权，但原生插件仍可能直接访问操作系统允许当前用户访问的文件和网络。只运行信任来源的插件。
-- SDK 处理 `Content-Length` + JSON-RPC 2.0 的 stdin/stdout 协议，当前协议版本 `2.0`，单帧最大 **4 MiB**；不要把大文件直接放入 JSON 返回值。
+- SDK 处理 `Content-Length` + JSON-RPC 2.0 的 stdin/stdout 协议，当前协议版本 `4.0`，单帧最大 **4 MiB**；不要把大文件直接放入 JSON 返回值。
 - 复杂插件的 UI、连接、远程文件系统、取消、流式传输和缓存/同步有各自的职责；**不要把 Fiex Core 的设计提案中的拟议代码当作当前已发布 SDK API。**
 
 ### 继续学习
