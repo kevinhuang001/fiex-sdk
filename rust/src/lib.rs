@@ -19,6 +19,8 @@ pub mod http;
 pub mod i18n;
 pub mod ipc;
 mod runtime;
+pub mod secrets;
+pub mod storage;
 pub mod tasks;
 pub mod tcp;
 
@@ -30,10 +32,12 @@ pub use contracts::{
 pub use files::{FileReader, FileWriter, Files};
 pub use http::{HttpClient, Request, Response};
 pub use ipc::{Entry, ProcessResult};
+pub use secrets::{SecretError, Secrets};
+pub use storage::Storage;
 pub use tasks::{TaskHandle, TaskStatus};
 pub use tcp::{TcpClient, TcpReadHalf, TcpStream, TcpWriteHalf};
 
-pub const PROTOCOL_VERSION: &str = "3.0";
+pub const PROTOCOL_VERSION: &str = "4.0";
 pub const MAX_FRAME: usize = 4 * 1024 * 1024;
 const MAX_HEADER: usize = 8192;
 

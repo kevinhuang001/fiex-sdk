@@ -47,6 +47,20 @@ impl Dispatcher {
                         .clamp(1, 86_400_000)
                         + 5_000,
                 )
+            } else if method.starts_with("host.net.tcp.") {
+                if let Some(deadline) = params["deadlineMs"].as_u64() {
+                    let now = std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .unwrap_or_default()
+                        .as_millis();
+                    let remaining = (deadline as u128).saturating_sub(now);
+                    if remaining == 0 {
+                        return Err(RpcError::internal("TCP deadline exceeded"));
+                    }
+                    Duration::from_millis(remaining.min(125_000) as u64)
+                } else {
+                    Duration::from_secs(125)
+                }
             } else {
                 HOST_TIMEOUT
             };

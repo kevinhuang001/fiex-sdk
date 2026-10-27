@@ -1,4 +1,10 @@
-//! Deterministic SDK tests through an in-memory host transport.
+fn reference() -> crate::ResourceRef {
+    crate::ResourceRef {
+        mount_id: "local".into(),
+        node_id: "opaque-file".into(),
+    }
+}
+// Deterministic SDK tests through an in-memory host transport.
 use crate::{
     context::{ContextInner, RequestContext, TaskContext},
     files::FileReader,
@@ -43,6 +49,10 @@ struct State {
     fail_write: bool,
     fail_shared_write: bool,
     fail_buffer_create: bool,
+    storage: std::collections::HashMap<String, Value>,
+    secret: Option<String>,
+    secret_status: Option<String>,
+    tcp_deadlines: Vec<Value>,
 }
 
 struct Mock {
@@ -88,7 +98,60 @@ impl HostLink for Mock {
         if params.get("authorization").is_none() {
             return Err(RpcError::internal("missing authorization"));
         }
+        if method.starts_with("host.net.tcp.") {
+            state.tcp_deadlines.push(params["deadlineMs"].clone());
+        }
         match method {
+            "host.storage.get" => {
+                let value = state.storage.get(params["key"].as_str().unwrap()).cloned();
+                Ok(json!({"found":value.is_some(),"value":value}))
+            }
+            "host.storage.set" => {
+                state.storage.insert(
+                    params["key"].as_str().unwrap().into(),
+                    params["value"].clone(),
+                );
+                Ok(Value::Null)
+            }
+            "host.storage.delete" => {
+                state.storage.remove(params["key"].as_str().unwrap());
+                Ok(Value::Null)
+            }
+            "host.storage.keys" => Ok(json!(state.storage.keys().collect::<Vec<_>>())),
+            "host.storage.compareAndSet" => {
+                let key = params["key"].as_str().unwrap();
+                let expected = if params["expectedExists"] == true {
+                    Some(&params["expected"])
+                } else {
+                    None
+                };
+                let matched = state.storage.get(key) == expected;
+                if matched {
+                    if params["delete"] == true {
+                        state.storage.remove(key);
+                    } else {
+                        state.storage.insert(key.into(), params["value"].clone());
+                    }
+                }
+                Ok(json!(matched))
+            }
+            "host.secret.get" => {
+                if let Some(status) = &state.secret_status {
+                    return Ok(json!({"status":status}));
+                }
+                Ok(match &state.secret {
+                    Some(value) => json!({"status":"present","value":value}),
+                    None => json!({"status":"missing"}),
+                })
+            }
+            "host.secret.set" => {
+                state.secret = params["value"].as_str().map(str::to_owned);
+                Ok(json!({"status":"ok"}))
+            }
+            "host.secret.delete" => {
+                state.secret = None;
+                Ok(json!({"status":"ok"}))
+            }
             "host.fs.openRead" => Ok(json!({"handle":"read", "size":state.bytes.len()})),
             "host.fs.closeRead" => {
                 state.read_closed = true;
@@ -276,13 +339,13 @@ fn friendly_files_stream_binary_data_seek_and_commit() {
     let inner = context(mock.clone());
     {
         let files = inner.files();
-        assert_eq!(files.read("file").unwrap(), bytes);
-        let mut reader = files.open_read("file").unwrap();
+        assert_eq!(files.read(&reference()).unwrap(), bytes);
+        let mut reader = files.open_read(&reference()).unwrap();
         reader.seek(SeekFrom::Start(255)).unwrap();
         let mut sample = [0; 3];
         reader.read_exact(&mut sample).unwrap();
         assert_eq!(sample, [255, 0, 1]);
-        let mut writer = files.begin_write("file", false).unwrap();
+        let mut writer = files.begin_write(&reference(), false).unwrap();
         writer.write_all(b"first").unwrap();
         writer.seek(SeekFrom::Start(0)).unwrap();
         writer.write_all(b"new").unwrap();
@@ -300,7 +363,7 @@ fn dropping_a_write_aborts_it() {
     {
         let inner = context(mock.clone());
         let files = inner.files();
-        let mut writer = files.begin_write("file", true).unwrap();
+        let mut writer = files.begin_write(&reference(), true).unwrap();
         writer.write_all(b"uncommitted").unwrap();
     }
     let state = mock.state();
@@ -343,7 +406,7 @@ fn small_reads_and_writes_are_batched_and_seek_uses_cached_bytes() {
     let inner = context(mock.clone());
     {
         let files = inner.files();
-        let mut reader = files.open_read("file").unwrap();
+        let mut reader = files.open_read(&reference()).unwrap();
         for _ in 0..1000 {
             let mut byte = [0];
             reader.read_exact(&mut byte).unwrap();
@@ -352,7 +415,7 @@ fn small_reads_and_writes_are_batched_and_seek_uses_cached_bytes() {
         reader.seek(SeekFrom::Start(3)).unwrap();
         let mut byte = [0];
         reader.read_exact(&mut byte).unwrap();
-        let mut writer = files.begin_write("out", true).unwrap();
+        let mut writer = files.begin_write(&reference(), true).unwrap();
         for _ in 0..1000 {
             writer.write_all(b"x").unwrap();
         }
@@ -378,7 +441,7 @@ fn failed_flush_cannot_be_committed_or_retried_as_a_duplicate_write() {
     {
         let inner = context(mock.clone());
         let files = inner.files();
-        let mut writer = files.begin_write("out", true).unwrap();
+        let mut writer = files.begin_write(&reference(), true).unwrap();
         writer.write_all(b"hello").unwrap();
         assert!(writer.flush().is_err());
         assert!(writer.commit().is_err());
@@ -394,7 +457,7 @@ fn large_read_reuses_shared_window_and_seek_reads_correct_bytes() {
     let inner = context(mock.clone());
     {
         let files = inner.files();
-        let mut reader = files.open_read("file").unwrap();
+        let mut reader = files.open_read(&reference()).unwrap();
         let mut part = vec![0; 2_000_000];
         reader.read_exact(&mut part).unwrap();
         assert_eq!(part[0], 0);
@@ -414,7 +477,7 @@ fn large_write_reuses_shared_buffer_and_commits_once() {
     let bytes = vec![255; 3 * 256 * 1024 + 7];
     {
         let inner = context(mock.clone());
-        inner.files().create("file", &bytes).unwrap();
+        inner.files().create(&reference(), &bytes).unwrap();
     }
     let state = mock.state();
     assert_eq!(state.bytes, bytes);
@@ -433,7 +496,7 @@ fn shared_allocation_failure_uses_bounded_ipc() {
     let files = inner.files();
     let mut actual = Vec::new();
     files
-        .open_read("file")
+        .open_read(&reference())
         .unwrap()
         .read_to_end(&mut actual)
         .unwrap();
@@ -447,7 +510,7 @@ fn failed_shared_write_is_not_replayed_as_ipc() {
     {
         let inner = context(mock.clone());
         let files = inner.files();
-        let mut writer = files.begin_write("file", true).unwrap();
+        let mut writer = files.begin_write(&reference(), true).unwrap();
         writer.write_all(&vec![1; 256 * 1024]).unwrap();
         assert!(writer.commit().is_err());
     }
@@ -463,7 +526,7 @@ fn reader_is_send_static_after_the_files_handle_is_dropped() {
     let mock = Arc::new(Mock::with_bytes(b"retained".to_vec()));
     let inner = context(mock.clone());
     let files = inner.files();
-    let mut reader: FileReader = files.open_read("file").unwrap();
+    let mut reader: FileReader = files.open_read(&reference()).unwrap();
     assert_send_static(&reader);
     drop(files);
     drop(inner);
@@ -514,7 +577,7 @@ fn spawned_task_inherits_authorization_and_reports_completion() {
             task.progress(1, Some(2));
             let data = task
                 .files()
-                .read_to_string("file")
+                .read_to_string(&reference())
                 .map_err(|error| RpcError::internal(error.to_string()))?;
             assert_eq!(data, "task data");
             task.progress(2, Some(2));
@@ -617,3 +680,6 @@ fn locale_is_request_local_and_inherited_by_background_work() {
         .unwrap();
     task.wait().unwrap();
 }
+
+#[path = "service_tests.rs"]
+mod service_tests;

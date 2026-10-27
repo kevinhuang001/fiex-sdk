@@ -107,7 +107,12 @@ pub(crate) fn rpc_to_io(error: RpcError) -> std::io::Error {
         || message.contains("authorization")
         || message.contains("permission denied")
         || message.contains("outside task directory");
-    if expired {
+    if message.to_ascii_lowercase().contains("timed out")
+        || message.to_ascii_lowercase().contains("deadline")
+        || message.to_ascii_lowercase().contains("timeout")
+    {
+        std::io::Error::new(std::io::ErrorKind::TimedOut, message)
+    } else if expired {
         std::io::Error::new(
             std::io::ErrorKind::PermissionDenied,
             format!("authorization expired for this operation: {message}"),
@@ -187,15 +192,14 @@ impl RequestContext {
         &self.targets
     }
 
-    /// Return metadata already projected into this request; never performs IO.
-    pub fn metadata(
-        &self,
-        reference: &crate::contracts::ResourceRef,
-    ) -> Option<&crate::contracts::ResourceMetadata> {
-        self.targets
-            .iter()
-            .find(|target| &target.reference == reference)
-            .and_then(|target| target.metadata.as_ref())
+    pub fn target(&self) -> Option<&crate::ResourceContext> {
+        self.targets.first()
+    }
+    pub fn directory(&self) -> Option<crate::ResourceContext> {
+        self.params
+            .get("directory")
+            .filter(|value| value.is_object())
+            .and_then(|value| serde_json::from_value(value.clone()).ok())
     }
 
     pub fn files(&self) -> Files {
@@ -220,7 +224,7 @@ impl RequestContext {
     pub fn open_vfs_view(
         &self,
         contribution_id: &str,
-        resource_root: &str,
+        resource_root: &crate::ResourceRef,
         view_context: Value,
     ) -> Result<String, RpcError> {
         let result = self.invoke("host.vfs.openView", serde_json::json!({"contributionId":contribution_id,"resourceRoot":resource_root,"viewContext":view_context}))?;
@@ -239,6 +243,22 @@ impl RequestContext {
         report_error(&self.inner, code, message, detail)
     }
 
+    pub fn process_run_at(
+        &self,
+        directory: &crate::ResourceRef,
+        command: &str,
+        args: &[String],
+        stdin: Option<&str>,
+    ) -> Result<ProcessResult, RpcError> {
+        let value = self.inner.call(
+            "host.process.run",
+            json!({"command":command,"args":args,"stdin":stdin,"cwd":directory}),
+        )?;
+        decode_output(
+            serde_json::from_value(value).map_err(|error| RpcError::internal(error.to_string()))?,
+        )
+    }
+
     pub fn process_run(
         &self,
         command: &str,
@@ -248,33 +268,11 @@ impl RequestContext {
         process_run(&self.inner, command, args, stdin)
     }
 
-    pub fn storage_get(&self, scope: &str, key: &str) -> Result<Value, RpcError> {
-        self.inner
-            .call("host.storage.get", json!({"scope": scope, "key": key}))
+    pub fn storage(&self) -> crate::Storage {
+        crate::Storage::new(self.inner.clone())
     }
-
-    pub fn storage_set(&self, scope: &str, key: &str, value: Value) -> Result<(), RpcError> {
-        self.inner.call(
-            "host.storage.set",
-            json!({"scope": scope, "key": key, "value": value}),
-        )?;
-        Ok(())
-    }
-
-    pub fn secret_get(&self, scope: &str, key: &str) -> Result<String, RpcError> {
-        self.inner
-            .call("host.secret.get", json!({"scope": scope, "key": key}))?
-            .as_str()
-            .map(str::to_owned)
-            .ok_or_else(|| RpcError::internal("secret response is not a string"))
-    }
-
-    pub fn secret_set(&self, scope: &str, key: &str, value: &str) -> Result<(), RpcError> {
-        self.inner.call(
-            "host.secret.set",
-            json!({"scope": scope, "key": key, "value": value}),
-        )?;
-        Ok(())
+    pub fn secrets(&self) -> crate::Secrets {
+        crate::Secrets::new(self.inner.clone())
     }
 
     /// Start work that owns an independent lifecycle. The task inherits the
@@ -370,6 +368,22 @@ impl TaskContext {
         report_error(&self.inner, code, message, detail)
     }
 
+    pub fn process_run_at(
+        &self,
+        directory: &crate::ResourceRef,
+        command: &str,
+        args: &[String],
+        stdin: Option<&str>,
+    ) -> Result<ProcessResult, RpcError> {
+        let value = self.inner.call(
+            "host.process.run",
+            json!({"command":command,"args":args,"stdin":stdin,"cwd":directory}),
+        )?;
+        decode_output(
+            serde_json::from_value(value).map_err(|error| RpcError::internal(error.to_string()))?,
+        )
+    }
+
     pub fn process_run(
         &self,
         command: &str,
@@ -379,33 +393,11 @@ impl TaskContext {
         process_run(&self.inner, command, args, stdin)
     }
 
-    pub fn storage_get(&self, scope: &str, key: &str) -> Result<Value, RpcError> {
-        self.inner
-            .call("host.storage.get", json!({"scope": scope, "key": key}))
+    pub fn storage(&self) -> crate::Storage {
+        crate::Storage::new(self.inner.clone())
     }
-
-    pub fn storage_set(&self, scope: &str, key: &str, value: Value) -> Result<(), RpcError> {
-        self.inner.call(
-            "host.storage.set",
-            json!({"scope": scope, "key": key, "value": value}),
-        )?;
-        Ok(())
-    }
-
-    pub fn secret_get(&self, scope: &str, key: &str) -> Result<String, RpcError> {
-        self.inner
-            .call("host.secret.get", json!({"scope": scope, "key": key}))?
-            .as_str()
-            .map(str::to_owned)
-            .ok_or_else(|| RpcError::internal("secret response is not a string"))
-    }
-
-    pub fn secret_set(&self, scope: &str, key: &str, value: &str) -> Result<(), RpcError> {
-        self.inner.call(
-            "host.secret.set",
-            json!({"scope": scope, "key": key, "value": value}),
-        )?;
-        Ok(())
+    pub fn secrets(&self) -> crate::Secrets {
+        crate::Secrets::new(self.inner.clone())
     }
 
     /// Mark cancellation. Long operations should poll [`TaskContext::is_cancelled`].

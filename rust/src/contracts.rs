@@ -13,6 +13,17 @@ pub struct ResourceRef {
     pub node_id: String,
 }
 
+impl ResourceRef {
+    /// Opaque argument for a Core-brokered executable. Core resolves it only
+    /// inside the current scope; this never reveals a host filesystem path.
+    pub fn command_arg(&self) -> String {
+        format!(
+            "fiex-ref:{}",
+            serde_json::to_string(self).expect("resource ref serialization")
+        )
+    }
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ResourceMetadata {
@@ -38,7 +49,7 @@ pub struct ResourceContext {
 }
 
 impl ResourceContext {
-    /// Display name projected by Core. Use `reference` with `Files::open_ref`
+    /// Display name projected by Core. Use `reference` with `Files::open_read`
     /// when opening a target; a name does not carry authorization.
     pub fn name(&self) -> Option<&str> {
         self.metadata.as_ref().map(|value| value.name.as_str())
