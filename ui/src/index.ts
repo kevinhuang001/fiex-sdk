@@ -1,7 +1,16 @@
 import { normalizeLocale, type Locale } from './i18n.js'
 export * from './i18n.js'
 /** Fiex iframe API. Browser runtime only; no Node.js or Tauri dependencies. */
-export type ResourceRef = { mountId: string; nodeId: string; version?: string }
+export type ResourceRef = { mountId: string; nodeId: string }
+export type ResourceMetadata = {
+  name: string
+  kind: string
+  extension?: string
+  mime?: string
+  size?: number
+  modified?: number
+}
+export type ResourceContext = { ref: ResourceRef; metadata?: ResourceMetadata }
 export type JsonValue =
   null | string | number | boolean | JsonValue[] | { [key: string]: JsonValue }
 export type BridgeError = { code: string; message: string }
@@ -31,8 +40,8 @@ type BridgeEvent = {
 }
 export type ExplorerContext = {
   locale?: Locale
-  directoryPath: string
-  selectionPaths: string[]
+  directory?: ResourceContext
+  targets: ResourceContext[]
   windowId?: string
   paneId?: string
   /** Contribution id that opened this panel; lets one panel serve several
@@ -283,6 +292,25 @@ export class FiexUiClient {
           { method: command, params: args ?? null },
           { timeoutMs: 120000, ...options },
         ),
+      /** Read a native task created by this plugin (or by its own native side). */
+      task: <T = JsonValue>(taskId: string) => this.invoke<T | null>('plugin.task', { taskId }),
+    }
+  }
+  get clipboard() {
+    return {
+      writeText: (text: string) => this.invoke<null>('clipboard.writeText', { text }),
+    }
+  }
+  get navigation() {
+    return {
+      /** Navigate the host explorer to a Core-owned path or virtual URI. */
+      open: (path: string) => this.invoke<null>('navigation.open', { path }),
+    }
+  }
+  get preview() {
+    return {
+      /** Mark a preview document ready so the host can hide its loading state. */
+      ready: () => this.invoke<null>('preview.ready'),
     }
   }
   get vfs() {
@@ -328,27 +356,27 @@ export class FiexUiClient {
       openFile: (
         options: {
           title?: string
-          directory?: string
+          directory?: ResourceRef
           extensions?: string[]
         } = {},
-      ) => this.invoke<string | null>('dialog.openFile', options),
+      ) => this.invoke<ResourceContext | null>('dialog.openFile', options),
       openFiles: (
         options: {
           title?: string
-          directory?: string
+          directory?: ResourceRef
           extensions?: string[]
         } = {},
-      ) => this.invoke<string[] | null>('dialog.openFiles', options),
-      openDirectory: (options: { title?: string; directory?: string } = {}) =>
-        this.invoke<string | null>('dialog.openDirectory', options),
+      ) => this.invoke<ResourceContext[] | null>('dialog.openFiles', options),
+      openDirectory: (options: { title?: string; directory?: ResourceRef } = {}) =>
+        this.invoke<ResourceContext | null>('dialog.openDirectory', options),
       saveFile: (
         options: {
           title?: string
-          directory?: string
+          directory?: ResourceRef
           suggestedName?: string
           extensions?: string[]
         } = {},
-      ) => this.invoke<string | null>('dialog.saveFile', options),
+      ) => this.invoke<ResourceContext | null>('dialog.saveFile', options),
     }
   }
   get panel() {

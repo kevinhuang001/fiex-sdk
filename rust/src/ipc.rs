@@ -113,19 +113,8 @@ impl SharedBuffer {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Entry {
-    pub path: String,
-    pub name: String,
-    pub is_dir: bool,
-    pub size: u64,
-    pub modified: u64,
-    pub extension: String,
-    pub mime: String,
-    pub readonly: bool,
-    pub symlink: bool,
-}
+/// A listed child exposes identity and permission-projected metadata only.
+pub type Entry = crate::ResourceContext;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

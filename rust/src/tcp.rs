@@ -3,13 +3,23 @@
 //! Core creates, authorizes and closes the connection. Plugins receive a
 //! standard `Read + Write + Send + 'static` stream without IPC handles,
 //! channels or host proxies.
+#[cfg(feature = "tokio")]
+mod asynchronous;
+mod deadline;
 use crate::context::{rpc_to_io, ContextInner};
+#[cfg(feature = "tokio")]
+pub use asynchronous::AsyncTcpStream;
 use base64::{engine::general_purpose::STANDARD, Engine};
+use deadline::Deadline;
 use serde_json::json;
 use std::{
     io::{self, Read, Write},
     net::{Shutdown, SocketAddr},
-    sync::Arc,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc, Mutex,
+    },
+    time::Instant,
 };
 
 const CHUNK: usize = 256 * 1024;
@@ -17,17 +27,32 @@ const CHUNK: usize = 256 * 1024;
 #[derive(Clone)]
 pub struct TcpClient {
     context: ContextInner,
+    deadline: Option<Deadline>,
 }
 
 impl TcpClient {
     pub(crate) fn new(context: ContextInner) -> Self {
-        Self { context }
+        Self {
+            context,
+            deadline: None,
+        }
+    }
+
+    /// One absolute deadline shared by connect, read and write (including DNS
+    /// and broker queue time). It does not reset after each chunk.
+    pub fn with_deadline(mut self, deadline: Instant) -> Self {
+        self.deadline = Some(Deadline::new(deadline));
+        self
     }
 
     pub fn connect(&self, host: &str, port: u16) -> io::Result<TcpStream> {
+        let mut params = json!({"host": host, "port": port});
+        if let Some(deadline) = self.deadline {
+            deadline.apply(&mut params)?;
+        }
         let value = self
             .context
-            .call("host.net.tcp.open", json!({"host": host, "port": port}))
+            .call("host.net.tcp.open", params)
             .map_err(rpc_to_io)?;
         let id = value["stream"]
             .as_str()
@@ -43,6 +68,8 @@ impl TcpClient {
                 context: self.context.clone(),
                 id,
                 address,
+                deadline: Mutex::new(self.deadline),
+                failed: AtomicBool::new(false),
             }),
         })
     }
@@ -52,6 +79,8 @@ struct Connection {
     context: ContextInner,
     id: String,
     address: SocketAddr,
+    deadline: Mutex<Option<Deadline>>,
+    failed: AtomicBool,
 }
 
 impl Drop for Connection {
@@ -70,6 +99,52 @@ pub struct TcpStream {
 }
 
 impl TcpStream {
+    pub fn set_deadline(&self, deadline: Option<Instant>) -> io::Result<()> {
+        *self
+            .connection
+            .deadline
+            .lock()
+            .map_err(|_| io::Error::other("deadline lock poisoned"))? = deadline.map(Deadline::new);
+        Ok(())
+    }
+    fn request(
+        &self,
+        method: &str,
+        mut params: serde_json::Value,
+    ) -> io::Result<serde_json::Value> {
+        if self.connection.failed.load(Ordering::Acquire) {
+            return Err(io::Error::new(
+                io::ErrorKind::BrokenPipe,
+                "TCP connection expired after a deadline failure",
+            ));
+        }
+        let result = (|| {
+            if let Some(deadline) = *self
+                .connection
+                .deadline
+                .lock()
+                .map_err(|_| io::Error::other("deadline lock poisoned"))?
+            {
+                deadline.apply(&mut params)?;
+            }
+            self.connection
+                .context
+                .call(method, params)
+                .map_err(rpc_to_io)
+        })();
+        if result
+            .as_ref()
+            .is_err_and(|error| error.kind() == io::ErrorKind::TimedOut)
+        {
+            self.connection.failed.store(true, Ordering::Release);
+        }
+        result
+    }
+    #[cfg(feature = "tokio")]
+    pub fn into_async(self) -> AsyncTcpStream {
+        AsyncTcpStream::new(self)
+    }
+
     /// Split one Core-brokered connection into independently owned read and write
     /// halves. They can be sent to different threads; dropping one half does
     /// not close the other half's connection.
@@ -108,14 +183,10 @@ impl Read for TcpStream {
             return Ok(0);
         }
         let size = output.len().min(CHUNK);
-        let value = self
-            .connection
-            .context
-            .call(
-                "host.net.tcp.readBytes",
-                json!({"stream": self.connection.id, "size": size}),
-            )
-            .map_err(rpc_to_io)?;
+        let value = self.request(
+            "host.net.tcp.readBytes",
+            json!({"stream":self.connection.id,"size":size}),
+        )?;
         let bytes = STANDARD
             .decode(
                 value["base64"]
@@ -137,16 +208,10 @@ impl Write for TcpStream {
         if size == 0 {
             return Ok(0);
         }
-        self.connection
-            .context
-            .call(
-                "host.net.tcp.writeBytes",
-                json!({
-                    "stream": self.connection.id,
-                    "base64": STANDARD.encode(&data[..size]),
-                }),
-            )
-            .map_err(rpc_to_io)?;
+        self.request(
+            "host.net.tcp.writeBytes",
+            json!({"stream":self.connection.id,"base64":STANDARD.encode(&data[..size])}),
+        )?;
         Ok(size)
     }
 

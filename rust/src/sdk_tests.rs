@@ -1,4 +1,10 @@
-//! Deterministic SDK tests through an in-memory host transport.
+fn reference() -> crate::ResourceRef {
+    crate::ResourceRef {
+        mount_id: "local".into(),
+        node_id: "opaque-file".into(),
+    }
+}
+// Deterministic SDK tests through an in-memory host transport.
 use crate::{
     context::{ContextInner, RequestContext, TaskContext},
     files::FileReader,
@@ -28,6 +34,12 @@ struct State {
     http_closed: bool,
     tcp_closed: bool,
     http_position: usize,
+    http_open_params: Vec<Value>,
+    http_body_chunks: Vec<Vec<u8>>,
+    http_body_written: usize,
+    http_body_eof: bool,
+    http_response_calls: usize,
+    fail_http_body: bool,
     shared: Option<SharedBuffer>,
     shared_reads: usize,
     calls: Vec<String>,
@@ -43,6 +55,12 @@ struct State {
     fail_write: bool,
     fail_shared_write: bool,
     fail_buffer_create: bool,
+    storage: std::collections::HashMap<String, Value>,
+    secret: Option<String>,
+    secret_status: Option<String>,
+    tcp_deadlines: Vec<Value>,
+    terminal_output: Vec<u8>,
+    terminal_ended: Option<Option<String>>,
 }
 
 struct Mock {
@@ -88,7 +106,77 @@ impl HostLink for Mock {
         if params.get("authorization").is_none() {
             return Err(RpcError::internal("missing authorization"));
         }
+        if method.starts_with("host.net.tcp.") {
+            state.tcp_deadlines.push(params["deadlineMs"].clone());
+        }
         match method {
+            "host.terminal.ready" => Ok(Value::Null),
+            "host.terminal.output" => {
+                let data = params["dataBase64"].as_str().unwrap();
+                state.terminal_output = STANDARD.decode(data).unwrap();
+                Ok(Value::Null)
+            }
+            "host.terminal.input" => Ok(json!({
+                "dataBase64": STANDARD.encode(b"typed"),
+                "eof": false
+            })),
+            "host.terminal.size" => Ok(json!({"cols": 120, "rows": 40})),
+            "host.terminal.closed" => Ok(json!({"closed": false})),
+            "host.terminal.end" => {
+                state.terminal_ended = Some(params["error"].as_str().map(str::to_owned));
+                Ok(Value::Null)
+            }
+            "host.storage.get" => {
+                let value = state.storage.get(params["key"].as_str().unwrap()).cloned();
+                Ok(json!({"found":value.is_some(),"value":value}))
+            }
+            "host.storage.set" => {
+                state.storage.insert(
+                    params["key"].as_str().unwrap().into(),
+                    params["value"].clone(),
+                );
+                Ok(Value::Null)
+            }
+            "host.storage.delete" => {
+                state.storage.remove(params["key"].as_str().unwrap());
+                Ok(Value::Null)
+            }
+            "host.storage.keys" => Ok(json!(state.storage.keys().collect::<Vec<_>>())),
+            "host.storage.compareAndSet" => {
+                let key = params["key"].as_str().unwrap();
+                let expected = if params["expectedExists"] == true {
+                    Some(&params["expected"])
+                } else {
+                    None
+                };
+                let matched = state.storage.get(key) == expected;
+                if matched {
+                    if params["delete"] == true {
+                        state.storage.remove(key);
+                    } else {
+                        state.storage.insert(key.into(), params["value"].clone());
+                    }
+                }
+                Ok(json!(matched))
+            }
+            "host.secret.available" => Ok(json!(true)),
+            "host.secret.get" => {
+                if let Some(status) = &state.secret_status {
+                    return Ok(json!({"status":status}));
+                }
+                Ok(match &state.secret {
+                    Some(value) => json!({"status":"present","value":value}),
+                    None => json!({"status":"missing"}),
+                })
+            }
+            "host.secret.set" => {
+                state.secret = params["value"].as_str().map(str::to_owned);
+                Ok(json!({"status":"ok"}))
+            }
+            "host.secret.delete" => {
+                state.secret = None;
+                Ok(json!({"status":"ok"}))
+            }
             "host.fs.openRead" => Ok(json!({"handle":"read", "size":state.bytes.len()})),
             "host.fs.closeRead" => {
                 state.read_closed = true;
@@ -184,9 +272,37 @@ impl HostLink for Mock {
             "host.fs.rename" => Ok(Value::Null),
             "host.net.http.open" => {
                 state.http_position = 0;
-                Ok(
-                    json!({"stream":"response","status":200,"headers":{"content-type":"application/octet-stream"}}),
-                )
+                state.http_open_params.push(params.clone());
+                if params["bodyStream"] == true {
+                    Ok(json!({"handle":"upload"}))
+                } else {
+                    Ok(
+                        json!({"stream":"response","status":200,"headers":{"content-type":"application/octet-stream"}}),
+                    )
+                }
+            }
+            "host.net.http.body" => {
+                if state.fail_http_body {
+                    return Err(RpcError::internal("connection lost"));
+                }
+                if params["handle"] != "upload" {
+                    return Err(RpcError::internal("unknown streaming body"));
+                }
+                let bytes = STANDARD
+                    .decode(params["base64"].as_str().unwrap_or(""))
+                    .map_err(|error| RpcError::internal(error.to_string()))?;
+                state.http_body_written += bytes.len();
+                if !bytes.is_empty() {
+                    state.http_body_chunks.push(bytes);
+                }
+                if params["eof"] == true {
+                    state.http_body_eof = true;
+                }
+                Ok(json!({"written":state.http_body_written,"eof":params["eof"] == true}))
+            }
+            "host.net.http.response" => {
+                state.http_response_calls += 1;
+                Ok(json!({"stream":"upload","status":201,"headers":{"etag":"v1"}}))
             }
             "host.net.http.read" => {
                 let start = state.http_position.min(state.bytes.len());
@@ -276,13 +392,13 @@ fn friendly_files_stream_binary_data_seek_and_commit() {
     let inner = context(mock.clone());
     {
         let files = inner.files();
-        assert_eq!(files.read("file").unwrap(), bytes);
-        let mut reader = files.open_read("file").unwrap();
+        assert_eq!(files.read(&reference()).unwrap(), bytes);
+        let mut reader = files.open_read(&reference()).unwrap();
         reader.seek(SeekFrom::Start(255)).unwrap();
         let mut sample = [0; 3];
         reader.read_exact(&mut sample).unwrap();
         assert_eq!(sample, [255, 0, 1]);
-        let mut writer = files.begin_write("file", false).unwrap();
+        let mut writer = files.begin_write(&reference(), false).unwrap();
         writer.write_all(b"first").unwrap();
         writer.seek(SeekFrom::Start(0)).unwrap();
         writer.write_all(b"new").unwrap();
@@ -300,7 +416,7 @@ fn dropping_a_write_aborts_it() {
     {
         let inner = context(mock.clone());
         let files = inner.files();
-        let mut writer = files.begin_write("file", true).unwrap();
+        let mut writer = files.begin_write(&reference(), true).unwrap();
         writer.write_all(b"uncommitted").unwrap();
     }
     let state = mock.state();
@@ -322,6 +438,24 @@ fn http_preserves_binary_and_closes_response() {
 }
 
 #[test]
+fn terminal_wrapper_covers_the_host_bridge() {
+    let mock = Arc::new(Mock::new());
+    let terminal = RequestContext::new(context(mock.clone()), "terminal.test".into(), Value::Null)
+        .terminal("session-1");
+    terminal.ready().unwrap();
+    terminal.output(b"output").unwrap();
+    let input = terminal.input(32).unwrap();
+    assert_eq!(input.data, b"typed");
+    assert!(!input.eof);
+    assert_eq!(terminal.size().unwrap().cols, 120);
+    assert_eq!(terminal.size().unwrap().rows, 40);
+    assert!(!terminal.closed().unwrap());
+    terminal.end(Some("done")).unwrap();
+    assert_eq!(mock.state().terminal_output, b"output");
+    assert_eq!(mock.state().terminal_ended, Some(Some("done".into())));
+}
+
+#[test]
 fn http_json_is_a_regular_convenience_method() {
     let mock = Arc::new(Mock::with_bytes(br#"{"ok":true}"#.to_vec()));
     let inner = context(mock);
@@ -338,12 +472,110 @@ fn http_json_is_a_regular_convenience_method() {
 }
 
 #[test]
+fn streaming_body_writes_chunks_as_they_arrive_and_returns_the_response() {
+    let mock = Arc::new(Mock::new());
+    let inner = context(mock.clone());
+    let mut body = inner
+        .http()
+        .put("https://example.com/upload")
+        .header("content-type", "application/octet-stream")
+        .body_stream(5)
+        .unwrap();
+    body.write_chunk(b"he").unwrap();
+    body.write_chunk(b"llo").unwrap();
+    let response = body.finish().unwrap();
+    assert_eq!(response.status, 201);
+    assert_eq!(response.headers["etag"], "v1");
+
+    let state = mock.state();
+    assert_eq!(state.http_open_params.len(), 1);
+    let open = &state.http_open_params[0];
+    assert_eq!(open["bodyStream"], true);
+    assert_eq!(open["contentLength"], 5);
+    // Streaming mode must not look like either buffered body mode.
+    assert!(open.get("bodyBase64").is_none());
+    assert!(open.get("bodyReadHandle").is_none());
+    assert_eq!(
+        state.http_body_chunks,
+        vec![b"he".to_vec(), b"llo".to_vec()]
+    );
+    assert!(state.http_body_eof);
+    assert_eq!(state.http_response_calls, 1);
+}
+
+#[test]
+fn streaming_body_rejects_an_oversized_chunk_and_cancels() {
+    let mock = Arc::new(Mock::new());
+    let inner = context(mock.clone());
+    let mut body = inner
+        .http()
+        .put("https://example.com/upload")
+        .body_stream(3)
+        .unwrap();
+    let error = body.write_chunk(b"four").unwrap_err();
+    assert_eq!(error.kind(), std::io::ErrorKind::InvalidInput);
+    assert!(mock.state().http_closed);
+    // The body is aborted; nothing else can be written.
+    assert!(body.write_chunk(b"a").is_err());
+    drop(body);
+}
+
+#[test]
+fn streaming_body_finish_requires_the_declared_length() {
+    let mock = Arc::new(Mock::new());
+    let inner = context(mock.clone());
+    let mut body = inner
+        .http()
+        .put("https://example.com/upload")
+        .body_stream(4)
+        .unwrap();
+    body.write_chunk(b"ab").unwrap();
+    let error = match body.finish() {
+        Ok(_) => panic!("short streaming body must not produce a response"),
+        Err(error) => error,
+    };
+    assert_eq!(error.kind(), std::io::ErrorKind::InvalidInput);
+    // Core is told to cancel instead of waiting for its deadline.
+    assert!(mock.state().http_closed);
+}
+
+#[test]
+fn dropping_an_unfinished_streaming_body_cancels_the_request() {
+    let mock = Arc::new(Mock::new());
+    let inner = context(mock.clone());
+    {
+        let mut body = inner
+            .http()
+            .put("https://example.com/upload")
+            .body_stream(2)
+            .unwrap();
+        body.write_chunk(b"a").unwrap();
+    }
+    assert!(mock.state().http_closed);
+}
+
+#[test]
+fn a_failed_streaming_write_aborts_the_body() {
+    let mock = Arc::new(Mock::new());
+    mock.state().fail_http_body = true;
+    let inner = context(mock.clone());
+    let mut body = inner
+        .http()
+        .put("https://example.com/upload")
+        .body_stream(2)
+        .unwrap();
+    assert!(body.write_chunk(b"a").is_err());
+    assert!(mock.state().http_closed);
+    assert!(body.write_chunk(b"b").is_err());
+}
+
+#[test]
 fn small_reads_and_writes_are_batched_and_seek_uses_cached_bytes() {
     let mock = Arc::new(Mock::with_bytes(vec![42; 65_536]));
     let inner = context(mock.clone());
     {
         let files = inner.files();
-        let mut reader = files.open_read("file").unwrap();
+        let mut reader = files.open_read(&reference()).unwrap();
         for _ in 0..1000 {
             let mut byte = [0];
             reader.read_exact(&mut byte).unwrap();
@@ -352,7 +584,7 @@ fn small_reads_and_writes_are_batched_and_seek_uses_cached_bytes() {
         reader.seek(SeekFrom::Start(3)).unwrap();
         let mut byte = [0];
         reader.read_exact(&mut byte).unwrap();
-        let mut writer = files.begin_write("out", true).unwrap();
+        let mut writer = files.begin_write(&reference(), true).unwrap();
         for _ in 0..1000 {
             writer.write_all(b"x").unwrap();
         }
@@ -378,7 +610,7 @@ fn failed_flush_cannot_be_committed_or_retried_as_a_duplicate_write() {
     {
         let inner = context(mock.clone());
         let files = inner.files();
-        let mut writer = files.begin_write("out", true).unwrap();
+        let mut writer = files.begin_write(&reference(), true).unwrap();
         writer.write_all(b"hello").unwrap();
         assert!(writer.flush().is_err());
         assert!(writer.commit().is_err());
@@ -394,7 +626,7 @@ fn large_read_reuses_shared_window_and_seek_reads_correct_bytes() {
     let inner = context(mock.clone());
     {
         let files = inner.files();
-        let mut reader = files.open_read("file").unwrap();
+        let mut reader = files.open_read(&reference()).unwrap();
         let mut part = vec![0; 2_000_000];
         reader.read_exact(&mut part).unwrap();
         assert_eq!(part[0], 0);
@@ -414,7 +646,7 @@ fn large_write_reuses_shared_buffer_and_commits_once() {
     let bytes = vec![255; 3 * 256 * 1024 + 7];
     {
         let inner = context(mock.clone());
-        inner.files().create("file", &bytes).unwrap();
+        inner.files().create(&reference(), &bytes).unwrap();
     }
     let state = mock.state();
     assert_eq!(state.bytes, bytes);
@@ -433,7 +665,7 @@ fn shared_allocation_failure_uses_bounded_ipc() {
     let files = inner.files();
     let mut actual = Vec::new();
     files
-        .open_read("file")
+        .open_read(&reference())
         .unwrap()
         .read_to_end(&mut actual)
         .unwrap();
@@ -447,7 +679,7 @@ fn failed_shared_write_is_not_replayed_as_ipc() {
     {
         let inner = context(mock.clone());
         let files = inner.files();
-        let mut writer = files.begin_write("file", true).unwrap();
+        let mut writer = files.begin_write(&reference(), true).unwrap();
         writer.write_all(&vec![1; 256 * 1024]).unwrap();
         assert!(writer.commit().is_err());
     }
@@ -463,7 +695,7 @@ fn reader_is_send_static_after_the_files_handle_is_dropped() {
     let mock = Arc::new(Mock::with_bytes(b"retained".to_vec()));
     let inner = context(mock.clone());
     let files = inner.files();
-    let mut reader: FileReader = files.open_read("file").unwrap();
+    let mut reader: FileReader = files.open_read(&reference()).unwrap();
     assert_send_static(&reader);
     drop(files);
     drop(inner);
@@ -514,7 +746,7 @@ fn spawned_task_inherits_authorization_and_reports_completion() {
             task.progress(1, Some(2));
             let data = task
                 .files()
-                .read_to_string("file")
+                .read_to_string(&reference())
                 .map_err(|error| RpcError::internal(error.to_string()))?;
             assert_eq!(data, "task data");
             task.progress(2, Some(2));
@@ -617,3 +849,6 @@ fn locale_is_request_local_and_inherited_by_background_work() {
         .unwrap();
     task.wait().unwrap();
 }
+
+#[path = "service_tests.rs"]
+mod service_tests;

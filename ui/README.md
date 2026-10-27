@@ -1,3 +1,19 @@
+## Typed bridge helpers
+
+```ts
+import { FiexUiClient } from '@fiex/ui-sdk'
+const fiex = new FiexUiClient()
+await fiex.clipboard.writeText('copied')
+await fiex.navigation.open('fiex://mount/demo/')
+await fiex.preview.ready()
+const task = await fiex.plugin.task('task-id')
+```
+
+`fiex.plugin.invoke`, `fiex.dialog.*`, `fiex.tasks.*`, `fiex.panel.*`,
+`fiex.theme.*` and `fiex.errors.*` are also typed. `preview.ready()` is only
+available to preview documents; panels use `fiex.panel.resize/close`. There is
+no UI-side VFS API: native plugins own VFS/provider work.
+
 ## Language
 
 ```ts
@@ -9,8 +25,8 @@ messages.t('打开 {0}', '中文.txt') // The filename is preserved.
 ```
 
 `getLocale()` reads the initial host preference; `subscribe()` receives live
-changes. The bridge uses `locale.get` and `locale.changed`, and updates the HTML
-`lang` attribute. All panel kinds expose this read-only information without a
+changes. The bridge sends `locale.changed` events and updates the HTML `lang`
+attribute. All panel kinds expose this read-only information without a
 permission grant. Subscribe to the translation runtime once at your React root
 with `useSyncExternalStore(messages.subscribe, messages.getLocale)` so existing
 forms and running operations survive language changes. Keep user and document

@@ -90,3 +90,21 @@ test('disposed client fails promptly without starting another handshake', async 
   client.dispose()
   await assert.rejects(client.ready(), (error) => error.code === 'closed')
 })
+test('typed wrappers cover clipboard, navigation, preview readiness and plugin tasks', async () => {
+  const client = new FiexUiClient()
+  const calls = []
+  client.invoke = async (method, params) => {
+    calls.push([method, params])
+    return null
+  }
+  await client.clipboard.writeText('copied')
+  await client.navigation.open('fiex://mount/demo/')
+  await client.preview.ready()
+  await client.plugin.task('task-1')
+  assert.deepEqual(calls, [
+    ['clipboard.writeText', { text: 'copied' }],
+    ['navigation.open', { path: 'fiex://mount/demo/' }],
+    ['preview.ready', undefined],
+    ['plugin.task', { taskId: 'task-1' }],
+  ])
+})

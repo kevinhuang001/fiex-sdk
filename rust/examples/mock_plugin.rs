@@ -38,22 +38,21 @@ fn main() {
         }
         "mock.readFile" => {
             let path = ctx
-                .params()
-                .get("path")
-                .and_then(Value::as_str)
-                .ok_or_else(|| RpcError::invalid_params("missing path"))?;
+                .target()
+                .ok_or_else(|| RpcError::invalid_params("missing target"))?
+                .reference
+                .clone();
             let files = ctx.files();
             Ok(json!(files
-                .read_to_string(path)
+                .read_to_string(&path)
                 .map_err(|error| RpcError::internal(error.to_string()))?))
         }
         "mock.spawnTask" => {
             let path = ctx
-                .params()
-                .get("path")
-                .and_then(Value::as_str)
-                .ok_or_else(|| RpcError::invalid_params("missing path"))?
-                .to_owned();
+                .target()
+                .ok_or_else(|| RpcError::invalid_params("missing target"))?
+                .reference
+                .clone();
             let task = ctx.spawn_task(move |task| {
                 std::thread::sleep(std::time::Duration::from_millis(150));
                 let text = task
@@ -81,7 +80,10 @@ fn main() {
                 .take()
                 .ok_or_else(|| RpcError::internal("no captured task scope"))?;
             files
-                .read_to_string("secret.txt")
+                .read_to_string(&fiex_plugin_sdk::ResourceRef {
+                    mount_id: "local".into(),
+                    node_id: "expired-ref".into(),
+                })
                 .map_err(|error| RpcError::internal(error.to_string()))?;
             Err(RpcError::internal("stale task scope was still authorized"))
         }
@@ -101,11 +103,8 @@ fn main() {
             Ok(json!({"met": true}))
         }
         "mock.exec" => {
-            let result = ctx.invoke(
-                "host.exec",
-                json!({"command": "git", "args": ["--version"]}),
-            )?;
-            Ok(json!({"stdout": result["stdout"]}))
+            let result = ctx.process_run("git", &["--version".into()], None)?;
+            Ok(json!({"stdout": result.stdout}))
         }
         "search.query" => Ok(json!({
             "entries": [{
