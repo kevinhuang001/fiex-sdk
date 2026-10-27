@@ -22,13 +22,14 @@ jobs:
         with:
           workspaces: rust -> target
       - run: cargo fmt --manifest-path rust/Cargo.toml -- --check
-      - run: cargo test --manifest-path rust/Cargo.toml
+      - run: cargo test --manifest-path rust/Cargo.toml --all-features
+      - run: cargo test --manifest-path rust/Cargo.toml --no-default-features
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
       - run: cargo build --manifest-path rust/Cargo.toml --example mock_plugin
       - run: python rust/examples/check_plugin.py --binary rust/target/debug/examples/mock_plugin --plugin-id org.fiex.mock --method mock.echo
-      - run: cargo clippy --manifest-path rust/Cargo.toml --all-targets -- -D warnings
+      - run: cargo clippy --manifest-path rust/Cargo.toml --all-targets --all-features -- -D warnings
   ui-sdk:
     runs-on: ubuntu-latest
     steps:
@@ -39,3 +40,35 @@ jobs:
       - run: npm --prefix ui install --no-audit --no-fund --save-dev typescript@~5.9.3
       - run: npm --prefix ui run build
       - run: npm --prefix ui test
+
+  release:
+    name: Publish tested SDK
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: [rust-sdk, ui-sdk]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm --prefix ui install --no-audit --no-fund
+      - run: npm --prefix ui run build
+      - name: Package SDK and publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          version="$(node -p "require('./ui/package.json').version")"
+          tag="v$version"
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "$tag already exists; keep the published SDK unchanged."
+            exit 0
+          fi
+          mkdir -p dist
+          git archive --format=zip --prefix="fiex-sdk-$version/" --output="dist/fiex-sdk-$version.zip" HEAD
+          (cd ui && npm pack --pack-destination "$GITHUB_WORKSPACE/dist")
+          (cd dist && sha256sum *.zip *.tgz > SHA256SUMS)
+          gh release create "$tag" dist/* --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" --title "Fiex SDK $version" --notes-file RELEASE.md
