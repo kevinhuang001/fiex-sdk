@@ -253,20 +253,26 @@ impl<'a> FsRequest<'a> {
         &self.params
     }
 
-    /// The node the operation targets, when the operation is node-scoped.
+    /// The node the operation targets. The empty string is the mount root, so
+    /// providers that join paths can use `node_id_or_root()`.
     pub fn node_id(&self) -> Option<&str> {
-        self.params
-            .get("nodeId")
-            .and_then(Value::as_str)
-            .filter(|value| !value.is_empty())
+        self.params.get("nodeId").and_then(Value::as_str)
     }
 
-    /// Parent directory for `mkdir` and for creating a new file.
+    /// Target node, with the mount root as the default.
+    pub fn node_id_or_root(&self) -> &str {
+        self.node_id().unwrap_or("")
+    }
+
+    /// Parent directory for `mkdir` and for creating a new file. Empty is the
+    /// mount root.
     pub fn parent_id(&self) -> Option<&str> {
-        self.params
-            .get("parentId")
-            .and_then(Value::as_str)
-            .filter(|value| !value.is_empty())
+        self.params.get("parentId").and_then(Value::as_str)
+    }
+
+    /// Parent directory, with the mount root as the default.
+    pub fn parent_id_or_root(&self) -> &str {
+        self.parent_id().unwrap_or("")
     }
 
     /// New name for `mkdir`/`rename`, or the leaf name of a new file.
