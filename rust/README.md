@@ -16,10 +16,14 @@
 # use fiex_plugin_sdk::{self as sdk, RpcError};
 # fn example(ctx: &sdk::RequestContext) -> Result<(), Box<dyn std::error::Error>> {
 let files = ctx.files();
-let text = files.read_to_string("notes.txt")?;
-let bytes = files.read("photo.png")?;
-files.write("notes.txt", b"updated")?; // 修改已有文件
-files.create("new.txt", b"hello")?;   // 创建新文件，已存在则报错
+// 协议 4.0 只接受 ResourceRef，不接受宿主路径。
+let target = ctx.target().ok_or("missing target")?;
+let text = files.read_to_string(&target.reference)?;
+files.write(&target.reference, b"updated")?; // 修改本次操作授权的文件
+// 新文件先由 Core 在已授权目录下分配一个身份。
+let directory = ctx.directory().ok_or("missing directory")?;
+let created = files.child(&directory.reference, "new.txt")?;
+files.create(&created, b"hello")?; // 已存在则报错
 # Ok(()) }
 ```
 
@@ -30,16 +34,19 @@ files.create("new.txt", b"hello")?;   // 创建新文件，已存在则报错
 # use std::io::Write;
 # fn example(ctx: &sdk::RequestContext) -> Result<(), Box<dyn std::error::Error>> {
 let files = ctx.files();
-let mut input = files.open_read("large.bin")?;
-let mut output = files.begin_write("copy.bin", true)?;
+let target = ctx.target().ok_or("missing target")?;
+let mut input = files.open_read(&target.reference)?;
+let directory = ctx.directory().ok_or("missing directory")?;
+let destination = files.child(&directory.reference, "copy.bin")?;
+let mut output = files.begin_write(&destination, true)?;
 std::io::copy(&mut input, &mut output)?;
 output.commit()?;
 # Ok(()) }
 ```
 
-`begin_write` 后的数据由 Core 暂存。只有 `commit` 成功才会替换目标；原文件发生变化时返回冲突。没有提交就释放 writer，会自动取消暂存。`read` 最多读取 64 MiB；更大文件用 `open_read`。文件访问限于宿主为本次操作授权的所选文件或目录；文件选择框返回路径后，还需在面板提交操作时将该路径传给 `plugin.invoke`。未提交的写入在操作结束时取消。
+`begin_write` 后的数据由 Core 暂存。只有 `commit` 成功才会替换目标；原文件发生变化时返回冲突。没有提交就释放 writer，会自动取消暂存。`read` 最多读取 64 MiB；更大文件用 `open_read`。文件访问限于宿主为本次操作授权的所选文件或目录。协议 4.0 的公开输入是 `ResourceRef`：系统事件从 `ctx.targets()` 取得，文件/目录选择框也返回 `ResourceContext`；不要再传宿主路径。未提交的写入在操作结束时取消。
 
-普通文件接口集中在 `ctx.files()`：`read`、`read_to_string`、`open_read`、`write`、`create`、`begin_write`、`list`、`metadata`、`create_dir_all`、`remove`、`rename`。`open_read` 返回实现 `Read + Seek + Send + 'static` 的 `FileReader`，`begin_write` 返回实现 `Write + Seek + Send + 'static` 的 `FileWriter`，并要求显式 `commit()`。Reader/Writer 自己持有 SDK 内部通信句柄，可以先 `drop(files)` 再继续使用；`'static` 只表示类型不依赖临时借用，文件授权仍由 Core 按操作作用域校验。SDK 自动对小读取使用 256 KiB IPC 缓存，对大块读取复用最多 4 MiB 的共享缓冲；大块写入复用 256 KiB 共享缓冲。共享缓冲不可分配时退回有界 IPC。缓冲占用不随文件长度增长。
+普通文件接口集中在 `ctx.files()`：`read`、`read_to_string`、`open_read`、`write`、`create`、`begin_write`、`list`、`metadata`、`child`、`create_dir`、`remove`、`rename`。`open_read` 返回实现 `Read + Seek + Send + 'static` 的 `FileReader`，`begin_write` 返回实现 `Write + Seek + Send + 'static` 的 `FileWriter`，并要求显式 `commit()`。Reader/Writer 自己持有 SDK 内部通信句柄，可以先 `drop(files)` 再继续使用；`'static` 只表示类型不依赖临时借用，文件授权仍由 Core 按操作作用域校验。SDK 自动对小读取使用 256 KiB IPC 缓存，对大块读取复用最多 4 MiB 的共享缓冲；大块写入复用 256 KiB 共享缓冲。共享缓冲不可分配时退回有界 IPC。缓冲占用不随文件长度增长。
 
 HTTP 调用也不接触底层数据缓冲区：
 
@@ -77,9 +84,10 @@ stream.read_exact(&mut response)?;
 ```rust,no_run
 # use fiex_plugin_sdk::{self as sdk, RpcError};
 # fn example(ctx: &sdk::RequestContext) -> Result<(), Box<dyn std::error::Error>> {
-let task = ctx.spawn_task(|task| {
+let reference = ctx.target().ok_or("missing target")?.reference.clone();
+let task = ctx.spawn_task(move |task| {
     let files = task.files();
-    let mut reader = files.open_read("large.rar")
+    let mut reader = files.open_read(&reference)
         .map_err(|error| RpcError::internal(error.to_string()))?;
     let mut block = [0u8; 65536];
     use std::io::Read;
@@ -95,7 +103,7 @@ let _ = task.id();
 # Ok(()) }
 ```
 
-`TaskHandle` 提供 `cancel()`、`is_finished()`、`status()`、`progress()` 和 `wait()`；任务闭包返回的 JSON 可通过 `wait()` 取得最终结果。Core 会把任务注册到状态中心，用户可以在那里取消；SDK 收到取消通知后设置协作取消标记，任务应轮询 `is_cancelled()`。SDK 默认最多同时运行 8 个后台任务，并在任务完成、取消或失败后通知 Core 回收资源。`spawn_task_with_label` 可以给状态中心提供比方法名更友好的标题；`spawn_internal_task` 用于 SMB 读取流这类不应出现在状态中心的内部资源任务。`ctx.invoke`、`storage_get/set` 和 `secret_get/set` 仍可用于通用宿主能力；但普通插件不需要再接触 `HostProxy`、worker 或 IPC 细节。
+`TaskHandle` 提供 `cancel()`、`is_finished()`、`status()`、`progress()` 和 `wait()`；任务闭包返回的 JSON 可通过 `wait()` 取得最终结果。Core 会把任务注册到状态中心，用户可以在那里取消；SDK 收到取消通知后设置协作取消标记，任务应轮询 `is_cancelled()`。SDK 默认最多同时运行 8 个后台任务，并在任务完成、取消或失败后通知 Core 回收资源。`spawn_task_with_label` 可以给状态中心提供比方法名更友好的标题；`spawn_internal_task` 用于 SMB 读取流这类不应出现在状态中心的内部资源任务。`ctx.invoke` 仍可用于通用宿主能力；存储、凭据、终端和文件优先使用各自的类型化 API。普通插件不需要再接触 `HostProxy`、worker 或 IPC 细节。
 
 外部命令属于另一种授权：`process_run` 通过 Host 执行 PATH 中已批准的程序。该程序在插件沙箱外以当前用户身份运行，可能访问其他文件、联网或启动其他程序。不要把命令授权理解成文件和网络 SDK 的范围限制。
 
@@ -273,14 +281,14 @@ python sdk/rust/examples/check_plugin.py --binary target/debug/fiex-plugin-hello
 测试器会依次做：
 
 1. 启动你刚刚编译出来的可执行文件。
-2. 发起 `plugin.initialize` 握手，协议版本为 `3.0`。
+2. 发起 `plugin.initialize` 握手，协议版本为 `4.0`。
 3. 调用 `hello.greet`，默认发送 `{"name":"新手"}`。
 4. 发起 `plugin.shutdown` 并确认正常退出。
 
 成功时类似这样：
 
 ```text
-✅ 初始化成功： {'pluginId': 'org.example.hello', 'protocolVersion': '3.0', 'ready': True}
+✅ 初始化成功： {'pluginId': 'org.example.hello', 'protocolVersion': '4.0', 'ready': True}
 ✅ 方法调用成功： {"message": "你好，新手！"}
 ✅ 正常退出，三项检查全部通过
 ```
@@ -306,7 +314,7 @@ python sdk/rust/examples/check_plugin.py --binary target/debug/fiex-plugin-hello
   "name": "Hello Fiex",
   "version": "0.1.0",
   "runtime": {
-    "protocolVersion": "3.0",
+    "protocolVersion": "4.0",
     "entrypoints": { "windows-x86_64": "fiex-plugin-hello.exe" }
   },
   "permissions": {},
@@ -435,9 +443,10 @@ fn main() {
         match method {
             "hello.count" => {
                 // 从宿主提供的、按插件隔离的存储读取计数。
-                let old = ctx.storage_get("default", "counter")?;
-                let next = old.as_u64().unwrap_or(0) + 1;
-                ctx.storage_set("default", "counter", json!(next))?;
+                let storage = ctx.storage().scoped("default");
+                let old: Option<u64> = storage.get("counter")?;
+                let next = old.unwrap_or(0) + 1;
+                storage.set("counter", &next)?;
                 Ok(json!({ "count": next }))
             }
             _ => Err(RpcError::method_not_found(method)),
@@ -451,12 +460,14 @@ fn main() {
 
 还需要同步修改 manifest：
 
-- `"permissions": {"storage": true}`；
+- `"permissions": {"storage": true}`（如果宿主版本改用能力表，以 manifest 校验结果为准）；
 - 工具栏中的 `"command": "hello.count"`。
 
 重新编译并重新打包。这个例子**必须通过真正的 Fiex 宿主**运行并由用户授权 `storage`；刚才的独立测试器只模拟插件握手，不实现 `host.storage.*` 回调，**不能**用来测试这个计数器。安装器当前对已安装的同 ID 插件不支持直接覆盖，需要先卸载再安装新版本。
 
-如果你需要凭据，请查阅 `ctx.secret_get / ctx.secret_set` 并声明 `"secrets": true`。不要将密码硬编码到程序或输出到日志。
+如果你需要凭据，请使用类型化的 `ctx.secrets().scoped(scope).get/set` 并声明 `"secrets": true`。`SecretError` 会区分用户拒绝、系统钥匙串不可用、凭据缺失和数据格式错误；不要将密码硬编码到程序或输出到日志。
+
+终端类插件使用 `ctx.terminal(session_id)`：`ready`、`output`、`input`、`size`、`closed`、`end`。它封装了 `host.terminal.*` 的 Base64 与字段名，SSH 插件已迁移到该 API。
 
 SDK 当前公开的关键接口：
 
@@ -471,8 +482,10 @@ SDK 当前公开的关键接口：
 | `RpcError::method_not_found(...)`       | 不支持的命令                   | `match` 的默认分支   |
 | `RpcError::invalid_params(...)`         | 请求缺少字段或参数错误         | 用户传来的参数无效   |
 | `RpcError::internal(...)`               | 插件内部操作失败               | 底层 I/O 或其他错误  |
-| `RequestContext::storage_get/set`       | 宿主托管的插件存储             | 需 `storage` 权限    |
-| `RequestContext::secret_get/set`        | 宿主托管的凭据服务             | 需 `secrets` 权限    |
+| `RequestContext::storage()`             | 类型化插件存储与 CAS           | 需 `storage` 权限    |
+| `RequestContext::secrets()`             | 系统钥匙串凭据（区分错误状态） | 需 `secrets` 权限    |
+| `RequestContext::terminal(session)`     | 终端会话的六个宿主操作         | 终端类插件           |
+| `sdk::Providers`                        | 可选的标准事件 Provider 注册   | 需要类型化事件分发   |
 
 具体签名以 [rust/src/context.rs](src/context.rs)、[rust/src/files/mod.rs](src/files/mod.rs) 和 [rust/src/tasks.rs](src/tasks.rs) 为准。SDK 的 IPC、共享内存和线程由 `rust/src/runtime/` 内部管理，不属于普通插件 API。
 

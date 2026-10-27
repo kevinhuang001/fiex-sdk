@@ -214,6 +214,11 @@ impl RequestContext {
         self.inner.tcp()
     }
 
+    /// Typed access to this plugin's host-owned terminal session.
+    pub fn terminal(&self, session_id: impl Into<String>) -> crate::Terminal {
+        crate::Terminal::new(self.inner.clone(), session_id)
+    }
+
     pub fn invoke(&self, method: &str, params: Value) -> Result<Value, RpcError> {
         self.inner.call(method, params)
     }
@@ -353,6 +358,11 @@ impl TaskContext {
 
     pub fn tcp(&self) -> TcpClient {
         self.inner.tcp()
+    }
+
+    /// Typed access to this plugin's host-owned terminal session.
+    pub fn terminal(&self, session_id: impl Into<String>) -> crate::Terminal {
+        crate::Terminal::new(self.inner.clone(), session_id)
     }
 
     pub fn invoke(&self, method: &str, params: Value) -> Result<Value, RpcError> {

@@ -292,6 +292,25 @@ export class FiexUiClient {
           { method: command, params: args ?? null },
           { timeoutMs: 120000, ...options },
         ),
+      /** Read a native task created by this plugin (or by its own native side). */
+      task: <T = JsonValue>(taskId: string) => this.invoke<T | null>('plugin.task', { taskId }),
+    }
+  }
+  get clipboard() {
+    return {
+      writeText: (text: string) => this.invoke<null>('clipboard.writeText', { text }),
+    }
+  }
+  get navigation() {
+    return {
+      /** Navigate the host explorer to a Core-owned path or virtual URI. */
+      open: (path: string) => this.invoke<null>('navigation.open', { path }),
+    }
+  }
+  get preview() {
+    return {
+      /** Mark a preview document ready so the host can hide its loading state. */
+      ready: () => this.invoke<null>('preview.ready'),
     }
   }
   get vfs() {

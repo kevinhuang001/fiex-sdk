@@ -36,7 +36,7 @@ npm --prefix ui run build
 npm --prefix ui test
 ```
 
-The Rust SDK currently requires **Rust 1.90+**. For full explanations of each command, see the [beginner tutorial](rust/README.md).
+The Rust SDK currently requires **Rust 1.90+** and speaks **protocol 4.0**. For full explanations of each command, see the [beginner tutorial](rust/README.md).
 
 ## Real plugin examples / 真正的插件项目
 
@@ -45,6 +45,56 @@ See [fiex-official-plugins](https://github.com/kevinhuang001/fiex-official-plugi
 The APIs are **experimental** and may evolve with the Fiex Core development branch. Fiex does not bundle any official plugins or exempt official plugins from permission approval. Native plugins run inside Core's OS sandbox (Landlock/seccomp on Linux, Seatbelt on macOS, AppContainer and a Job Object on Windows); approved external commands run outside it as the current user. Only install plugins you trust.
 
 Pin the SDK with a Git submodule when developing a plugin so that your SDK version matches the version tested with your host and plugin project.
+
+## Protocol 4.0: refs, typed services and providers
+
+Protocol 4.0 removes host paths from the public plugin API. `ResourceRef` is an
+opaque `{mountId, nodeId}` identity; Core resolves it only inside the operation
+scope. `ctx.targets()` contains the selected resources and their optional
+permission-projected metadata. Never construct a ref or derive one from a path.
+
+```rust,ignore
+let target = ctx.target().ok_or_else(|| RpcError::invalid_params("missing target"))?;
+let text = ctx.files().read_to_string(&target.reference)?;
+```
+
+`ctx.files().child(&directory.reference, "output.zip")` reserves a new identity
+below an authorized directory. `ctx.storage()` is a typed, plugin-private store
+with compare-and-set (`get`, `set`, `delete`, `keys`, `update`). `ctx.secrets()`
+uses the system keychain and distinguishes `Denied`, `Unavailable`, missing and
+invalid data instead of collapsing them into `None`. `ctx.terminal(session_id)`
+wraps the six host terminal calls (`ready`, `output`, `input`, `size`, `closed`,
+`end`).
+
+Optional typed event providers live in `contracts`: `InfoProvider`,
+`PreviewProvider`, `DecorationProvider`, `ContextMenuProvider`,
+`SearchProvider`, `HookProvider`, `ToolbarProvider`, plus basic
+`ConnectionProvider` and `VfsProvider` traits. Register only what the plugin
+implements; custom RPC still goes through the fallback:
+
+```rust,ignore
+sdk::Providers::new()
+    .info(MyInfo)
+    .context_menu(MyMenu)
+    .search(MySearch)
+    .serve_with("org.example.plugin", |ctx| custom(ctx))
+```
+
+The connection provider trait covers lifecycle and non-streaming `fs.list`,
+`fs.stat` and `fs.writeFile`; `fs.openRead`/`readStream`/`closeRead` still own a
+streaming lifecycle and can be dispatched through the fallback until a reader
+trait is added. The `VfsProvider` trait covers `vfs.list`, `vfs.stat`,
+`vfs.readSmall` and `vfs.search`; Core always binds returned `nodeId` values to
+its own mount.
+
+## UI SDK wrappers
+
+`FiexUiClient` now has typed helpers for the host bridge:
+`fiex.clipboard.writeText(text)`, `fiex.navigation.open(path)`,
+`fiex.preview.ready()`, `fiex.plugin.task(taskId)`, `fiex.plugin.invoke(...)`,
+`fiex.dialog.*`, `fiex.tasks.*`, `fiex.panel.*`, `fiex.theme.*` and
+`fiex.i18n.*`. The old `fiex.vfs.*` helper was removed: no Core panel bridge
+exposes those methods, and plugin VFS access belongs in the native backend.
 
 ## Standard Info/Preview events
 
@@ -82,5 +132,8 @@ returns separately owned `TcpReadHalf: Read + Send` and
 `TcpWriteHalf: Write + Send`. The host has independent TCP read/write locks,
 so the two halves can be moved to separate worker threads. Call
 `writer.shutdown()` for a TCP FIN while continuing to read a server response
-through `reader`. This API remains **blocking**; asynchronous Tokio I/O
-requires separate async trait adapters and cancellation handling.
+through `reader`. The blocking API is always available. Enable the optional `tokio` feature for
+`ctx.tcp().connect_async(...)` and `stream.into_async()`; the adapter preserves
+completed reads across cancellation and submits owned writes through the same
+broker. `ctx.tcp().with_deadline(instant)` applies one absolute deadline to
+connect, reads and writes.

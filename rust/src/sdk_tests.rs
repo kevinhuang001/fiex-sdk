@@ -53,6 +53,8 @@ struct State {
     secret: Option<String>,
     secret_status: Option<String>,
     tcp_deadlines: Vec<Value>,
+    terminal_output: Vec<u8>,
+    terminal_ended: Option<Option<String>>,
 }
 
 struct Mock {
@@ -102,6 +104,22 @@ impl HostLink for Mock {
             state.tcp_deadlines.push(params["deadlineMs"].clone());
         }
         match method {
+            "host.terminal.ready" => Ok(Value::Null),
+            "host.terminal.output" => {
+                let data = params["dataBase64"].as_str().unwrap();
+                state.terminal_output = STANDARD.decode(data).unwrap();
+                Ok(Value::Null)
+            }
+            "host.terminal.input" => Ok(json!({
+                "dataBase64": STANDARD.encode(b"typed"),
+                "eof": false
+            })),
+            "host.terminal.size" => Ok(json!({"cols": 120, "rows": 40})),
+            "host.terminal.closed" => Ok(json!({"closed": false})),
+            "host.terminal.end" => {
+                state.terminal_ended = Some(params["error"].as_str().map(str::to_owned));
+                Ok(Value::Null)
+            }
             "host.storage.get" => {
                 let value = state.storage.get(params["key"].as_str().unwrap()).cloned();
                 Ok(json!({"found":value.is_some(),"value":value}))
@@ -382,6 +400,24 @@ fn http_preserves_binary_and_closes_response() {
         assert_eq!(response.bytes().unwrap(), bytes);
     }
     assert!(mock.state().http_closed);
+}
+
+#[test]
+fn terminal_wrapper_covers_the_host_bridge() {
+    let mock = Arc::new(Mock::new());
+    let terminal = RequestContext::new(context(mock.clone()), "terminal.test".into(), Value::Null)
+        .terminal("session-1");
+    terminal.ready().unwrap();
+    terminal.output(b"output").unwrap();
+    let input = terminal.input(32).unwrap();
+    assert_eq!(input.data, b"typed");
+    assert!(!input.eof);
+    assert_eq!(terminal.size().unwrap().cols, 120);
+    assert_eq!(terminal.size().unwrap().rows, 40);
+    assert!(!terminal.closed().unwrap());
+    terminal.end(Some("done")).unwrap();
+    assert_eq!(mock.state().terminal_output, b"output");
+    assert_eq!(mock.state().terminal_ended, Some(Some("done".into())));
 }
 
 #[test]
