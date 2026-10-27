@@ -103,11 +103,8 @@ fn main() {
             Ok(json!({"met": true}))
         }
         "mock.exec" => {
-            let result = ctx.invoke(
-                "host.process.run",
-                json!({"command": "git", "args": ["--version"]}),
-            )?;
-            Ok(json!({"stdout": result["stdout"]}))
+            let result = ctx.process_run("git", &["--version".into()], None)?;
+            Ok(json!({"stdout": result.stdout}))
         }
         "search.query" => Ok(json!({
             "entries": [{
