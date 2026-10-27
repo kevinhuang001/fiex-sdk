@@ -735,7 +735,9 @@ fn read_chunk(
         }
     }
     bytes.truncate(read);
-    Ok((bytes, read == 0))
+    // A short read means the provider's stream ended; Core can stop seeking
+    // forward as soon as it sees eof.
+    Ok((bytes, read < max_bytes))
 }
 
 #[cfg(test)]
