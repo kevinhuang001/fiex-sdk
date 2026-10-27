@@ -236,21 +236,20 @@ impl Providers {
                 .as_ref()
                 .ok_or_else(|| unsupported(ctx))?
                 .invoke(ctx)?,
-            "connection.validate" => self
-                .connection
-                .as_ref()
-                .ok_or_else(|| unsupported(ctx))?
-                .validate(ctx)?,
-            "connection.open" => self
-                .connection
-                .as_ref()
-                .ok_or_else(|| unsupported(ctx))?
-                .open(ctx)?,
-            "connection.create" => self
-                .connection
-                .as_ref()
-                .ok_or_else(|| unsupported(ctx))?
-                .create(ctx)?,
+            // A connection's lifecycle methods fall through to the plugin's
+            // own handler when it registers no `ConnectionProvider`.
+            "connection.validate" => match self.connection.as_ref() {
+                Some(provider) => provider.validate(ctx)?,
+                None => return Ok(None),
+            },
+            "connection.open" => match self.connection.as_ref() {
+                Some(provider) => provider.open(ctx)?,
+                None => return Ok(None),
+            },
+            "connection.create" => match self.connection.as_ref() {
+                Some(provider) => provider.create(ctx)?,
+                None => return Ok(None),
+            },
             _ => return Ok(None),
         };
         Ok(Some(value))
