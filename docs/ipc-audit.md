@@ -11,18 +11,18 @@ adds a method, and delete the row when a method is removed.
 | `host.fs.openRead`, `readOpen`, `readChunk`, `closeRead`                  | `Files::open_read` + `FileReader`                                               | Covered                                                                                                                                             |
 | `host.fs.beginWrite`, `writeChunk`, `writeBuffer`, `commit`, `abort`      | `Files::begin_write` + `FileWriter`                                             | Covered                                                                                                                                             |
 | `host.fs.list`, `stat`, `statBatch`, `child`, `mkdir`, `remove`, `rename` | `Files` methods                                                                 | Covered                                                                                                                                             |
-| `host.fs.read`, `create`, `write`                                         | none                                                                            | Legacy one-shot forms. The SDK uses the streaming methods. Keep Core for old plugins, remove in the next major protocol after a deprecation window. |
+| `host.fs.read`, `create`, `write`                                         | none                                                                            | Removed in protocol 4. SDK uses the streaming methods. |
 | `host.fs.readOpen` shared buffers                                         | internal `runtime::transfer`                                                    | Not public; no plugin should manage buffers directly.                                                                                               |
 | `host.net.http.open/read/close`                                           | `HttpClient` / `Response`                                                       | Covered                                                                                                                                             |
-| `host.net.http`                                                           | none                                                                            | Legacy buffer-based form; superseded by streaming. Deprecate with `host.fs.read/create/write`.                                                      |
+| `host.net.http`                                                           | none                                                                            | Removed in protocol 4; superseded by the streaming HTTP methods. |
 | `host.net.tcp.open/readBytes/writeBytes/shutdown/close`                   | `TcpClient`, `TcpStream`, `TcpReadHalf`, `TcpWriteHalf`, optional Tokio adapter | Covered                                                                                                                                             |
-| `host.net.tcp.read/write`                                                 | none                                                                            | Legacy forms; superseded by `readBytes`/`writeBytes`. Deprecate.                                                                                    |
+| `host.net.tcp.read/write`                                                 | none                                                                            | Removed in protocol 4; superseded by `readBytes`/`writeBytes`. |
 | `host.storage.*`                                                          | `Storage` (`get`, `set`, `delete`, `keys`, `compare_and_set`, `update`)         | Covered                                                                                                                                             |
 | `host.secret.*`                                                           | `Secrets` (`get`, `set`, `delete`) with typed `SecretError`                     | Covered                                                                                                                                             |
 | `host.terminal.ready/output/input/size/closed/end`                        | `ctx.terminal(session_id)`                                                      | Covered; SSH plugin migrated                                                                                                                        |
-| `host.exec`, `host.process.run`                                           | `RequestContext::process_run`, `process_run_at`                                 | Covered                                                                                                                                             |
+| `host.process.run`                                                        | `RequestContext::process_run`, `process_run_at`                                 | Covered. The old `host.exec` entry was removed. |
 | `host.vfs.openView`                                                       | `RequestContext::open_vfs_view`                                                 | Covered                                                                                                                                             |
-| `host.preview.create`                                                     | none                                                                            | No current plugin uses it. Candidate for removal unless a previewer needs Core-owned cache files.                                                   |
+| `host.preview.create`                                                     | none                                                                            | Removed: no caller remained and preview documents use package/event views. |
 | `host.error.report`                                                       | `RequestContext::report_error`                                                  | Covered                                                                                                                                             |
 | `host.buffer.*`                                                           | internal `ipc` module                                                           | Not public; low-level shared memory is an implementation detail.                                                                                    |
 
@@ -39,7 +39,7 @@ adds a method, and delete the row when a method is removed.
 | `toolbar.invoke`                   | `ToolbarProvider` or manual dispatch                   | Typed provider added                                                                                                                                    |
 | `connection.validate/open/create`  | `ConnectionProvider`, or manual dispatch               | Typed provider added                                                                                                                                    |
 | `fs.list/stat/writeFile`           | `ConnectionProvider`, or manual dispatch               | Typed provider added                                                                                                                                    |
-| `fs.openRead/readStream/closeRead` | none                                                   | Streaming lifecycle remains manual. A `ProviderReader` trait should own stream IDs, chunks and close on drop before this is wrapped.                    |
+| `fs.openRead/readStream/closeRead` | `ConnectionProvider::open_read` + `ConnectionReader` | Covered: SDK owns stream IDs, offsets and close. |
 | `fs.readSmall`                     | none                                                   | Core does not use this for connection providers; keep only if a third-party provider still needs a bounded read helper. Candidate for protocol removal. |
 | `vfs.list/stat/readSmall/search`   | `VfsProvider`, or manual dispatch                      | Typed provider added                                                                                                                                    |
 
@@ -65,18 +65,18 @@ plugin's custom handler.
 | `locale.changed` event                             | `fiex.i18n.subscribe`            | Covered                                                                                                     |
 | `vfs.stat/list/open`                               | none                             | Removed from the UI SDK. No Core panel bridge allows these methods; VFS work belongs in the native backend. |
 
-## Deletion candidates
+## Removed in protocol 4
 
-1. `fiex.vfs.*` was removed from the UI SDK (no host bridge accepts it).
-2. `host.fs.read/create/write` and `host.net.tcp.read/write` should be removed
-   from Core after a documented compatibility window; the SDK no longer emits
-   them.
-3. `host.net.http` (non-streaming) has the same status.
-4. `host.preview.create` and connection `fs.readSmall` have no callers in Core
-   or official plugins; remove them in the next protocol major unless a real
-   use case appears.
-5. `host.buffer.*` stays private. It is not an SDK contract.
+1. UI `fiex.vfs.*` was removed; no host bridge accepted it.
+2. `host.fs.read/create/write` were removed; the SDK only emits streaming
+   `openRead/readOpen/readChunk/closeRead` and `beginWrite/writeChunk/commit`.
+3. `host.net.http` (non-streaming) was removed; the SDK emits
+   `http.open/read/close`.
+4. `host.net.tcp.read/write` were removed; the SDK emits
+   `readBytes/writeBytes`.
+5. `host.exec` was removed; the SDK emits `host.process.run`.
+6. `host.preview.create` was removed; no caller remained.
+7. Connection `fs.readSmall` was removed from the protocol; VFS retains
+   `vfs.readSmall`.
 
-Legacy methods must not be deleted in place while released plugins may call
-them. Core should keep a deprecation test and remove them only together with a
-protocol major.
+`host.buffer.*` stays private. It is not an SDK contract.

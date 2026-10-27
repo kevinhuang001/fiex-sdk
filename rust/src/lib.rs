@@ -35,8 +35,9 @@ pub use files::{FileReader, FileWriter, Files};
 pub use http::{HttpClient, Request, Response};
 pub use ipc::{Entry, ProcessResult};
 pub use providers::{
-    ConnectionProvider, ContextMenuProvider, DecorationProvider, HookProvider, InfoProvider,
-    PreviewProvider, Providers, SearchProvider, SearchResults, ToolbarProvider, VfsProvider,
+    ConnectionProvider, ConnectionReader, ContextMenuProvider, DecorationProvider, HookProvider,
+    InfoProvider, PreviewProvider, Providers, SearchProvider, SearchResults, ToolbarProvider,
+    VfsProvider,
 };
 pub use secrets::{SecretError, Secrets};
 pub use storage::Storage;

@@ -6,6 +6,14 @@
 //! nothing forces a plugin to implement events it does not own.
 use crate::{InfoSection, PreviewView, RequestContext, RpcError};
 use serde_json::{json, Value};
+use std::{
+    collections::HashMap,
+    io::Read,
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc, Mutex,
+    },
+};
 
 /// `info.resolve` rows, grouped into sections by Core.
 pub trait InfoProvider: Send + Sync {
@@ -53,10 +61,25 @@ pub trait ToolbarProvider: Send + Sync {
     fn invoke(&self, ctx: &RequestContext) -> Result<Value, RpcError>;
 }
 
-/// Connection lifecycle and non-streaming filesystem events.
-///
-/// `fs.openRead`/`fs.readStream`/`fs.closeRead` remain manual (or can be
-/// wrapped by a future reader trait) because they own a streaming lifecycle.
+/// A reader returned by [`ConnectionProvider::open_read`]. Core drives the
+/// `fs.readStream` offset/chunk lifecycle; dropping the stream closes it.
+pub struct ConnectionReader {
+    pub reader: Box<dyn Read + Send>,
+    pub size: Option<u64>,
+}
+
+impl ConnectionReader {
+    pub fn new(reader: impl Read + Send + 'static, size: Option<u64>) -> Self {
+        Self {
+            reader: Box::new(reader),
+            size,
+        }
+    }
+}
+
+/// Connection lifecycle and filesystem events. The default reader serves
+/// `fs.openRead`/`fs.readStream`/`fs.closeRead` from a standard `Read`; a
+/// provider that needs its own framing can still dispatch those methods itself.
 pub trait ConnectionProvider: Send + Sync {
     fn validate(&self, ctx: &RequestContext) -> Result<Value, RpcError> {
         Err(unsupported(ctx))
@@ -74,6 +97,9 @@ pub trait ConnectionProvider: Send + Sync {
         Err(unsupported(ctx))
     }
     fn write(&self, ctx: &RequestContext) -> Result<Value, RpcError> {
+        Err(unsupported(ctx))
+    }
+    fn open_read(&self, ctx: &RequestContext) -> Result<ConnectionReader, RpcError> {
         Err(unsupported(ctx))
     }
 }
@@ -102,8 +128,14 @@ fn unsupported(ctx: &RequestContext) -> RpcError {
 /// Collects optional providers and dispatches their fixed Core event methods.
 /// Methods without a registered provider fall through to the plugin's own
 /// handler, so custom RPC keeps working unchanged.
+struct StreamReader {
+    reader: Box<dyn Read + Send>,
+    offset: u64,
+}
+
 #[derive(Default)]
 pub struct Providers {
+    readers: Arc<Mutex<HashMap<String, StreamReader>>>,
     info: Option<Box<dyn InfoProvider>>,
     preview: Option<Box<dyn PreviewProvider>>,
     decorations: Option<Box<dyn DecorationProvider>>,
@@ -260,6 +292,84 @@ impl Providers {
                 .as_ref()
                 .ok_or_else(|| unsupported(ctx))?
                 .write(ctx)?,
+            "fs.openRead" => {
+                let opened = self
+                    .connection
+                    .as_ref()
+                    .ok_or_else(|| unsupported(ctx))?
+                    .open_read(ctx)?;
+                static NEXT: AtomicU64 = AtomicU64::new(1);
+                let id = format!("provider-read-{}", NEXT.fetch_add(1, Ordering::Relaxed));
+                self.readers
+                    .lock()
+                    .map_err(|_| RpcError::internal("reader registry unavailable"))?
+                    .insert(
+                        id.clone(),
+                        StreamReader {
+                            reader: opened.reader,
+                            offset: 0,
+                        },
+                    );
+                json!({"streamId":id,"size":opened.size})
+            }
+            "fs.readStream" => {
+                let id = ctx.params()["streamId"]
+                    .as_str()
+                    .ok_or_else(|| RpcError::invalid_params("missing streamId"))?;
+                let offset = ctx.params()["offset"].as_u64().unwrap_or(0);
+                let max_bytes = ctx.params()["maxBytes"]
+                    .as_u64()
+                    .unwrap_or(256 * 1024)
+                    .clamp(1, 8 * 1024 * 1024) as usize;
+                let mut readers = self
+                    .readers
+                    .lock()
+                    .map_err(|_| RpcError::internal("reader registry unavailable"))?;
+                let stream = readers
+                    .get_mut(id)
+                    .ok_or_else(|| RpcError::invalid_params("unknown streamId"))?;
+                if offset < stream.offset {
+                    return Err(RpcError::invalid_params("stream cannot seek backwards"));
+                }
+                let mut skip = offset - stream.offset;
+                let mut scratch = [0u8; 8192];
+                while skip > 0 {
+                    let want = skip.min(scratch.len() as u64) as usize;
+                    let read = stream
+                        .reader
+                        .read(&mut scratch[..want])
+                        .map_err(|error| RpcError::internal(error.to_string()))?;
+                    if read == 0 {
+                        return Err(RpcError::internal("stream ended before requested offset"));
+                    }
+                    skip -= read as u64;
+                    stream.offset += read as u64;
+                }
+                let mut bytes = vec![0u8; max_bytes];
+                let mut read = 0;
+                while read < max_bytes {
+                    match stream.reader.read(&mut bytes[read..]) {
+                        Ok(0) => break,
+                        Ok(count) => read += count,
+                        Err(error) if error.kind() == std::io::ErrorKind::Interrupted => continue,
+                        Err(error) => return Err(RpcError::internal(error.to_string())),
+                    }
+                }
+                bytes.truncate(read);
+                stream.offset += read as u64;
+                use base64::{engine::general_purpose::STANDARD, Engine};
+                json!({"base64":STANDARD.encode(&bytes),"eof":read == 0})
+            }
+            "fs.closeRead" => {
+                let id = ctx.params()["streamId"]
+                    .as_str()
+                    .ok_or_else(|| RpcError::invalid_params("missing streamId"))?;
+                self.readers
+                    .lock()
+                    .map_err(|_| RpcError::internal("reader registry unavailable"))?
+                    .remove(id);
+                Value::Null
+            }
             "vfs.list" => {
                 let entries = self
                     .vfs
@@ -296,7 +406,49 @@ impl Providers {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{InfoRow, InfoSection};
+    use crate::{
+        context::ContextInner,
+        runtime::{session::Session, HostLink},
+        tasks::TaskManager,
+        InfoRow, InfoSection,
+    };
+    use std::{
+        io::Cursor,
+        sync::{atomic::AtomicBool, Arc},
+    };
+
+    struct NoopLink;
+    impl HostLink for NoopLink {
+        fn call(&self, method: &str, _params: Value) -> Result<Value, RpcError> {
+            Err(RpcError::method_not_found(method))
+        }
+        fn closed(&self) -> bool {
+            false
+        }
+    }
+
+    fn request(method: &str, params: Value) -> RequestContext {
+        RequestContext::new(
+            ContextInner::new(
+                Arc::new(NoopLink),
+                Arc::new(TaskManager::new(2)),
+                Session::Operation(1),
+                Arc::new(AtomicBool::new(false)),
+            ),
+            method.into(),
+            params,
+        )
+    }
+
+    struct MemoryConnection;
+    impl ConnectionProvider for MemoryConnection {
+        fn open_read(&self, _ctx: &RequestContext) -> Result<ConnectionReader, RpcError> {
+            Ok(ConnectionReader::new(
+                Cursor::new(b"abcd".to_vec()),
+                Some(4),
+            ))
+        }
+    }
 
     struct ExampleInfo;
     impl InfoProvider for ExampleInfo {
@@ -314,6 +466,52 @@ mod tests {
                 }],
             }])
         }
+    }
+
+    #[test]
+    fn connection_reader_serves_offsets_and_closes() {
+        let providers = Providers::new().connection(MemoryConnection);
+        let opened = providers
+            .dispatch(&request("fs.openRead", json!({})))
+            .unwrap()
+            .unwrap();
+        assert_eq!(opened["size"], 4);
+        let stream = opened["streamId"].as_str().unwrap();
+        let first = providers
+            .dispatch(&request(
+                "fs.readStream",
+                json!({"streamId":stream,"offset":0,"maxBytes":2}),
+            ))
+            .unwrap()
+            .unwrap();
+        assert_eq!(first["base64"], "YWI=");
+        assert_eq!(first["eof"], false);
+        let second = providers
+            .dispatch(&request(
+                "fs.readStream",
+                json!({"streamId":stream,"offset":2,"maxBytes":8}),
+            ))
+            .unwrap()
+            .unwrap();
+        assert_eq!(second["base64"], "Y2Q=");
+        assert!(
+            providers
+                .dispatch(&request(
+                    "fs.readStream",
+                    json!({"streamId":stream,"offset":1,"maxBytes":2}),
+                ))
+                .is_err(),
+            "backwards seek must be rejected"
+        );
+        providers
+            .dispatch(&request("fs.closeRead", json!({"streamId":stream})))
+            .unwrap();
+        assert!(providers
+            .dispatch(&request(
+                "fs.readStream",
+                json!({"streamId":stream,"offset":4,"maxBytes":2}),
+            ))
+            .is_err());
     }
 
     #[test]

@@ -104,7 +104,7 @@ fn main() {
         }
         "mock.exec" => {
             let result = ctx.invoke(
-                "host.exec",
+                "host.process.run",
                 json!({"command": "git", "args": ["--version"]}),
             )?;
             Ok(json!({"stdout": result["stdout"]}))

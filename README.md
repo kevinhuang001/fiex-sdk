@@ -80,10 +80,10 @@ sdk::Providers::new()
     .serve_with("org.example.plugin", |ctx| custom(ctx))
 ```
 
-The connection provider trait covers lifecycle and non-streaming `fs.list`,
-`fs.stat` and `fs.writeFile`; `fs.openRead`/`readStream`/`closeRead` still own a
-streaming lifecycle and can be dispatched through the fallback until a reader
-trait is added. The `VfsProvider` trait covers `vfs.list`, `vfs.stat`,
+The connection provider trait covers lifecycle, `fs.list`, `fs.stat`,
+`fs.writeFile` and the streaming reader via `open_read` +
+`ConnectionReader`. The SDK owns `fs.openRead`/`readStream`/`closeRead` stream
+IDs, offsets and cleanup. The `VfsProvider` trait covers `vfs.list`, `vfs.stat`,
 `vfs.readSmall` and `vfs.search`; Core always binds returned `nodeId` values to
 its own mount.
 

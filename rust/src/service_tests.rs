@@ -31,6 +31,7 @@ fn storage_typed_update_is_atomic_across_concurrent_tasks_and_distinguishes_null
 fn secrets_have_distinct_missing_denied_and_unavailable_states_and_typed_roundtrips() {
     let mock = Arc::new(Mock::new());
     let secrets = crate::Secrets::new(context(mock.clone()));
+    assert!(secrets.available().unwrap());
     assert_eq!(secrets.get::<String>("password").unwrap(), None);
     secrets.set("password", "fiex-json:v1:literal").unwrap();
     assert_eq!(

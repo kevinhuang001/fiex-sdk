@@ -61,6 +61,15 @@ impl Secrets {
             _ => Err(SecretError::InvalidData("invalid keychain response".into())),
         }
     }
+    /// Whether the host has a usable system keychain. This does not read a
+    /// credential and is safe to call before prompting the user.
+    pub fn available(&self) -> Result<bool, SecretError> {
+        let value = self.context.call("host.secret.available", json!({}))?;
+        value
+            .as_bool()
+            .ok_or_else(|| SecretError::InvalidData("invalid keychain availability".into()))
+    }
+
     pub fn get<T: DeserializeOwned>(&self, key: &str) -> Result<Option<T>, SecretError> {
         let Some(raw) = Self::response(
             self.context

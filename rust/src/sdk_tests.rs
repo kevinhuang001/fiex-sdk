@@ -153,6 +153,7 @@ impl HostLink for Mock {
                 }
                 Ok(json!(matched))
             }
+            "host.secret.available" => Ok(json!(true)),
             "host.secret.get" => {
                 if let Some(status) = &state.secret_status {
                     return Ok(json!({"status":status}));
