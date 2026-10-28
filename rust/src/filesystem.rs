@@ -8,13 +8,13 @@
 //!
 //! ```ignore
 //! use fiex_plugin_sdk as sdk;
-//! use sdk::filesystem::{FSProvider, FsEntry, FsListing, FsRead, FsRequest};
+//! use sdk::filesystem::{VfsProvider, FsEntry, FsListing, FsRead, FsRequest};
 //!
 //! struct Drive;
 //!
-//! impl FSProvider for Drive {
-//!     fn operations(&self) -> &'static [sdk::filesystem::FsOp] {
-//!         &[sdk::filesystem::FsOp::List, sdk::filesystem::FsOp::Stat]
+//! impl VfsProvider for Drive {
+//!     fn operations(&self) -> &'static [sdk::filesystem::FsOperation] {
+//!         &[sdk::filesystem::FsOperation::List, sdk::filesystem::FsOperation::Stat]
 //!     }
 //!     fn list(&self, request: &FsRequest<'_>) -> Result<FsListing, sdk::RpcError> {
 //!         Ok(FsListing::default())
@@ -46,7 +46,7 @@ pub const MAX_CHUNK: usize = 4 * 1024 * 1024;
 
 /// One capability a file-system provider can implement.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum FsOp {
+pub enum FsOperation {
     List,
     Stat,
     Read,
@@ -57,65 +57,72 @@ pub enum FsOp {
     Search,
 }
 
-impl FsOp {
-    pub const ALL: [FsOp; 8] = [
-        FsOp::List,
-        FsOp::Stat,
-        FsOp::Read,
-        FsOp::Write,
-        FsOp::Mkdir,
-        FsOp::Rename,
-        FsOp::Remove,
-        FsOp::Search,
+impl FsOperation {
+    pub const ALL: [FsOperation; 8] = [
+        FsOperation::List,
+        FsOperation::Stat,
+        FsOperation::Read,
+        FsOperation::Write,
+        FsOperation::Mkdir,
+        FsOperation::Rename,
+        FsOperation::Remove,
+        FsOperation::Search,
     ];
 
     pub fn as_str(self) -> &'static str {
         match self {
-            FsOp::List => "list",
-            FsOp::Stat => "stat",
-            FsOp::Read => "read",
-            FsOp::Write => "write",
-            FsOp::Mkdir => "mkdir",
-            FsOp::Rename => "rename",
-            FsOp::Remove => "remove",
-            FsOp::Search => "search",
+            FsOperation::List => "list",
+            FsOperation::Stat => "stat",
+            FsOperation::Read => "read",
+            FsOperation::Write => "write",
+            FsOperation::Mkdir => "mkdir",
+            FsOperation::Rename => "rename",
+            FsOperation::Remove => "remove",
+            FsOperation::Search => "search",
         }
     }
 
     pub fn parse(value: &str) -> Option<Self> {
-        FsOp::ALL.into_iter().find(|op| op.as_str() == value)
+        FsOperation::ALL.into_iter().find(|op| op.as_str() == value)
+    }
+
+    /// Resolve a storage-provider wire method to the shared logical operation.
+    pub fn from_method(method: &str) -> Option<Self> {
+        Self::ALL
+            .into_iter()
+            .find(|op| op.methods().contains(&method))
     }
 
     /// Wire methods unlocked by this capability.
     pub fn methods(self) -> &'static [&'static str] {
         match self {
-            FsOp::List => &["vfs.list"],
-            FsOp::Stat => &["vfs.stat"],
-            FsOp::Read => &["vfs.openRead", "vfs.readStream", "vfs.closeRead"],
-            FsOp::Write => &[
+            FsOperation::List => &["vfs.list"],
+            FsOperation::Stat => &["vfs.stat"],
+            FsOperation::Read => &["vfs.openRead", "vfs.readStream", "vfs.closeRead"],
+            FsOperation::Write => &[
                 "vfs.beginWrite",
                 "vfs.writeStream",
                 "vfs.commit",
                 "vfs.abort",
             ],
-            FsOp::Mkdir => &["vfs.mkdir"],
-            FsOp::Rename => &["vfs.rename"],
-            FsOp::Remove => &["vfs.remove"],
-            FsOp::Search => &["vfs.search"],
+            FsOperation::Mkdir => &["vfs.mkdir"],
+            FsOperation::Rename => &["vfs.rename"],
+            FsOperation::Remove => &["vfs.remove"],
+            FsOperation::Search => &["vfs.search"],
         }
     }
 }
 
-impl Serialize for FsOp {
+impl Serialize for FsOperation {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         serializer.serialize_str(self.as_str())
     }
 }
 
-impl<'de> Deserialize<'de> for FsOp {
+impl<'de> Deserialize<'de> for FsOperation {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let value = String::deserialize(deserializer)?;
-        FsOp::parse(&value)
+        FsOperation::parse(&value)
             .ok_or_else(|| serde::de::Error::custom(format!("unknown fs operation: {value}")))
     }
 }
@@ -157,7 +164,7 @@ pub struct FsEntry {
     pub link_target: Option<String>,
     /// Operations this particular node allows, narrower than the provider.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub allowed_ops: Option<Vec<FsOp>>,
+    pub allowed_ops: Option<Vec<FsOperation>>,
     /// Set by `search` results: location relative to the searched root.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub relative_path: Option<String>,
@@ -197,7 +204,7 @@ impl FsEntry {
         self
     }
 
-    pub fn allowing(mut self, ops: impl IntoIterator<Item = FsOp>) -> Self {
+    pub fn allowing(mut self, ops: impl IntoIterator<Item = FsOperation>) -> Self {
         self.allowed_ops = Some(ops.into_iter().collect());
         self
     }
@@ -235,12 +242,12 @@ impl FsListing {
 #[derive(Clone)]
 pub struct FsRequest<'a> {
     ctx: &'a RequestContext,
-    op: FsOp,
+    op: FsOperation,
     params: Value,
 }
 
 impl<'a> FsRequest<'a> {
-    pub fn new(ctx: &'a RequestContext, op: FsOp) -> Self {
+    pub fn new(ctx: &'a RequestContext, op: FsOperation) -> Self {
         Self {
             ctx,
             op,
@@ -248,7 +255,7 @@ impl<'a> FsRequest<'a> {
         }
     }
 
-    pub fn op(&self) -> FsOp {
+    pub fn op(&self) -> FsOperation {
         self.op
     }
 
@@ -355,7 +362,7 @@ impl<'a> FsRequest<'a> {
     }
 }
 
-/// A readable stream returned by [`FSProvider::read`].
+/// A readable stream returned by [`VfsProvider::read`].
 pub struct FsRead {
     pub reader: Box<dyn Read + Send>,
     pub size: Option<u64>,
@@ -376,7 +383,7 @@ impl FsRead {
     }
 }
 
-/// A writable stream returned by [`FSProvider::write`].
+/// A writable stream returned by [`VfsProvider::write`].
 ///
 /// The provider writes into a standard [`Write`]; the SDK feeds it chunks from
 /// Core and only publishes the file when [`FsWrite::commit`] runs. Protocols
@@ -429,7 +436,7 @@ pub enum FsProduct {
     Done,
 }
 
-fn unsupported(op: FsOp) -> RpcError {
+fn unsupported(op: FsOperation) -> RpcError {
     let mut error = RpcError::method_not_found(op.methods()[0]);
     error.message = format!("Unsupported fs operation: {}", op.as_str());
     error
@@ -440,12 +447,12 @@ fn unsupported(op: FsOp) -> RpcError {
 /// Explicitly declare the implementation ceiling with `operations`.
 /// `discover` narrows it for the current authenticated connection/resource;
 /// unknown permissions should return an empty set, never optimistic writes.
-pub trait FSProvider: Send + Sync {
-    fn operations(&self) -> &'static [FsOp];
+pub trait VfsProvider: Send + Sync {
+    fn operations(&self) -> &'static [FsOperation];
 
     /// Server permissions for this connection/node. SDK intersects this result
     /// with `operations`; discovery can never widen the implementation ceiling.
-    fn discover(&self, _ctx: &RequestContext) -> Result<Vec<FsOp>, RpcError> {
+    fn discover(&self, _ctx: &RequestContext) -> Result<Vec<FsOperation>, RpcError> {
         Ok(self.operations().to_vec())
     }
 
@@ -482,23 +489,26 @@ pub trait FSProvider: Send + Sync {
     }
 }
 
-fn invoke(provider: &dyn FSProvider, request: &FsRequest<'_>) -> Result<FsProduct, RpcError> {
+fn invoke(provider: &dyn VfsProvider, request: &FsRequest<'_>) -> Result<FsProduct, RpcError> {
     Ok(match request.op() {
-        FsOp::List => FsProduct::Listing(provider.list(request)?),
-        FsOp::Stat => FsProduct::Entry(provider.stat(request)?),
-        FsOp::Read => FsProduct::Read(provider.read(request)?),
-        FsOp::Write => FsProduct::Write(provider.write(request)?),
-        FsOp::Mkdir => FsProduct::Entry(provider.mkdir(request)?),
-        FsOp::Rename => FsProduct::Entry(provider.rename(request)?),
-        FsOp::Remove => {
+        FsOperation::List => FsProduct::Listing(provider.list(request)?),
+        FsOperation::Stat => FsProduct::Entry(provider.stat(request)?),
+        FsOperation::Read => FsProduct::Read(provider.read(request)?),
+        FsOperation::Write => FsProduct::Write(provider.write(request)?),
+        FsOperation::Mkdir => FsProduct::Entry(provider.mkdir(request)?),
+        FsOperation::Rename => FsProduct::Entry(provider.rename(request)?),
+        FsOperation::Remove => {
             provider.remove(request)?;
             FsProduct::Done
         }
-        FsOp::Search => FsProduct::Listing(provider.search(request)?),
+        FsOperation::Search => FsProduct::Listing(provider.search(request)?),
     })
 }
 
-fn discover(provider: &dyn FSProvider, ctx: &RequestContext) -> Result<Vec<FsOp>, RpcError> {
+fn discover(
+    provider: &dyn VfsProvider,
+    ctx: &RequestContext,
+) -> Result<Vec<FsOperation>, RpcError> {
     let reported = provider.discover(ctx)?;
     Ok(provider
         .operations()
@@ -550,7 +560,7 @@ impl FsServer {
     }
 
     /// Capability declaration returned from `plugin.initialize`.
-    pub fn capability(provider: &dyn FSProvider) -> Value {
+    pub fn capability(provider: &dyn VfsProvider) -> Value {
         json!({
             "vfs": {
                 "discovery": true,
@@ -567,7 +577,7 @@ impl FsServer {
     /// so the plugin's own handler can serve them.
     pub fn serve(
         &self,
-        provider: &dyn FSProvider,
+        provider: &dyn VfsProvider,
         ctx: &RequestContext,
     ) -> Result<Option<Value>, RpcError> {
         if ctx.method() == "vfs.discover" {
@@ -726,8 +736,8 @@ impl FsServer {
     }
 }
 
-fn wire_op(method: &str) -> Option<FsOp> {
-    FsOp::ALL
+fn wire_op(method: &str) -> Option<FsOperation> {
+    FsOperation::ALL
         .into_iter()
         .find(|op| op.methods().contains(&method))
 }
@@ -737,9 +747,9 @@ fn wire_op(method: &str) -> Option<FsOp> {
 /// calls keep the host handles the provider opened (HTTP bodies, sockets, file
 /// handles). Falls back to the request session when Core refuses a task.
 fn invoke_stream(
-    provider: &dyn FSProvider,
+    provider: &dyn VfsProvider,
     ctx: &RequestContext,
-    op: FsOp,
+    op: FsOperation,
     label: &str,
 ) -> Result<(FsProduct, Option<StreamSession>), RpcError> {
     require(provider, ctx, op)?;
@@ -753,10 +763,10 @@ fn invoke_stream(
 }
 
 fn require(
-    provider: &dyn FSProvider,
+    provider: &dyn VfsProvider,
     ctx: &RequestContext,
-    op: FsOp,
-) -> Result<Vec<FsOp>, RpcError> {
+    op: FsOperation,
+) -> Result<Vec<FsOperation>, RpcError> {
     let available = discover(provider, ctx)?;
     if available.contains(&op) {
         Ok(available)
@@ -767,7 +777,7 @@ fn require(
     }
 }
 
-fn narrow_entry(available: &[FsOp], entry: &mut FsEntry) {
+fn narrow_entry(available: &[FsOperation], entry: &mut FsEntry) {
     let allowed = available
         .iter()
         .copied()
@@ -881,13 +891,13 @@ mod tests {
         writable: bool,
     }
 
-    impl FSProvider for Memory {
-        fn operations(&self) -> &'static [crate::filesystem::FsOp] {
+    impl VfsProvider for Memory {
+        fn operations(&self) -> &'static [crate::filesystem::FsOperation] {
             &[
-                crate::filesystem::FsOp::List,
-                crate::filesystem::FsOp::Stat,
-                crate::filesystem::FsOp::Read,
-                crate::filesystem::FsOp::Write,
+                crate::filesystem::FsOperation::List,
+                crate::filesystem::FsOperation::Stat,
+                crate::filesystem::FsOperation::Read,
+                crate::filesystem::FsOperation::Write,
             ]
         }
 
@@ -921,9 +931,9 @@ mod tests {
 
     struct ReadOnly;
 
-    impl FSProvider for ReadOnly {
-        fn operations(&self) -> &'static [crate::filesystem::FsOp] {
-            &[crate::filesystem::FsOp::List]
+    impl VfsProvider for ReadOnly {
+        fn operations(&self) -> &'static [crate::filesystem::FsOperation] {
+            &[crate::filesystem::FsOperation::List]
         }
 
         fn list(&self, _request: &FsRequest<'_>) -> Result<FsListing, RpcError> {
@@ -936,10 +946,15 @@ mod tests {
         let memory = Memory { writable: true };
         assert_eq!(
             memory.operations(),
-            &[FsOp::List, FsOp::Stat, FsOp::Read, FsOp::Write]
+            &[
+                FsOperation::List,
+                FsOperation::Stat,
+                FsOperation::Read,
+                FsOperation::Write
+            ]
         );
         let readonly = ReadOnly;
-        assert_eq!(readonly.operations(), &[FsOp::List]);
+        assert_eq!(readonly.operations(), &[FsOperation::List]);
         assert_eq!(
             FsServer::capability(&readonly),
             json!({"vfs": {"discovery":true,"operations": ["list"]}})
@@ -958,15 +973,20 @@ mod tests {
     }
 
     struct AccountFs;
-    impl FSProvider for AccountFs {
-        fn operations(&self) -> &'static [FsOp] {
-            &[FsOp::Stat, FsOp::Read, FsOp::Write]
+    impl VfsProvider for AccountFs {
+        fn operations(&self) -> &'static [FsOperation] {
+            &[FsOperation::Stat, FsOperation::Read, FsOperation::Write]
         }
-        fn discover(&self, ctx: &RequestContext) -> Result<Vec<FsOp>, RpcError> {
+        fn discover(&self, ctx: &RequestContext) -> Result<Vec<FsOperation>, RpcError> {
             Ok(if ctx.params()["connection"]["writable"] == true {
-                vec![FsOp::Stat, FsOp::Read, FsOp::Write, FsOp::Remove]
+                vec![
+                    FsOperation::Stat,
+                    FsOperation::Read,
+                    FsOperation::Write,
+                    FsOperation::Remove,
+                ]
             } else {
-                vec![FsOp::Stat, FsOp::Read]
+                vec![FsOperation::Stat, FsOperation::Read]
             })
         }
         fn stat(&self, _: &FsRequest<'_>) -> Result<FsEntry, RpcError> {
@@ -1174,9 +1194,9 @@ mod tests {
     /// Streams a host HTTP response, the way WebDAV/Drive/OpenList do.
     struct Http;
 
-    impl FSProvider for Http {
-        fn operations(&self) -> &'static [crate::filesystem::FsOp] {
-            &[crate::filesystem::FsOp::Read]
+    impl VfsProvider for Http {
+        fn operations(&self) -> &'static [crate::filesystem::FsOperation] {
+            &[crate::filesystem::FsOperation::Read]
         }
 
         fn read(&self, request: &FsRequest<'_>) -> Result<FsRead, RpcError> {

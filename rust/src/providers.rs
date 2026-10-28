@@ -5,7 +5,7 @@
 //! fallback handler. Provider implementations stay optional and composable;
 //! nothing forces a plugin to implement events it does not own.
 use crate::{
-    filesystem::{FSProvider, FsServer},
+    filesystem::{FsServer, VfsProvider},
     InfoSection, PreviewView, RequestContext, RpcError,
 };
 use serde_json::{json, Value};
@@ -88,7 +88,7 @@ impl ConnectionValidation {
 }
 
 /// Connection lifecycle: validation plus the navigation target a connection
-/// opens. File-system work lives in [`crate::filesystem::FSProvider`],
+/// opens. File-system work lives in [`crate::filesystem::VfsProvider`],
 /// which connections and standalone views share.
 pub trait ConnectionProvider: Send + Sync {
     fn validate(&self, ctx: &RequestContext) -> Result<Value, RpcError> {
@@ -111,7 +111,7 @@ fn unsupported(ctx: &RequestContext) -> RpcError {
 /// handler, so custom RPC keeps working unchanged.
 /// One registered file-system provider plus its stream registry.
 struct FsProvider {
-    dispatch: Box<dyn FSProvider>,
+    dispatch: Box<dyn VfsProvider>,
     server: FsServer,
 }
 
@@ -172,11 +172,11 @@ impl Providers {
         self.connection = Some(Box::new(provider));
         self
     }
-    /// Register an explicit FSProvider. Its declared ceiling and per-resource
+    /// Register an explicit VfsProvider. Its declared ceiling and per-resource
     /// discovery control which `vfs.*` operations can be dispatched.
     pub fn filesystem<P>(mut self, provider: P) -> Self
     where
-        P: FSProvider + 'static,
+        P: VfsProvider + 'static,
     {
         self.filesystem = Some(FsProvider {
             dispatch: Box::new(provider),

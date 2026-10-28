@@ -36,7 +36,7 @@ npm --prefix ui run build
 npm --prefix ui test
 ```
 
-The Rust SDK currently requires **Rust 1.90+** and speaks **protocol 5.0**. For full explanations of each command, see the [beginner tutorial](rust/README.md).
+The Rust SDK currently requires **Rust 1.90+** and speaks **protocol 6.0**. For full explanations of each command, see the [beginner tutorial](rust/README.md).
 
 ## Real plugin examples / 真正的插件项目
 
@@ -46,9 +46,9 @@ The APIs are **experimental** and may evolve with the Fiex Core development bran
 
 Pin the SDK with a Git submodule when developing a plugin so that your SDK version matches the version tested with your host and plugin project.
 
-## Protocol 5.0: refs, typed services and providers
+## Protocol 6.0: refs, typed services and providers
 
-Protocol 5.0 unifies every provider file access behind `vfs.*` and removes host
+Protocol 6.0 unifies every provider file access behind `vfs.*` and removes host
 paths from the public plugin API. `ResourceRef` is an
 opaque `{mountId, nodeId}` identity; Core resolves it only inside the operation
 scope. `ctx.targets()` contains the selected resources and their optional
@@ -71,7 +71,7 @@ Optional typed event providers live in `contracts`: `InfoProvider`,
 `PreviewProvider`, `DecorationProvider`, `ContextMenuProvider`,
 `ConnectionContextMenuProvider`,
 `SearchProvider`, `HookProvider`, `ToolbarProvider` and `ConnectionProvider`
-(lifecycle only). File-system access is one `FSProvider` trait for
+(lifecycle only). File-system access is one `VfsProvider` trait for
 connections and standalone views alike. Register only what the plugin
 implements; custom RPC still goes through the fallback:
 
@@ -89,10 +89,10 @@ Implement the methods you really support and declare the operation ceiling expli
 
 ```rust,ignore
 use fiex_plugin_sdk as sdk;
-use sdk::filesystem::{FSProvider, FsEntry, FsListing, FsRead, FsWrite};
+use sdk::filesystem::{VfsProvider, FsEntry, FsListing, FsRead, FsWrite};
 
-impl FSProvider for MyDrive {
-    fn operations(&self) -> &'static [sdk::filesystem::FsOp] { &[sdk::filesystem::FsOp::List, sdk::filesystem::FsOp::Read, sdk::filesystem::FsOp::Write] }
+impl VfsProvider for MyDrive {
+    fn operations(&self) -> &'static [sdk::filesystem::FsOperation] { &[sdk::filesystem::FsOperation::List, sdk::filesystem::FsOperation::Read, sdk::filesystem::FsOperation::Write] }
 
     fn list(&self, request: &sdk::filesystem::FsRequest<'_>) -> Result<FsListing, sdk::RpcError> {
         // request.node_id(), request.cursor(), request.limit()

@@ -55,7 +55,7 @@ impl ContextInner {
     }
 
     pub(crate) fn call(&self, method: &str, params: Value) -> Result<Value, RpcError> {
-        if !method.starts_with("host.") {
+        if !(method.starts_with("host.") || method.starts_with("fs.")) {
             return Err(RpcError::invalid_params("expected a host method"));
         }
         if self.link.closed() {

@@ -1,11 +1,11 @@
-# FSProvider discovery contract
+# VfsProvider discovery contract
 
-`FSProvider` is an ordinary object-safe trait; there is no filesystem procedural
-macro. Implement the required `operations() -> &'static [FsOp]` to declare the
+`VfsProvider` is an ordinary object-safe trait; there is no filesystem procedural
+macro. Implement the required `operations() -> &'static [FsOperation]` to declare the
 implementation ceiling. Register with `Providers::filesystem(provider)`.
 
 The SDK announces `vfs: { operations: [...], discovery: true }` at initialization.
-`discover(&RequestContext) -> Result<Vec<FsOp>, RpcError>` reports the currently
+`discover(&RequestContext) -> Result<Vec<FsOperation>, RpcError>` reports the currently
 permitted subset for the authenticated connection and resource. Its default is
 the implementation ceiling. Remote providers override it using server permissions.
 The SDK intersects the two sets; a discovery reply cannot add an unimplemented

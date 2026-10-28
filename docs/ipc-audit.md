@@ -1,4 +1,4 @@
-# IPC coverage audit (protocol 5.0)
+# IPC coverage audit (protocol 6.0)
 
 This audit compares the Core host and UI bridge surface with the public Rust
 and UI SDKs. It is intentionally versioned with the SDK: add a row when Core
@@ -8,11 +8,11 @@ adds a method, and delete the row when a method is removed.
 
 | Core method                                                               | SDK surface                                                                     | Status                                                                     |
 | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| `host.fs.openRead`, `readOpen`, `readChunk`, `closeRead`                  | `Files::open_read` + `FileReader`                                               | Covered                                                                    |
-| `host.fs.beginWrite`, `writeChunk`, `writeBuffer`, `commit`, `abort`      | `Files::begin_write` + `FileWriter`                                             | Covered                                                                    |
-| `host.fs.list`, `stat`, `statBatch`, `child`, `mkdir`, `remove`, `rename` | `Files` methods                                                                 | Covered                                                                    |
-| `host.fs.read`, `create`, `write`                                         | none                                                                            | Removed in protocol 4. SDK uses the streaming methods.                     |
-| `host.fs.readOpen` shared buffers                                         | internal `runtime::transfer`                                                    | Not public; no plugin should manage buffers directly.                      |
+| `fs.openRead`, `readOpen`, `readChunk`, `closeRead`                  | `Files::open_read` + `FileReader`                                               | Covered                                                                    |
+| `fs.beginWrite`, `writeChunk`, `writeBuffer`, `commit`, `abort`      | `Files::begin_write` + `FileWriter`                                             | Covered                                                                    |
+| `fs.list`, `stat`, `statBatch`, `child`, `mkdir`, `remove`, `rename` | `Files` methods                                                                 | Covered                                                                    |
+| `fs.read`, `create`, `write`                                         | none                                                                            | Removed in protocol 4. SDK uses the streaming methods.                     |
+| `fs.readOpen` shared buffers                                         | internal `runtime::transfer`                                                    | Not public; no plugin should manage buffers directly.                      |
 | `host.net.http.open/read/close`                                           | `HttpClient` / `Response`                                                       | Covered                                                                    |
 | `host.net.http`                                                           | none                                                                            | Removed in protocol 4; superseded by the streaming HTTP methods.           |
 | `host.net.tcp.open/readBytes/writeBytes/shutdown/close`                   | `TcpClient`, `TcpStream`, `TcpReadHalf`, `TcpWriteHalf`, optional Tokio adapter | Covered                                                                    |
@@ -38,11 +38,11 @@ adds a method, and delete the row when a method is removed.
 | `hooks.invoke`                            | `HookProvider` or manual dispatch                           | Typed provider added                                                               |
 | `toolbar.invoke`                          | `ToolbarProvider` or manual dispatch                        | Typed provider added                                                               |
 | `connection.validate/open/create`         | `ConnectionProvider`, or manual dispatch                    | Typed provider added                                                               |
-| `vfs.list/stat/search`                    | `FSProvider::{list,stat,search}` + `FSProvider::operations` | Covered: one trait for connections and views.                                      |
-| `vfs.openRead/readStream/closeRead`       | `FSProvider::read` + `FsServer`                             | Covered: SDK owns stream IDs, offsets and close.                                   |
-| `vfs.beginWrite/writeStream/commit/abort` | `FSProvider::write` + `FsWrite`                             | Covered: providers return a standard `Write`; the commit callback publishes.       |
-| `vfs.mkdir/rename/remove`                 | `FSProvider::{mkdir,rename,remove}`                         | Covered.                                                                           |
-| `fs.writeFile`                            | none                                                        | Removed in protocol 5; the streaming write path replaces the upload snapshot pull. |
+| `vfs.list/stat/search`                    | `VfsProvider::{list,stat,search}` + `VfsProvider::operations` | Covered: one trait for connections and views.                                      |
+| `vfs.openRead/readStream/closeRead`       | `VfsProvider::read` + `FsServer`                             | Covered: SDK owns stream IDs, offsets and close.                                   |
+| `vfs.beginWrite/writeStream/commit/abort` | `VfsProvider::write` + `FsWrite`                             | Covered: providers return a standard `Write`; the commit callback publishes.       |
+| `vfs.mkdir/rename/remove`                 | `VfsProvider::{mkdir,rename,remove}`                         | Covered.                                                                           |
+| `fs.writeFile`                            | none                                                        | Removed in protocol 6; the streaming write path replaces the upload snapshot pull. |
 | Protocol-4 standalone view methods        | none                                                        | Replaced by the unified protocol-5 `vfs.*` methods and stream sessions.            |
 | `plugin.initialize` capabilities          | `Providers::capabilities` / `serve_declaring`               | Added: `{"vfs":{"operations":[..]}}`, derived from the impl block.                 |
 
@@ -71,7 +71,7 @@ plugin's custom handler.
 ## Removed in protocol 4
 
 1. UI `fiex.vfs.*` was removed; no host bridge accepted it.
-2. `host.fs.read/create/write` were removed; the SDK only emits streaming
+2. `fs.read/create/write` were removed; the SDK only emits streaming
    `openRead/readOpen/readChunk/closeRead` and `beginWrite/writeChunk/commit`.
 3. `host.net.http` (non-streaming) was removed; the SDK emits
    `http.open/read/close`.
@@ -91,4 +91,4 @@ plugin's custom handler.
 The current native file-provider methods and initialization capabilities use
 `vfs.*` and `vfs: {operations, discovery}`. The former protocol-5 `fs.*` spellings
 are not aliases. Update Core, SDK and providers together. Host filesystem
-services remain `host.fs.*`; browser panel file services are unchanged.
+services remain `fs.*`; browser panel file services are unchanged.
