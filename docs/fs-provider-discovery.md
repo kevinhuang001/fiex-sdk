@@ -4,14 +4,14 @@
 macro. Implement the required `operations() -> &'static [FsOp]` to declare the
 implementation ceiling. Register with `Providers::filesystem(provider)`.
 
-The SDK announces `fs: { operations: [...], discovery: true }` at initialization.
+The SDK announces `vfs: { operations: [...], discovery: true }` at initialization.
 `discover(&RequestContext) -> Result<Vec<FsOp>, RpcError>` reports the currently
 permitted subset for the authenticated connection and resource. Its default is
 the implementation ceiling. Remote providers override it using server permissions.
 The SDK intersects the two sets; a discovery reply cannot add an unimplemented
 operation. Errors fail closed, and an empty set permits no file operations.
 
-Core sends `fs.discover` with the same mount, connection/view identity and target
+Core sends `vfs.discover` with the same mount, connection/view identity and target
 parameters as the operation. The reply is `{operations: ["list", "stat", ...]}`.
 This is a negotiated protocol-5 extension: Core retains the static ceiling for
 older providers that do not advertise `discovery: true`.

@@ -38,13 +38,13 @@ adds a method, and delete the row when a method is removed.
 | `hooks.invoke`                           | `HookProvider` or manual dispatch                           | Typed provider added                                                               |
 | `toolbar.invoke`                         | `ToolbarProvider` or manual dispatch                        | Typed provider added                                                               |
 | `connection.validate/open/create`        | `ConnectionProvider`, or manual dispatch                    | Typed provider added                                                               |
-| `fs.list/stat/search`                    | `FSProvider::{list,stat,search}` + `FSProvider::operations` | Covered: one trait for connections and views.                                      |
-| `fs.openRead/readStream/closeRead`       | `FSProvider::read` + `FsServer`                             | Covered: SDK owns stream IDs, offsets and close.                                   |
-| `fs.beginWrite/writeStream/commit/abort` | `FSProvider::write` + `FsWrite`                             | Covered: providers return a standard `Write`; the commit callback publishes.       |
-| `fs.mkdir/rename/remove`                 | `FSProvider::{mkdir,rename,remove}`                         | Covered.                                                                           |
+| `vfs.list/stat/search`                    | `FSProvider::{list,stat,search}` + `FSProvider::operations` | Covered: one trait for connections and views.                                      |
+| `vfs.openRead/readStream/closeRead`       | `FSProvider::read` + `FsServer`                             | Covered: SDK owns stream IDs, offsets and close.                                   |
+| `vfs.beginWrite/writeStream/commit/abort` | `FSProvider::write` + `FsWrite`                             | Covered: providers return a standard `Write`; the commit callback publishes.       |
+| `vfs.mkdir/rename/remove`                 | `FSProvider::{mkdir,rename,remove}`                         | Covered.                                                                           |
 | `fs.writeFile`                           | none                                                        | Removed in protocol 5; the streaming write path replaces the upload snapshot pull. |
-| `vfs.list/stat/readSmall/search`         | none                                                        | Removed in protocol 5; standalone views use the same `fs.*` methods.               |
-| `plugin.initialize` capabilities         | `Providers::capabilities` / `serve_declaring`               | Added: `{"fs":{"operations":[..]}}`, derived from the impl block.                  |
+| Protocol-4 standalone view methods | none | Replaced by the unified protocol-5 `vfs.*` methods and stream sessions. |
+| `plugin.initialize` capabilities         | `Providers::capabilities` / `serve_declaring`               | Added: `{"vfs":{"operations":[..]}}`, derived from the impl block.                  |
 
 `Providers` is optional; existing plugins continue to use `sdk::serve` with a
 method match. `Providers::serve_with` delegates any unregistered method to the
@@ -79,9 +79,16 @@ plugin's custom handler.
    `readBytes/writeBytes`.
 5. `host.exec` was removed; the SDK emits `host.process.run`.
 6. `host.preview.create` was removed; no caller remained.
-7. `vfs.*` was removed; standalone views use `fs.*` with contribution
-   identity and stream their reads instead of `vfs.readSmall`.
+7. The protocol-4 standalone-view contract was removed. Connections and views
+   now share the protocol-5 `vfs.*` contract, with contribution identity and streaming reads.
 8. `fs.writeFile` was removed; all writes use
-   `fs.beginWrite/writeStream/commit/abort`.
+   `vfs.beginWrite/writeStream/commit/abort`.
 
 `host.buffer.*` stays private. It is not an SDK contract.
+
+## Canonical VFS namespace
+
+The current native file-provider methods and initialization capabilities use
+`vfs.*` and `vfs: {operations, discovery}`. The former protocol-5 `fs.*` spellings
+are not aliases. Update Core, SDK and providers together. Host filesystem
+services remain `host.fs.*`; browser panel file services are unchanged.

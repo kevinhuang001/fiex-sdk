@@ -48,7 +48,7 @@ Pin the SDK with a Git submodule when developing a plugin so that your SDK versi
 
 ## Protocol 5.0: refs, typed services and providers
 
-Protocol 5.0 unifies every provider file access behind `fs.*` and removes host
+Protocol 5.0 unifies every provider file access behind `vfs.*` and removes host
 paths from the public plugin API. `ResourceRef` is an
 opaque `{mountId, nodeId}` identity; Core resolves it only inside the operation
 scope. `ctx.targets()` contains the selected resources and their optional
@@ -113,7 +113,7 @@ impl FSProvider for MyDrive {
 The required `operations()` method explicitly declares the implementation ceiling.
 Override `discover(ctx)` to narrow it to the server permissions of the current
 connection and resource. The SDK owns ordinary dispatch without procedural macros.
-`plugin.initialize` reports `fs: {operations: [...], discovery: true}`; Core and SDK
+`plugin.initialize` reports `vfs: {operations: [...], discovery: true}`; Core and SDK
 reject operations outside the reported intersection. Nodes may narrow the set
 further with `FsEntry::allowing([..])`. See [the discovery contract](docs/fs-provider-discovery.md).
 
@@ -171,14 +171,14 @@ UI extensions never confer provider eligibility. `scheme`, `schemes`, `uriPrefix
 
 Within a selected-resource request, call `ctx.open_vfs_view("history", selected_root, immutable_context)`.
 Core authenticates the process identity, contribution ownership, and resource scope, and returns a `fiex://mount/<id>/` navigation URI.
-The plugin must not construct URIs. Core sends contributionId/viewContext/mountId/nodeId with the same `fs.*` methods a connection uses; return opaque nodeId plus entry metadata, and relativePath for search. Root nodeId is empty.
+The plugin must not construct URIs. Core sends contributionId/viewContext/mountId/nodeId with the same `vfs.*` methods a connection uses; return opaque nodeId plus entry metadata, and relativePath for search. Root nodeId is empty.
 Core binds returned entries to its mount and retains only explicitly saved small view descriptors across restarts.
 
-Connection-specific fs.* provider requests are Core-only and require an installed, active connection factory bound to that instance.
+Connection-specific vfs.* provider requests are Core-only and require an installed, active connection factory bound to that instance.
 Ordinary VFS registration does not grant sync, pin, eviction, conflict, or cache control. Generic files/HTTP/TCP remain subject to their existing operation/network grants.
 These are application navigation URIs, not OS mounts. Connection files stream to Core-managed cache files before external opening.
-Standalone views stream through the same `fs.openRead/readStream/closeRead` contract, so exports and previews are no longer limited to 1 MiB.
-Core authorizes every host call with the request that makes it and revokes that authorization when the request returns, so the SDK serves each stream under its own internal background task; the HTTP response bodies, sockets and file handles a provider opens while the stream is created stay valid for `fs.readStream`/`fs.writeStream` and `fs.commit`, and are released when the stream closes.
+Standalone views stream through the same `vfs.openRead/readStream/closeRead` contract, so exports and previews are no longer limited to 1 MiB.
+Core authorizes every host call with the request that makes it and revokes that authorization when the request returns, so the SDK serves each stream under its own internal background task; the HTTP response bodies, sockets and file handles a provider opens while the stream is created stay valid for `vfs.readStream`/`vfs.writeStream` and `vfs.commit`, and are released when the stream closes.
 
 ## TCP split and half-close
 

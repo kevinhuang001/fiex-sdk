@@ -105,9 +105,9 @@ impl ContextInner {
 /// Core authorizes every host call with the request that makes it and revokes
 /// that authorization as soon as the request returns. A provider's read stream
 /// may be backed by host resources (an HTTP response body, a TCP socket, a file
-/// handle), and Core pulls those streams with `fs.readStream` and finishes them
-/// with `fs.commit` in *later* requests, so a stream created under the
-/// `fs.openRead`/`fs.beginWrite` request would lose its host handles between
+/// handle), and Core pulls those streams with `vfs.readStream` and finishes them
+/// with `vfs.commit` in *later* requests, so a stream created under the
+/// `vfs.openRead`/`vfs.beginWrite` request would lose its host handles between
 /// chunks. The SDK therefore creates each stream under a private background
 /// task: Core keeps a task's authorization and handles until the task finishes,
 /// which happens when the stream is closed.

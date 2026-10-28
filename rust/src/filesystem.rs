@@ -1,6 +1,6 @@
 //! Typed file-system providers.
 //!
-//! Core drives every file operation through one `fs.*` method family, no matter
+//! Core drives every file operation through one `vfs.*` method family, no matter
 //! whether the bytes live on a connection (SMB, Drive, WebDAV) or in a
 //! standalone virtual view (Git history). A plugin implements the methods it
 //! really supports, explicitly declares `operations()`, and narrows that set
@@ -41,7 +41,7 @@ use std::{
     },
 };
 
-/// Maximum bytes a single `fs.readStream` chunk may return.
+/// Maximum bytes a single `vfs.readStream` chunk may return.
 pub const MAX_CHUNK: usize = 4 * 1024 * 1024;
 
 /// One capability a file-system provider can implement.
@@ -89,14 +89,19 @@ impl FsOp {
     /// Wire methods unlocked by this capability.
     pub fn methods(self) -> &'static [&'static str] {
         match self {
-            FsOp::List => &["fs.list"],
-            FsOp::Stat => &["fs.stat"],
-            FsOp::Read => &["fs.openRead", "fs.readStream", "fs.closeRead"],
-            FsOp::Write => &["fs.beginWrite", "fs.writeStream", "fs.commit", "fs.abort"],
-            FsOp::Mkdir => &["fs.mkdir"],
-            FsOp::Rename => &["fs.rename"],
-            FsOp::Remove => &["fs.remove"],
-            FsOp::Search => &["fs.search"],
+            FsOp::List => &["vfs.list"],
+            FsOp::Stat => &["vfs.stat"],
+            FsOp::Read => &["vfs.openRead", "vfs.readStream", "vfs.closeRead"],
+            FsOp::Write => &[
+                "vfs.beginWrite",
+                "vfs.writeStream",
+                "vfs.commit",
+                "vfs.abort",
+            ],
+            FsOp::Mkdir => &["vfs.mkdir"],
+            FsOp::Rename => &["vfs.rename"],
+            FsOp::Remove => &["vfs.remove"],
+            FsOp::Search => &["vfs.search"],
         }
     }
 }
@@ -225,7 +230,7 @@ impl FsListing {
     }
 }
 
-/// A parsed `fs.*` request. Providers read only the fields their operation
+/// A parsed `vfs.*` request. Providers read only the fields their operation
 /// needs; the raw params stay available for extensions.
 #[derive(Clone)]
 pub struct FsRequest<'a> {
@@ -391,7 +396,7 @@ impl FsWrite {
     }
 
     /// Run `finish` after the last chunk was written and flushed; its entry
-    /// becomes the `fs.commit` result.
+    /// becomes the `vfs.commit` result.
     pub fn with_commit(
         writer: impl Write + Send + 'static,
         finish: impl FnOnce() -> Result<FsEntry, RpcError> + Send + 'static,
@@ -517,7 +522,7 @@ enum Stream {
         reader: Box<dyn Read + Send>,
         offset: u64,
         /// Keeps host handles opened while creating the stream authorized until
-        /// `fs.closeRead`, not just for the `fs.openRead` request. Only its
+        /// `vfs.closeRead`, not just for the `vfs.openRead` request. Only its
         /// `Drop` matters here.
         #[allow(dead_code)]
         session: Option<StreamSession>,
@@ -525,7 +530,7 @@ enum Stream {
     Write {
         write: FsWrite,
         offset: u64,
-        /// Keeps the upload's host handles authorized until `fs.commit`/`abort`.
+        /// Keeps the upload's host handles authorized until `vfs.commit`/`abort`.
         session: Option<StreamSession>,
     },
 }
@@ -547,7 +552,7 @@ impl FsServer {
     /// Capability declaration returned from `plugin.initialize`.
     pub fn capability(provider: &dyn FSProvider) -> Value {
         json!({
-            "fs": {
+            "vfs": {
                 "discovery": true,
                 "operations": provider
                     .operations()
@@ -558,21 +563,21 @@ impl FsServer {
         })
     }
 
-    /// Dispatch one `fs.*` method. Returns `None` for methods outside `fs.*`
+    /// Dispatch one `vfs.*` method. Returns `None` for methods outside `vfs.*`
     /// so the plugin's own handler can serve them.
     pub fn serve(
         &self,
         provider: &dyn FSProvider,
         ctx: &RequestContext,
     ) -> Result<Option<Value>, RpcError> {
-        if ctx.method() == "fs.discover" {
+        if ctx.method() == "vfs.discover" {
             return Ok(Some(json!({"operations": discover(provider, ctx)?})));
         }
         let Some(op) = wire_op(ctx.method()) else {
             return Ok(None);
         };
         let value = match ctx.method() {
-            "fs.openRead" => {
+            "vfs.openRead" => {
                 let (product, session) = invoke_stream(provider, ctx, op, "读取文件")?;
                 let FsProduct::Read(read) = product else {
                     return Err(RpcError::internal("provider returned a non-read product"));
@@ -588,7 +593,7 @@ impl FsServer {
                 );
                 json!({"streamId": id, "size": read.size})
             }
-            "fs.readStream" => {
+            "vfs.readStream" => {
                 let id = param_str(ctx, "streamId")?;
                 let offset = ctx.params()["offset"].as_u64().unwrap_or(0);
                 let max_bytes = ctx.params()["maxBytes"]
@@ -615,7 +620,7 @@ impl FsServer {
                 use base64::{engine::general_purpose::STANDARD, Engine};
                 json!({"base64": STANDARD.encode(&bytes), "eof": eof})
             }
-            "fs.closeRead" => {
+            "vfs.closeRead" => {
                 let id = param_str(ctx, "streamId")?;
                 // Drop the stream outside the registry lock: releasing the
                 // session is a host call.
@@ -623,7 +628,7 @@ impl FsServer {
                 drop(removed);
                 Value::Null
             }
-            "fs.beginWrite" => {
+            "vfs.beginWrite" => {
                 let (product, session) = invoke_stream(provider, ctx, op, "写入文件")?;
                 let FsProduct::Write(write) = product else {
                     return Err(RpcError::internal("provider returned a non-write product"));
@@ -639,7 +644,7 @@ impl FsServer {
                 );
                 json!({"streamId": id})
             }
-            "fs.writeStream" => {
+            "vfs.writeStream" => {
                 let id = param_str(ctx, "streamId")?.to_string();
                 let offset = ctx.params()["offset"].as_u64().unwrap_or(0);
                 let bytes = decode_chunk(ctx)?;
@@ -666,7 +671,7 @@ impl FsServer {
                 *written += bytes.len() as u64;
                 json!({"written": bytes.len()})
             }
-            "fs.commit" => {
+            "vfs.commit" => {
                 let id = param_str(ctx, "streamId")?.to_string();
                 let stream = self
                     .lock()?
@@ -683,7 +688,7 @@ impl FsServer {
                     None => json!({}),
                 }
             }
-            "fs.abort" => {
+            "vfs.abort" => {
                 let id = param_str(ctx, "streamId")?;
                 let removed = self.lock()?.remove(id);
                 if let Some(Stream::Write { write, session, .. }) = removed {
@@ -728,7 +733,7 @@ fn wire_op(method: &str) -> Option<FsOp> {
 }
 
 /// Invoke a provider method that opens a stream under a session that outlives
-/// this request, so the later `fs.readStream`/`fs.writeStream`/`fs.commit`
+/// this request, so the later `vfs.readStream`/`vfs.writeStream`/`vfs.commit`
 /// calls keep the host handles the provider opened (HTTP bodies, sockets, file
 /// handles). Falls back to the request session when Core refuses a task.
 fn invoke_stream(
@@ -905,7 +910,7 @@ mod tests {
 
         fn write(&self, request: &FsRequest<'_>) -> Result<FsWrite, RpcError> {
             if !self.writable {
-                return Err(RpcError::method_not_found("fs.beginWrite"));
+                return Err(RpcError::method_not_found("vfs.beginWrite"));
             }
             let revision = format!("r-{}", request.if_revision().unwrap_or("initial"));
             Ok(FsWrite::with_commit(Cursor::new(Vec::new()), move || {
@@ -937,7 +942,7 @@ mod tests {
         assert_eq!(readonly.operations(), &[FsOp::List]);
         assert_eq!(
             FsServer::capability(&readonly),
-            json!({"fs": {"discovery":true,"operations": ["list"]}})
+            json!({"vfs": {"discovery":true,"operations": ["list"]}})
         );
     }
 
@@ -946,7 +951,7 @@ mod tests {
         let server = FsServer::new();
         let provider = ReadOnly;
         let error = server
-            .serve(&provider, &request("fs.remove", json!({"nodeId": "x"})))
+            .serve(&provider, &request("vfs.remove", json!({"nodeId": "x"})))
             .unwrap_err();
         assert_eq!(error.code, -32601);
         assert_eq!(error.data.unwrap()["operation"], "remove");
@@ -977,17 +982,17 @@ mod tests {
         let read_only = json!({"connection":{"writable":false},"nodeId":"a"});
         let writable = json!({"connection":{"writable":true},"nodeId":"a"});
         let ops = server
-            .serve(&AccountFs, &request("fs.discover", writable))
+            .serve(&AccountFs, &request("vfs.discover", writable))
             .unwrap()
             .unwrap();
         assert_eq!(ops["operations"], json!(["stat", "read", "write"]));
         let entry = server
-            .serve(&AccountFs, &request("fs.stat", read_only.clone()))
+            .serve(&AccountFs, &request("vfs.stat", read_only.clone()))
             .unwrap()
             .unwrap();
         assert_eq!(entry["allowedOps"], json!(["stat", "read"]));
         assert!(server
-            .serve(&AccountFs, &request("fs.beginWrite", read_only))
+            .serve(&AccountFs, &request("vfs.beginWrite", read_only))
             .is_err());
     }
 
@@ -1006,7 +1011,7 @@ mod tests {
         let opened = server
             .serve(
                 &Memory { writable: true },
-                &request("fs.openRead", json!({"nodeId": "a"})),
+                &request("vfs.openRead", json!({"nodeId": "a"})),
             )
             .unwrap()
             .unwrap();
@@ -1016,7 +1021,7 @@ mod tests {
             .serve(
                 &Memory { writable: true },
                 &request(
-                    "fs.readStream",
+                    "vfs.readStream",
                     json!({"streamId": id, "offset": 0, "maxBytes": 2}),
                 ),
             )
@@ -1027,7 +1032,7 @@ mod tests {
             .serve(
                 &Memory { writable: true },
                 &request(
-                    "fs.readStream",
+                    "vfs.readStream",
                     json!({"streamId": id, "offset": 2, "maxBytes": 2}),
                 ),
             )
@@ -1038,7 +1043,7 @@ mod tests {
             .serve(
                 &Memory { writable: true },
                 &request(
-                    "fs.readStream",
+                    "vfs.readStream",
                     json!({"streamId": id, "offset": 1, "maxBytes": 2}),
                 ),
             )
@@ -1046,7 +1051,7 @@ mod tests {
         server
             .serve(
                 &Memory { writable: true },
-                &request("fs.closeRead", json!({"streamId": id})),
+                &request("vfs.closeRead", json!({"streamId": id})),
             )
             .unwrap()
             .unwrap();
@@ -1059,7 +1064,7 @@ mod tests {
         let opened = server
             .serve(
                 &provider,
-                &request("fs.beginWrite", json!({"nodeId": "a", "ifRevision": "r1"})),
+                &request("vfs.beginWrite", json!({"nodeId": "a", "ifRevision": "r1"})),
             )
             .unwrap()
             .unwrap();
@@ -1068,27 +1073,30 @@ mod tests {
             .serve(
                 &provider,
                 &request(
-                    "fs.writeStream",
+                    "vfs.writeStream",
                     json!({"streamId": id, "offset": 0, "base64": "YWJjZA=="}),
                 ),
             )
             .unwrap();
         let committed = server
-            .serve(&provider, &request("fs.commit", json!({"streamId": id})))
+            .serve(&provider, &request("vfs.commit", json!({"streamId": id})))
             .unwrap()
             .unwrap();
         assert_eq!(committed["revision"], "r-r1");
 
         let reopened = server
-            .serve(&provider, &request("fs.beginWrite", json!({"nodeId": "a"})))
+            .serve(
+                &provider,
+                &request("vfs.beginWrite", json!({"nodeId": "a"})),
+            )
             .unwrap()
             .unwrap();
         let id = reopened["streamId"].as_str().unwrap().to_string();
         server
-            .serve(&provider, &request("fs.abort", json!({"streamId": id})))
+            .serve(&provider, &request("vfs.abort", json!({"streamId": id})))
             .unwrap();
         assert!(server
-            .serve(&provider, &request("fs.commit", json!({"streamId": id})))
+            .serve(&provider, &request("vfs.commit", json!({"streamId": id})))
             .is_err());
     }
 
@@ -1096,7 +1104,10 @@ mod tests {
     fn provider_without_write_capability_cannot_begin_a_write() {
         let server = FsServer::new();
         let error = server
-            .serve(&ReadOnly, &request("fs.beginWrite", json!({"nodeId": "a"})))
+            .serve(
+                &ReadOnly,
+                &request("vfs.beginWrite", json!({"nodeId": "a"})),
+            )
             .unwrap_err();
         assert_eq!(error.data.unwrap()["operation"], "write");
     }
@@ -1199,7 +1210,7 @@ mod tests {
         let opened = server
             .serve(
                 &Http,
-                &session_request(host.clone(), "fs.openRead", json!({"nodeId": "f"})),
+                &session_request(host.clone(), "vfs.openRead", json!({"nodeId": "f"})),
             )
             .unwrap()
             .unwrap();
@@ -1211,7 +1222,7 @@ mod tests {
                 &Http,
                 &session_request(
                     host.clone(),
-                    "fs.readStream",
+                    "vfs.readStream",
                     json!({"streamId": id, "offset": 0, "maxBytes": 3}),
                 ),
             )
@@ -1222,7 +1233,7 @@ mod tests {
                 &Http,
                 &session_request(
                     host.clone(),
-                    "fs.readStream",
+                    "vfs.readStream",
                     json!({"streamId": id, "offset": 3, "maxBytes": 3}),
                 ),
             )
@@ -1232,7 +1243,7 @@ mod tests {
         assert_eq!(second["base64"], "ZGVm");
 
         // The provider's handle calls run under the stream's own task, not the
-        // already-finished `fs.openRead` request.
+        // already-finished `vfs.openRead` request.
         let open = host.authorization("host.net.http.open");
         let read = host.authorization("host.net.http.read");
         let task = open["taskId"].as_str().expect("stream task id");
@@ -1242,7 +1253,7 @@ mod tests {
         server
             .serve(
                 &Http,
-                &session_request(host.clone(), "fs.closeRead", json!({"streamId": id})),
+                &session_request(host.clone(), "vfs.closeRead", json!({"streamId": id})),
             )
             .unwrap()
             .unwrap();

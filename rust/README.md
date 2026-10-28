@@ -553,7 +553,7 @@ Core authenticates the process identity, contribution ownership, and resource sc
 The plugin must not construct URIs. Core sends contributionId/viewContext/nodeId with vfs.list/stat/readSmall/search; return opaque nodeId plus Entry metadata, and relativePath for search. Root nodeId is empty.
 Core binds returned entries to its mount and retains only explicitly saved small view descriptors across restarts.
 
-Connection-specific fs.* provider requests are Core-only and require an installed, active connection factory bound to that instance.
+Connection-specific vfs.* provider requests are Core-only and require an installed, active connection factory bound to that instance.
 Ordinary VFS registration does not grant sync, pin, eviction, conflict, or cache control. Generic files/HTTP/TCP remain subject to their existing operation/network grants.
 These are application navigation URIs, not OS mounts. Connection files stream to Core-managed cache files before external opening.
 Standalone readSmall exports are bounded (1 MiB complete file); larger exports fail explicitly pending a streaming VFS contract.

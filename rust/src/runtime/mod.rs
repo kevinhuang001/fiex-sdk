@@ -61,8 +61,8 @@ where
 }
 
 /// Start a plugin that advertises `capabilities` from `plugin.initialize`.
-/// The object is merged into the handshake reply, so `{"fs": {...}}` becomes a
-/// top-level `fs` field Core can read before the first business request.
+/// The object is merged into the handshake reply, so `{"vfs": {...}}` becomes a
+/// top-level `vfs` field Core can read before the first business request.
 pub(crate) fn serve_declaring<F>(
     plugin_id: &str,
     capabilities: Value,

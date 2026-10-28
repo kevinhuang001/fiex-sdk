@@ -158,7 +158,7 @@ impl Providers {
         self
     }
     /// Register an explicit FSProvider. Its declared ceiling and per-resource
-    /// discovery control which `fs.*` operations can be dispatched.
+    /// discovery control which `vfs.*` operations can be dispatched.
     pub fn filesystem<P>(mut self, provider: P) -> Self
     where
         P: FSProvider + 'static,
