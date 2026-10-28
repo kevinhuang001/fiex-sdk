@@ -69,6 +69,7 @@ brokers generic network and permission services.
 
 Optional typed event providers live in `contracts`: `InfoProvider`,
 `PreviewProvider`, `DecorationProvider`, `ContextMenuProvider`,
+`ConnectionContextMenuProvider`,
 `SearchProvider`, `HookProvider`, `ToolbarProvider` and `ConnectionProvider`
 (lifecycle only). File-system access is one `FSProvider` trait for
 connections and standalone views alike. Register only what the plugin

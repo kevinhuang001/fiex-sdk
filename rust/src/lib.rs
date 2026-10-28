@@ -40,9 +40,9 @@ pub use http::{HttpClient, Request, Response, StreamingBody};
 pub use ipc::{Entry, ProcessResult};
 pub use oauth::{AuthorizationCode, OAuth, OAuthRequest};
 pub use providers::{
-    ConnectionProvider, ConnectionValidation, ContextMenuProvider, DecorationProvider,
-    HookProvider, InfoProvider, PreviewProvider, Providers, SearchProvider, SearchResults,
-    ToolbarProvider,
+    ConnectionContextMenuProvider, ConnectionProvider, ConnectionValidation, ContextMenuProvider,
+    DecorationProvider, HookProvider, InfoProvider, PreviewProvider, Providers, SearchProvider,
+    SearchResults, ToolbarProvider,
 };
 pub use secrets::{SecretError, Secrets};
 pub use storage::Storage;

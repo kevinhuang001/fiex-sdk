@@ -33,6 +33,13 @@ pub trait ContextMenuProvider: Send + Sync {
     fn execute(&self, ctx: &RequestContext) -> Result<Value, RpcError>;
 }
 
+/// `connectionContextMenu.resolve` / `.execute`: flat actions for one saved
+/// connection. The request carries a credential-free connection summary.
+pub trait ConnectionContextMenuProvider: Send + Sync {
+    fn resolve(&self, ctx: &RequestContext) -> Result<Vec<Value>, RpcError>;
+    fn execute(&self, ctx: &RequestContext) -> Result<Value, RpcError>;
+}
+
 /// `search.query`: local entries are paths relative to the authorized root;
 /// standalone VFS providers return the same entry shape as `vfs.search`.
 #[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
@@ -115,6 +122,7 @@ pub struct Providers {
     preview: Option<Box<dyn PreviewProvider>>,
     decorations: Option<Box<dyn DecorationProvider>>,
     context_menu: Option<Box<dyn ContextMenuProvider>>,
+    connection_context_menu: Option<Box<dyn ConnectionContextMenuProvider>>,
     search: Option<Box<dyn SearchProvider>>,
     hooks: Option<Box<dyn HookProvider>>,
     toolbar: Option<Box<dyn ToolbarProvider>>,
@@ -139,6 +147,13 @@ impl Providers {
     }
     pub fn context_menu(mut self, provider: impl ContextMenuProvider + 'static) -> Self {
         self.context_menu = Some(Box::new(provider));
+        self
+    }
+    pub fn connection_context_menu(
+        mut self,
+        provider: impl ConnectionContextMenuProvider + 'static,
+    ) -> Self {
+        self.connection_context_menu = Some(Box::new(provider));
         self
     }
     pub fn search(mut self, provider: impl SearchProvider + 'static) -> Self {
@@ -240,6 +255,19 @@ impl Providers {
             }
             "contextMenu.execute" => self
                 .context_menu
+                .as_ref()
+                .ok_or_else(|| unsupported(ctx))?
+                .execute(ctx)?,
+            "connectionContextMenu.resolve" => {
+                let items = self
+                    .connection_context_menu
+                    .as_ref()
+                    .ok_or_else(|| unsupported(ctx))?
+                    .resolve(ctx)?;
+                json!({"items":items})
+            }
+            "connectionContextMenu.execute" => self
+                .connection_context_menu
                 .as_ref()
                 .ok_or_else(|| unsupported(ctx))?
                 .execute(ctx)?,
