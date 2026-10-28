@@ -28,23 +28,23 @@ adds a method, and delete the row when a method is removed.
 
 ## Core system events
 
-| Event                                    | SDK surface                                                          | Status                                                                             |
-| ---------------------------------------- | -------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| `info.resolve`                           | `InfoProvider` or manual dispatch                                    | Typed provider added                                                               |
-| `preview.open`                           | `PreviewProvider` or manual dispatch                                 | Typed provider added                                                               |
-| `decorations.resolve`                    | `DecorationProvider` or manual dispatch                              | Typed provider added                                                               |
-| `contextMenu.resolve/execute`            | `ContextMenuProvider` or manual dispatch                             | Typed provider added                                                               |
-| `search.query`                           | `SearchProvider` + `SearchResults`, or manual dispatch               | Typed provider added                                                               |
-| `hooks.invoke`                           | `HookProvider` or manual dispatch                                    | Typed provider added                                                               |
-| `toolbar.invoke`                         | `ToolbarProvider` or manual dispatch                                 | Typed provider added                                                               |
-| `connection.validate/open/create`        | `ConnectionProvider`, or manual dispatch                             | Typed provider added                                                               |
+| Event                                    | SDK surface                                                 | Status                                                                             |
+| ---------------------------------------- | ----------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `info.resolve`                           | `InfoProvider` or manual dispatch                           | Typed provider added                                                               |
+| `preview.open`                           | `PreviewProvider` or manual dispatch                        | Typed provider added                                                               |
+| `decorations.resolve`                    | `DecorationProvider` or manual dispatch                     | Typed provider added                                                               |
+| `contextMenu.resolve/execute`            | `ContextMenuProvider` or manual dispatch                    | Typed provider added                                                               |
+| `search.query`                           | `SearchProvider` + `SearchResults`, or manual dispatch      | Typed provider added                                                               |
+| `hooks.invoke`                           | `HookProvider` or manual dispatch                           | Typed provider added                                                               |
+| `toolbar.invoke`                         | `ToolbarProvider` or manual dispatch                        | Typed provider added                                                               |
+| `connection.validate/open/create`        | `ConnectionProvider`, or manual dispatch                    | Typed provider added                                                               |
 | `fs.list/stat/search`                    | `FSProvider::{list,stat,search}` + `FSProvider::operations` | Covered: one trait for connections and views.                                      |
-| `fs.openRead/readStream/closeRead`       | `FSProvider::read` + `FsServer`                              | Covered: SDK owns stream IDs, offsets and close.                                   |
-| `fs.beginWrite/writeStream/commit/abort` | `FSProvider::write` + `FsWrite`                              | Covered: providers return a standard `Write`; the commit callback publishes.       |
-| `fs.mkdir/rename/remove`                 | `FSProvider::{mkdir,rename,remove}`                          | Covered.                                                                           |
-| `fs.writeFile`                           | none                                                                 | Removed in protocol 5; the streaming write path replaces the upload snapshot pull. |
-| `vfs.list/stat/readSmall/search`         | none                                                                 | Removed in protocol 5; standalone views use the same `fs.*` methods.               |
-| `plugin.initialize` capabilities         | `Providers::capabilities` / `serve_declaring`                        | Added: `{"fs":{"operations":[..]}}`, derived from the impl block.                  |
+| `fs.openRead/readStream/closeRead`       | `FSProvider::read` + `FsServer`                             | Covered: SDK owns stream IDs, offsets and close.                                   |
+| `fs.beginWrite/writeStream/commit/abort` | `FSProvider::write` + `FsWrite`                             | Covered: providers return a standard `Write`; the commit callback publishes.       |
+| `fs.mkdir/rename/remove`                 | `FSProvider::{mkdir,rename,remove}`                         | Covered.                                                                           |
+| `fs.writeFile`                           | none                                                        | Removed in protocol 5; the streaming write path replaces the upload snapshot pull. |
+| `vfs.list/stat/readSmall/search`         | none                                                        | Removed in protocol 5; standalone views use the same `fs.*` methods.               |
+| `plugin.initialize` capabilities         | `Providers::capabilities` / `serve_declaring`               | Added: `{"fs":{"operations":[..]}}`, derived from the impl block.                  |
 
 `Providers` is optional; existing plugins continue to use `sdk::serve` with a
 method match. `Providers::serve_with` delegates any unregistered method to the
