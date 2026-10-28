@@ -63,9 +63,9 @@ let text = ctx.files().read_to_string(&target.reference)?;
 below an authorized directory. `ctx.storage()` is a typed, plugin-private store
 with compare-and-set (`get`, `set`, `delete`, `keys`, `update`). `ctx.secrets()`
 uses the system keychain and distinguishes `Denied`, `Unavailable`, missing and
-invalid data instead of collapsing them into `None`. `ctx.terminal(session_id)`
-wraps the six host terminal calls (`ready`, `output`, `input`, `size`, `closed`,
-`end`).
+invalid data instead of collapsing them into `None`. Terminal interfaces belong to PluginView packages. Plugins own
+their session state and expose custom RPC through the UI bridge; the host only
+brokers generic network and permission services.
 
 Optional typed event providers live in `contracts`: `InfoProvider`,
 `PreviewProvider`, `DecorationProvider`, `ContextMenuProvider`,
