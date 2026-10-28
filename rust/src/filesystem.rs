@@ -27,7 +27,7 @@
 //! `mkdir`, `rename`, `remove` or `search`. Core hides or rejects those
 //! operations from the same declaration; per-node restrictions travel in
 //! [`FsEntry::allowed_ops`].
-use crate::{RequestContext, RpcError};
+use crate::{context::StreamSession, RequestContext, RpcError};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::{
@@ -491,10 +491,17 @@ enum Stream {
     Read {
         reader: Box<dyn Read + Send>,
         offset: u64,
+        /// Keeps host handles opened while creating the stream authorized until
+        /// `fs.closeRead`, not just for the `fs.openRead` request. Only its
+        /// `Drop` matters here.
+        #[allow(dead_code)]
+        session: Option<StreamSession>,
     },
     Write {
         write: FsWrite,
         offset: u64,
+        /// Keeps the upload's host handles authorized until `fs.commit`/`abort`.
+        session: Option<StreamSession>,
     },
 }
 
@@ -537,11 +544,9 @@ impl FsServer {
         };
         let value = match ctx.method() {
             "fs.openRead" => {
-                let request = FsRequest::new(ctx, op);
-                require(provider, op)?;
-                let read = match provider.invoke(&request)? {
-                    FsProduct::Read(read) => read,
-                    _ => return Err(RpcError::internal("provider returned a non-read product")),
+                let (product, session) = invoke_stream(provider, ctx, op, "读取文件")?;
+                let FsProduct::Read(read) = product else {
+                    return Err(RpcError::internal("provider returned a non-read product"));
                 };
                 let id = self.mint("read");
                 self.lock()?.insert(
@@ -549,6 +554,7 @@ impl FsServer {
                     Stream::Read {
                         reader: read.reader,
                         offset: 0,
+                        session,
                     },
                 );
                 json!({"streamId": id, "size": read.size})
@@ -564,6 +570,7 @@ impl FsServer {
                 let Stream::Read {
                     reader,
                     offset: cursor,
+                    ..
                 } = streams
                     .get_mut(id)
                     .ok_or_else(|| RpcError::invalid_params("unknown streamId"))?
@@ -581,19 +588,26 @@ impl FsServer {
             }
             "fs.closeRead" => {
                 let id = param_str(ctx, "streamId")?;
-                self.lock()?.remove(id);
+                // Drop the stream outside the registry lock: releasing the
+                // session is a host call.
+                let removed = self.lock()?.remove(id);
+                drop(removed);
                 Value::Null
             }
             "fs.beginWrite" => {
-                let request = FsRequest::new(ctx, op);
-                require(provider, op)?;
-                let write = match provider.invoke(&request)? {
-                    FsProduct::Write(write) => write,
-                    _ => return Err(RpcError::internal("provider returned a non-write product")),
+                let (product, session) = invoke_stream(provider, ctx, op, "写入文件")?;
+                let FsProduct::Write(write) = product else {
+                    return Err(RpcError::internal("provider returned a non-write product"));
                 };
                 let id = self.mint("write");
-                self.lock()?
-                    .insert(id.clone(), Stream::Write { write, offset: 0 });
+                self.lock()?.insert(
+                    id.clone(),
+                    Stream::Write {
+                        write,
+                        offset: 0,
+                        session,
+                    },
+                );
                 json!({"streamId": id})
             }
             "fs.writeStream" => {
@@ -604,6 +618,7 @@ impl FsServer {
                 let Stream::Write {
                     write,
                     offset: written,
+                    ..
                 } = guard
                     .get_mut(&id)
                     .ok_or_else(|| RpcError::invalid_params("unknown streamId"))?
@@ -628,10 +643,12 @@ impl FsServer {
                     .lock()?
                     .remove(&id)
                     .ok_or_else(|| RpcError::invalid_params("unknown streamId"))?;
-                let Stream::Write { write, .. } = stream else {
+                let Stream::Write { write, session, .. } = stream else {
                     return Err(RpcError::invalid_params("stream is not writable"));
                 };
-                match write.commit()? {
+                let committed = write.commit();
+                drop(session);
+                match committed? {
                     Some(entry) => serde_json::to_value(entry)
                         .map_err(|error| RpcError::internal(error.to_string()))?,
                     None => json!({}),
@@ -639,8 +656,10 @@ impl FsServer {
             }
             "fs.abort" => {
                 let id = param_str(ctx, "streamId")?;
-                if let Some(Stream::Write { write, .. }) = self.lock()?.remove(id) {
+                let removed = self.lock()?.remove(id);
+                if let Some(Stream::Write { write, session, .. }) = removed {
                     write.abort();
+                    drop(session);
                 }
                 Value::Null
             }
@@ -674,6 +693,26 @@ fn wire_op(method: &str) -> Option<FsOp> {
     FsOp::ALL
         .into_iter()
         .find(|op| op.methods().contains(&method))
+}
+
+/// Invoke a provider method that opens a stream under a session that outlives
+/// this request, so the later `fs.readStream`/`fs.writeStream`/`fs.commit`
+/// calls keep the host handles the provider opened (HTTP bodies, sockets, file
+/// handles). Falls back to the request session when Core refuses a task.
+fn invoke_stream(
+    provider: &dyn FsDispatch,
+    ctx: &RequestContext,
+    op: FsOp,
+    label: &str,
+) -> Result<(FsProduct, Option<StreamSession>), RpcError> {
+    require(provider, op)?;
+    let session = StreamSession::open(ctx.inner(), label);
+    let derived = session
+        .as_ref()
+        .map(|stream| ctx.derive(stream.context().clone()));
+    let request = FsRequest::new(derived.as_ref().unwrap_or(ctx), op);
+    let product = provider.invoke(&request)?;
+    Ok((product, session))
 }
 
 fn require(provider: &dyn FsDispatch, op: FsOp) -> Result<(), RpcError> {
@@ -959,5 +998,156 @@ mod tests {
             .serve(&ReadOnly, &request("fs.beginWrite", json!({"nodeId": "a"})))
             .unwrap_err();
         assert_eq!(error.data.unwrap()["operation"], "write");
+    }
+
+    /// Host mock that serves one HTTP response and remembers every
+    /// authorization it was called with.
+    struct StreamHost {
+        bytes: Vec<u8>,
+        position: Mutex<usize>,
+        calls: Mutex<Vec<(String, Value)>>,
+    }
+
+    impl StreamHost {
+        fn new(bytes: &[u8]) -> Arc<Self> {
+            Arc::new(Self {
+                bytes: bytes.to_vec(),
+                position: Mutex::new(0),
+                calls: Mutex::new(Vec::new()),
+            })
+        }
+
+        fn calls(&self) -> Vec<(String, Value)> {
+            self.calls.lock().unwrap().clone()
+        }
+
+        fn authorization(&self, method: &str) -> Value {
+            self.calls()
+                .into_iter()
+                .find(|(call, _)| call == method)
+                .map(|(_, params)| params["authorization"].clone())
+                .unwrap_or(Value::Null)
+        }
+    }
+
+    impl HostLink for StreamHost {
+        fn call(&self, method: &str, params: Value) -> Result<Value, RpcError> {
+            self.calls
+                .lock()
+                .unwrap()
+                .push((method.to_string(), params.clone()));
+            match method {
+                "host.task.start" => Ok(Value::Null),
+                "host.task.finish" => Ok(Value::Null),
+                "host.net.http.open" => Ok(json!({"stream":"s","status":200,"headers":{}})),
+                "host.net.http.read" => {
+                    let size = params["size"].as_u64().unwrap_or(0) as usize;
+                    let mut position = self.position.lock().unwrap();
+                    let end = (*position + size).min(self.bytes.len());
+                    let chunk = &self.bytes[*position..end];
+                    *position = end;
+                    use base64::{engine::general_purpose::STANDARD, Engine};
+                    Ok(json!({"base64": STANDARD.encode(chunk), "size": chunk.len()}))
+                }
+                "host.net.http.close" => Ok(Value::Null),
+                other => Err(RpcError::method_not_found(other)),
+            }
+        }
+
+        fn closed(&self) -> bool {
+            false
+        }
+    }
+
+    /// Streams a host HTTP response, the way WebDAV/Drive/OpenList do.
+    struct Http;
+
+    #[crate::filesystem]
+    impl FileSystemProvider for Http {
+        fn read(&self, request: &FsRequest<'_>) -> Result<FsRead, RpcError> {
+            let response = request
+                .ctx()
+                .http()
+                .get("https://example.com/file")
+                .send()
+                .map_err(|error| RpcError::internal(error.to_string()))?;
+            Ok(FsRead::new(response, None))
+        }
+    }
+
+    fn session_request(link: Arc<StreamHost>, method: &str, params: Value) -> RequestContext {
+        RequestContext::new(
+            ContextInner::new(
+                link,
+                Arc::new(TaskManager::new(4)),
+                Session::Operation(7),
+                Arc::new(AtomicBool::new(false)),
+            ),
+            method.into(),
+            params,
+        )
+    }
+
+    #[test]
+    fn http_backed_streams_keep_their_handles_across_requests() {
+        let host = StreamHost::new(b"abcdef");
+        let server = FsServer::new();
+        let opened = server
+            .serve(
+                &Http,
+                &session_request(host.clone(), "fs.openRead", json!({"nodeId": "f"})),
+            )
+            .unwrap()
+            .unwrap();
+        let id = opened["streamId"].as_str().unwrap().to_string();
+        // Default chunking splits the body, so the second chunk is read by a
+        // later request exactly like Core does.
+        let first = server
+            .serve(
+                &Http,
+                &session_request(
+                    host.clone(),
+                    "fs.readStream",
+                    json!({"streamId": id, "offset": 0, "maxBytes": 3}),
+                ),
+            )
+            .unwrap()
+            .unwrap();
+        let second = server
+            .serve(
+                &Http,
+                &session_request(
+                    host.clone(),
+                    "fs.readStream",
+                    json!({"streamId": id, "offset": 3, "maxBytes": 3}),
+                ),
+            )
+            .unwrap()
+            .unwrap();
+        assert_eq!(first["base64"], "YWJj");
+        assert_eq!(second["base64"], "ZGVm");
+
+        // The provider's handle calls run under the stream's own task, not the
+        // already-finished `fs.openRead` request.
+        let open = host.authorization("host.net.http.open");
+        let read = host.authorization("host.net.http.read");
+        let task = open["taskId"].as_str().expect("stream task id");
+        assert_eq!(read["taskId"], task);
+        assert!(open.get("operationId").is_none());
+
+        server
+            .serve(
+                &Http,
+                &session_request(host.clone(), "fs.closeRead", json!({"streamId": id})),
+            )
+            .unwrap()
+            .unwrap();
+        let finish = host
+            .calls()
+            .into_iter()
+            .find(|(call, _)| call == "host.task.finish")
+            .expect("stream task finished");
+        assert_eq!(finish.1["taskId"], task);
+        assert_eq!(finish.1["status"], "completed");
     }
 }

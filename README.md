@@ -178,6 +178,7 @@ Connection-specific fs.* provider requests are Core-only and require an installe
 Ordinary VFS registration does not grant sync, pin, eviction, conflict, or cache control. Generic files/HTTP/TCP remain subject to their existing operation/network grants.
 These are application navigation URIs, not OS mounts. Connection files stream to Core-managed cache files before external opening.
 Standalone views stream through the same `fs.openRead/readStream/closeRead` contract, so exports and previews are no longer limited to 1 MiB.
+Core authorizes every host call with the request that makes it and revokes that authorization when the request returns, so the SDK serves each stream under its own internal background task; the HTTP response bodies, sockets and file handles a provider opens while the stream is created stay valid for `fs.readStream`/`fs.writeStream` and `fs.commit`, and are released when the stream closes.
 
 ## TCP split and half-close
 
