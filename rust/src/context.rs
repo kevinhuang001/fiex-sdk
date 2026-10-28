@@ -11,7 +11,10 @@ use crate::{
 };
 use base64::{engine::general_purpose::STANDARD, Engine};
 use serde_json::{json, Map, Value};
-use std::sync::{atomic::AtomicBool, Arc};
+use std::sync::{
+    atomic::{AtomicBool, AtomicU64, Ordering},
+    Arc,
+};
 
 /// Shared internals of a request or task context.
 #[derive(Clone)]
@@ -97,6 +100,64 @@ impl ContextInner {
     }
 }
 
+/// Authorization that outlives one request, used by file streams.
+///
+/// Core authorizes every host call with the request that makes it and revokes
+/// that authorization as soon as the request returns. A provider's read stream
+/// may be backed by host resources (an HTTP response body, a TCP socket, a file
+/// handle), and Core pulls those streams with `vfs.readStream` and finishes them
+/// with `vfs.commit` in *later* requests, so a stream created under the
+/// `vfs.openRead`/`vfs.beginWrite` request would lose its host handles between
+/// chunks. The SDK therefore creates each stream under a private background
+/// task: Core keeps a task's authorization and handles until the task finishes,
+/// which happens when the stream is closed.
+pub(crate) struct StreamSession {
+    id: String,
+    context: ContextInner,
+}
+
+static STREAMS: AtomicU64 = AtomicU64::new(0);
+
+impl StreamSession {
+    /// Start a session for one stream. `None` when Core refuses (for example at
+    /// its background-task limit); the caller then keeps the request session,
+    /// which still serves providers whose streams hold no host resources.
+    pub(crate) fn open(parent: &ContextInner, label: &str) -> Option<Self> {
+        if parent.closed() {
+            return None;
+        }
+        let id = format!(
+            "stream-{}-{}",
+            std::process::id(),
+            STREAMS.fetch_add(1, Ordering::Relaxed) + 1
+        );
+        parent
+            .call(
+                "host.task.start",
+                json!({"taskId": id, "label": label, "internal": true}),
+            )
+            .ok()?;
+        let context = parent.fork(Session::Task(id.clone()), Arc::new(AtomicBool::new(false)));
+        Some(Self { id, context })
+    }
+
+    pub(crate) fn context(&self) -> &ContextInner {
+        &self.context
+    }
+}
+
+impl Drop for StreamSession {
+    fn drop(&mut self) {
+        if self.context.closed() {
+            return;
+        }
+        let _ = self.context.call(
+            "host.task.finish",
+            json!({"taskId": self.id, "status": "completed"}),
+        );
+    }
+}
+
 /// Convert host failures into ordinary I/O errors. Authorization expiry has a
 /// stable, explicit message so plugins can surface it to the user.
 pub(crate) fn rpc_to_io(error: RpcError) -> std::io::Error {
@@ -171,6 +232,22 @@ impl RequestContext {
             targets,
             locale: crate::i18n::current_locale(),
         }
+    }
+
+    /// The method and payload stay identical; only the authorization changes.
+    /// The SDK uses it to serve a stream under a longer-lived session.
+    pub(crate) fn derive(&self, inner: ContextInner) -> Self {
+        Self {
+            inner,
+            method: self.method.clone(),
+            params: self.params.clone(),
+            targets: self.targets.clone(),
+            locale: self.locale,
+        }
+    }
+
+    pub(crate) fn inner(&self) -> &ContextInner {
+        &self.inner
     }
 
     /// Language captured for this request, separate from business parameters.
@@ -268,6 +345,9 @@ impl RequestContext {
         process_run(&self.inner, command, args, stdin)
     }
 
+    pub fn oauth(&self) -> crate::OAuth {
+        crate::OAuth::new(self.inner.clone())
+    }
     pub fn storage(&self) -> crate::Storage {
         crate::Storage::new(self.inner.clone())
     }
@@ -393,6 +473,9 @@ impl TaskContext {
         process_run(&self.inner, command, args, stdin)
     }
 
+    pub fn oauth(&self) -> crate::OAuth {
+        crate::OAuth::new(self.inner.clone())
+    }
     pub fn storage(&self) -> crate::Storage {
         crate::Storage::new(self.inner.clone())
     }

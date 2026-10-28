@@ -5,7 +5,7 @@
 //! fallback handler. Provider implementations stay optional and composable;
 //! nothing forces a plugin to implement events it does not own.
 use crate::{
-    filesystem::{FileSystemProvider, FsDispatch, FsServer},
+    filesystem::{FSProvider, FsServer},
     InfoSection, PreviewView, RequestContext, RpcError,
 };
 use serde_json::{json, Value};
@@ -33,6 +33,13 @@ pub trait ContextMenuProvider: Send + Sync {
     fn execute(&self, ctx: &RequestContext) -> Result<Value, RpcError>;
 }
 
+/// `connectionContextMenu.resolve` / `.execute`: flat actions for one saved
+/// connection. The request carries a credential-free connection summary.
+pub trait ConnectionContextMenuProvider: Send + Sync {
+    fn resolve(&self, ctx: &RequestContext) -> Result<Vec<Value>, RpcError>;
+    fn execute(&self, ctx: &RequestContext) -> Result<Value, RpcError>;
+}
+
 /// `search.query`: local entries are paths relative to the authorized root;
 /// standalone VFS providers return the same entry shape as `vfs.search`.
 #[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
@@ -56,8 +63,32 @@ pub trait ToolbarProvider: Send + Sync {
     fn invoke(&self, ctx: &RequestContext) -> Result<Value, RpcError>;
 }
 
+/// Credentials returned to Core during validation are persisted in the selected
+/// credential backend and excluded from connection config responses to the UI.
+#[derive(serde::Serialize)]
+pub struct ConnectionValidation {
+    pub valid: bool,
+    #[serde(skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub credentials: std::collections::BTreeMap<String, String>,
+}
+impl ConnectionValidation {
+    pub fn valid() -> Self {
+        Self {
+            valid: true,
+            credentials: Default::default(),
+        }
+    }
+    pub fn credential(mut self, name: impl Into<String>, value: impl Into<String>) -> Self {
+        self.credentials.insert(name.into(), value.into());
+        self
+    }
+    pub fn into_value(self) -> Value {
+        json!(self)
+    }
+}
+
 /// Connection lifecycle: validation plus the navigation target a connection
-/// opens. File-system work lives in [`crate::filesystem::FileSystemProvider`],
+/// opens. File-system work lives in [`crate::filesystem::FSProvider`],
 /// which connections and standalone views share.
 pub trait ConnectionProvider: Send + Sync {
     fn validate(&self, ctx: &RequestContext) -> Result<Value, RpcError> {
@@ -80,7 +111,7 @@ fn unsupported(ctx: &RequestContext) -> RpcError {
 /// handler, so custom RPC keeps working unchanged.
 /// One registered file-system provider plus its stream registry.
 struct FsProvider {
-    dispatch: Box<dyn FsDispatch>,
+    dispatch: Box<dyn FSProvider>,
     server: FsServer,
 }
 
@@ -91,6 +122,7 @@ pub struct Providers {
     preview: Option<Box<dyn PreviewProvider>>,
     decorations: Option<Box<dyn DecorationProvider>>,
     context_menu: Option<Box<dyn ContextMenuProvider>>,
+    connection_context_menu: Option<Box<dyn ConnectionContextMenuProvider>>,
     search: Option<Box<dyn SearchProvider>>,
     hooks: Option<Box<dyn HookProvider>>,
     toolbar: Option<Box<dyn ToolbarProvider>>,
@@ -117,6 +149,13 @@ impl Providers {
         self.context_menu = Some(Box::new(provider));
         self
     }
+    pub fn connection_context_menu(
+        mut self,
+        provider: impl ConnectionContextMenuProvider + 'static,
+    ) -> Self {
+        self.connection_context_menu = Some(Box::new(provider));
+        self
+    }
     pub fn search(mut self, provider: impl SearchProvider + 'static) -> Self {
         self.search = Some(Box::new(provider));
         self
@@ -133,11 +172,11 @@ impl Providers {
         self.connection = Some(Box::new(provider));
         self
     }
-    /// Register a file-system provider. The generated dispatcher decides which
-    /// `fs.*` methods exist, so Core only ever offers the advertised ones.
+    /// Register an explicit FSProvider. Its declared ceiling and per-resource
+    /// discovery control which `vfs.*` operations can be dispatched.
     pub fn filesystem<P>(mut self, provider: P) -> Self
     where
-        P: FileSystemProvider + FsDispatch + 'static,
+        P: FSProvider + 'static,
     {
         self.filesystem = Some(FsProvider {
             dispatch: Box::new(provider),
@@ -216,6 +255,19 @@ impl Providers {
             }
             "contextMenu.execute" => self
                 .context_menu
+                .as_ref()
+                .ok_or_else(|| unsupported(ctx))?
+                .execute(ctx)?,
+            "connectionContextMenu.resolve" => {
+                let items = self
+                    .connection_context_menu
+                    .as_ref()
+                    .ok_or_else(|| unsupported(ctx))?
+                    .resolve(ctx)?;
+                json!({"items":items})
+            }
+            "connectionContextMenu.execute" => self
+                .connection_context_menu
                 .as_ref()
                 .ok_or_else(|| unsupported(ctx))?
                 .execute(ctx)?,

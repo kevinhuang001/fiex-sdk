@@ -48,7 +48,7 @@ Pin the SDK with a Git submodule when developing a plugin so that your SDK versi
 
 ## Protocol 5.0: refs, typed services and providers
 
-Protocol 5.0 unifies every provider file access behind `fs.*` and removes host
+Protocol 5.0 unifies every provider file access behind `vfs.*` and removes host
 paths from the public plugin API. `ResourceRef` is an
 opaque `{mountId, nodeId}` identity; Core resolves it only inside the operation
 scope. `ctx.targets()` contains the selected resources and their optional
@@ -62,15 +62,16 @@ let text = ctx.files().read_to_string(&target.reference)?;
 `ctx.files().child(&directory.reference, "output.zip")` reserves a new identity
 below an authorized directory. `ctx.storage()` is a typed, plugin-private store
 with compare-and-set (`get`, `set`, `delete`, `keys`, `update`). `ctx.secrets()`
-uses the system keychain and distinguishes `Denied`, `Unavailable`, missing and
+uses the Core-selected credential backend (local by default, optional OS keyring) and distinguishes `Denied`, `Unavailable`, missing and
 invalid data instead of collapsing them into `None`. Terminal interfaces belong to PluginView packages. Plugins own
 their session state and expose custom RPC through the UI bridge; the host only
 brokers generic network and permission services.
 
 Optional typed event providers live in `contracts`: `InfoProvider`,
 `PreviewProvider`, `DecorationProvider`, `ContextMenuProvider`,
+`ConnectionContextMenuProvider`,
 `SearchProvider`, `HookProvider`, `ToolbarProvider` and `ConnectionProvider`
-(lifecycle only). File-system access is one `FileSystemProvider` trait for
+(lifecycle only). File-system access is one `FSProvider` trait for
 connections and standalone views alike. Register only what the plugin
 implements; custom RPC still goes through the fallback:
 
@@ -84,14 +85,15 @@ sdk::Providers::new()
 
 ## File-system providers
 
-Implement the methods you really support and annotate the impl block:
+Implement the methods you really support and declare the operation ceiling explicitly:
 
 ```rust,ignore
 use fiex_plugin_sdk as sdk;
-use sdk::filesystem::{FileSystemProvider, FsEntry, FsListing, FsRead, FsWrite};
+use sdk::filesystem::{FSProvider, FsEntry, FsListing, FsRead, FsWrite};
 
-#[sdk::filesystem]
-impl FileSystemProvider for MyDrive {
+impl FSProvider for MyDrive {
+    fn operations(&self) -> &'static [sdk::filesystem::FsOp] { &[sdk::filesystem::FsOp::List, sdk::filesystem::FsOp::Read, sdk::filesystem::FsOp::Write] }
+
     fn list(&self, request: &sdk::filesystem::FsRequest<'_>) -> Result<FsListing, sdk::RpcError> {
         // request.node_id(), request.cursor(), request.limit()
         Ok(FsListing::default())
@@ -109,13 +111,12 @@ impl FileSystemProvider for MyDrive {
 }
 ```
 
-The attribute macro records exactly the methods written in the block as the
-plugin's capability set and generates the `fs.*` dispatcher. Methods inherited
-from the trait's `unsupported` default are never advertised, so Core will not
-offer `rename` or `remove` to a read-only provider. `plugin.initialize`
-automatically replies with `{"fs":{"operations":[...]}}`; Core stores the
-declaration and rejects undeclared operations before they reach the plugin.
-Nodes can narrow the set further with `FsEntry::allowing([..])`.
+The required `operations()` method explicitly declares the implementation ceiling.
+Override `discover(ctx)` to narrow it to the server permissions of the current
+connection and resource. The SDK owns ordinary dispatch without procedural macros.
+`plugin.initialize` reports `vfs: {operations: [...], discovery: true}`; Core and SDK
+reject operations outside the reported intersection. Nodes may narrow the set
+further with `FsEntry::allowing([..])`. See [the discovery contract](docs/fs-provider-discovery.md).
 
 The SDK owns stream ids, chunk offsets, `closeRead`, sequential write offsets
 and `commit`/`abort`; providers only return standard `Read`/`Write` values.
@@ -171,13 +172,14 @@ UI extensions never confer provider eligibility. `scheme`, `schemes`, `uriPrefix
 
 Within a selected-resource request, call `ctx.open_vfs_view("history", selected_root, immutable_context)`.
 Core authenticates the process identity, contribution ownership, and resource scope, and returns a `fiex://mount/<id>/` navigation URI.
-The plugin must not construct URIs. Core sends contributionId/viewContext/mountId/nodeId with the same `fs.*` methods a connection uses; return opaque nodeId plus entry metadata, and relativePath for search. Root nodeId is empty.
+The plugin must not construct URIs. Core sends contributionId/viewContext/mountId/nodeId with the same `vfs.*` methods a connection uses; return opaque nodeId plus entry metadata, and relativePath for search. Root nodeId is empty.
 Core binds returned entries to its mount and retains only explicitly saved small view descriptors across restarts.
 
-Connection-specific fs.* provider requests are Core-only and require an installed, active connection factory bound to that instance.
+Connection-specific vfs.* provider requests are Core-only and require an installed, active connection factory bound to that instance.
 Ordinary VFS registration does not grant sync, pin, eviction, conflict, or cache control. Generic files/HTTP/TCP remain subject to their existing operation/network grants.
 These are application navigation URIs, not OS mounts. Connection files stream to Core-managed cache files before external opening.
-Standalone views stream through the same `fs.openRead/readStream/closeRead` contract, so exports and previews are no longer limited to 1 MiB.
+Standalone views stream through the same `vfs.openRead/readStream/closeRead` contract, so exports and previews are no longer limited to 1 MiB.
+Core authorizes every host call with the request that makes it and revokes that authorization when the request returns, so the SDK serves each stream under its own internal background task; the HTTP response bodies, sockets and file handles a provider opens while the stream is created stay valid for `vfs.readStream`/`vfs.writeStream` and `vfs.commit`, and are released when the stream closes.
 
 ## TCP split and half-close
 

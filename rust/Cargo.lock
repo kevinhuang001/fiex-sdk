@@ -44,23 +44,13 @@ checksum = "4e7648175b45a9a48536d676f68d918270699102aa8dab5496df06904c914600"
 
 [[package]]
 name = "fiex-plugin-sdk"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "base64",
- "fiex-plugin-sdk-macros",
  "serde",
  "serde_json",
  "shared_memory",
  "tokio",
-]
-
-[[package]]
-name = "fiex-plugin-sdk-macros"
-version = "0.1.0"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.119",
 ]
 
 [[package]]

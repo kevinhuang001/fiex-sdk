@@ -71,3 +71,82 @@ mod tests {
         }
     }
 }
+
+/// Source-key catalogs shared by native plugins. Missing entries fall back to source.
+#[derive(Default)]
+pub struct Catalog {
+    english: std::collections::BTreeMap<String, String>,
+    traditional: std::collections::BTreeMap<String, String>,
+}
+impl Catalog {
+    pub fn from_json(english: &str, traditional: &str) -> Result<Self, serde_json::Error> {
+        Ok(Self {
+            english: serde_json::from_str(english)?,
+            traditional: serde_json::from_str(traditional)?,
+        })
+    }
+
+    pub fn t<'a>(&'a self, source: &'a str) -> &'a str {
+        let catalog = match current_locale() {
+            Locale::English => &self.english,
+            Locale::TraditionalChinese => &self.traditional,
+            Locale::SimplifiedChinese => return source,
+        };
+        catalog.get(source).map(String::as_str).unwrap_or(source)
+    }
+}
+
+/// Substitute named or numbered slots once, preserving braces in user data.
+pub fn format(template: &str, values: &[(&str, String)]) -> String {
+    let mut rest = template;
+    let mut output = String::new();
+    while let Some(start) = rest.find('{') {
+        output.push_str(&rest[..start]);
+        let Some(end) = rest[start..].find('}').map(|end| start + end) else {
+            output.push_str(&rest[start..]);
+            return output;
+        };
+        let name = &rest[start + 1..end];
+        if let Some((_, value)) = values.iter().find(|(key, _)| *key == name) {
+            output.push_str(value);
+        } else {
+            output.push_str(&rest[start..=end]);
+        }
+        rest = &rest[end + 1..];
+    }
+    output.push_str(rest);
+    output
+}
+
+#[cfg(test)]
+mod catalog_tests {
+    use super::*;
+
+    #[test]
+    fn source_fallback_and_request_scoped_catalogs() {
+        let catalog =
+            Catalog::from_json(r#"{"打开 {0}":"Open {0}"}"#, r#"{"打开 {0}":"開啟 {0}"}"#).unwrap();
+        for (locale, expected) in [
+            (Locale::SimplifiedChinese, "打开 {0}"),
+            (Locale::TraditionalChinese, "開啟 {0}"),
+            (Locale::English, "Open {0}"),
+        ] {
+            with_locale(locale, || {
+                assert_eq!(catalog.t("打开 {0}"), expected);
+                assert_eq!(catalog.t("missing"), "missing");
+            });
+        }
+    }
+
+    #[test]
+    fn interpolation_does_not_reinterpret_user_values() {
+        assert_eq!(
+            format(
+                "To {1} from {0}",
+                &[("0", "中文{1}.txt".into()), ("1", "B".into())]
+            ),
+            "To B from 中文{1}.txt"
+        );
+        assert_eq!(format("{unknown} {", &[]), "{unknown} {");
+    }
+}

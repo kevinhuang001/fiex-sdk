@@ -21,6 +21,7 @@ pub mod filesystem;
 pub mod http;
 pub mod i18n;
 pub mod ipc;
+pub mod oauth;
 mod providers;
 mod runtime;
 pub mod secrets;
@@ -33,13 +34,15 @@ pub use contracts::{
     EventContext, InfoRow, InfoSection, PackageView, PreviewView, ResourceContext,
     ResourceMetadata, ResourceRef,
 };
-pub use fiex_plugin_sdk_macros::filesystem;
+
 pub use files::{FileReader, FileWriter, Files};
 pub use http::{HttpClient, Request, Response, StreamingBody};
 pub use ipc::{Entry, ProcessResult};
+pub use oauth::{AuthorizationCode, OAuth, OAuthRequest};
 pub use providers::{
-    ConnectionProvider, ContextMenuProvider, DecorationProvider, HookProvider, InfoProvider,
-    PreviewProvider, Providers, SearchProvider, SearchResults, ToolbarProvider,
+    ConnectionContextMenuProvider, ConnectionProvider, ConnectionValidation, ContextMenuProvider,
+    DecorationProvider, HookProvider, InfoProvider, PreviewProvider, Providers, SearchProvider,
+    SearchResults, ToolbarProvider,
 };
 pub use secrets::{SecretError, Secrets};
 pub use storage::Storage;
