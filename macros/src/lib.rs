@@ -32,7 +32,10 @@ pub fn filesystem(_attribute: TokenStream, item: TokenStream) -> TokenStream {
 
 fn expand(block: ItemImpl) -> syn::Result<proc_macro2::TokenStream> {
     if let Some((_, path, _)) = &block.trait_ {
-        let implemented = path.segments.last().map(|segment| segment.ident.to_string());
+        let implemented = path
+            .segments
+            .last()
+            .map(|segment| segment.ident.to_string());
         if implemented.as_deref() != Some("FileSystemProvider") {
             return Err(syn::Error::new(
                 path.span(),

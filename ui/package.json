@@ -1,6 +1,6 @@
 {
   "name": "@fiex/ui-sdk",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "description": "Browser-side SDK for sandboxed Fiex plugin panels",
   "main": "./dist/index.js",

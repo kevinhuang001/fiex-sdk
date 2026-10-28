@@ -1,10 +1,5 @@
-# Fiex SDK 0.1.0
+# Fiex SDK 0.1.1
 
-First standalone SDK release for Fiex Core 0.7.4 and plugin protocol 5.0.
+Terminal interfaces now belong to plugin-owned PluginViews. Removed the unused host-terminal Rust bridge and its request/task helpers. Plugins use custom UI RPC for session state and generic SDK TCP services for transport.
 
-- Rust Providers registry and typed Info, Preview, Decoration, ContextMenu, Search, Hook, Toolbar, Connection and filesystem traits.
-- Ref-only file services, scoped resource metadata, Storage/Secrets and host-controlled process/network services.
-- Standard synchronous IO and optional Tokio AsyncRead/AsyncWrite adapters.
-- UI SDK navigation, clipboard, locale, terminal, preview and task helpers.
-
-The source ZIP includes the Rust SDK and procedural macros together. The UI tarball includes compiled JavaScript and TypeScript declarations. SHA256SUMS covers both files. Packages are distributed on GitHub; this release does not publish to crates.io or npm.
+Typed Providers, scoped resource references and the optional Tokio adapter remain the supported plugin interfaces. The source ZIP includes the Rust SDK and procedural macros; the UI tarball includes JavaScript and TypeScript declarations.

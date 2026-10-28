@@ -27,7 +27,6 @@ pub mod secrets;
 pub mod storage;
 pub mod tasks;
 pub mod tcp;
-mod terminal;
 
 pub use context::{RequestContext, TaskContext};
 pub use contracts::{
@@ -46,7 +45,6 @@ pub use secrets::{SecretError, Secrets};
 pub use storage::Storage;
 pub use tasks::{TaskHandle, TaskStatus};
 pub use tcp::{TcpClient, TcpReadHalf, TcpStream, TcpWriteHalf};
-pub use terminal::{Terminal, TerminalInput, TerminalSize};
 
 pub const PROTOCOL_VERSION: &str = "5.0";
 pub const MAX_FRAME: usize = 4 * 1024 * 1024;
