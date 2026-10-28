@@ -38,10 +38,10 @@ adds a method, and delete the row when a method is removed.
 | `hooks.invoke`                           | `HookProvider` or manual dispatch                                    | Typed provider added                                                               |
 | `toolbar.invoke`                         | `ToolbarProvider` or manual dispatch                                 | Typed provider added                                                               |
 | `connection.validate/open/create`        | `ConnectionProvider`, or manual dispatch                             | Typed provider added                                                               |
-| `fs.list/stat/search`                    | `FileSystemProvider::{list,stat,search}` + `#[fiex_sdk::filesystem]` | Covered: one trait for connections and views.                                      |
-| `fs.openRead/readStream/closeRead`       | `FileSystemProvider::read` + `FsServer`                              | Covered: SDK owns stream IDs, offsets and close.                                   |
-| `fs.beginWrite/writeStream/commit/abort` | `FileSystemProvider::write` + `FsWrite`                              | Covered: providers return a standard `Write`; the commit callback publishes.       |
-| `fs.mkdir/rename/remove`                 | `FileSystemProvider::{mkdir,rename,remove}`                          | Covered.                                                                           |
+| `fs.list/stat/search`                    | `FSProvider::{list,stat,search}` + `FSProvider::operations` | Covered: one trait for connections and views.                                      |
+| `fs.openRead/readStream/closeRead`       | `FSProvider::read` + `FsServer`                              | Covered: SDK owns stream IDs, offsets and close.                                   |
+| `fs.beginWrite/writeStream/commit/abort` | `FSProvider::write` + `FsWrite`                              | Covered: providers return a standard `Write`; the commit callback publishes.       |
+| `fs.mkdir/rename/remove`                 | `FSProvider::{mkdir,rename,remove}`                          | Covered.                                                                           |
 | `fs.writeFile`                           | none                                                                 | Removed in protocol 5; the streaming write path replaces the upload snapshot pull. |
 | `vfs.list/stat/readSmall/search`         | none                                                                 | Removed in protocol 5; standalone views use the same `fs.*` methods.               |
 | `plugin.initialize` capabilities         | `Providers::capabilities` / `serve_declaring`                        | Added: `{"fs":{"operations":[..]}}`, derived from the impl block.                  |

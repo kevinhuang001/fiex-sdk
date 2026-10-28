@@ -345,6 +345,9 @@ impl RequestContext {
         process_run(&self.inner, command, args, stdin)
     }
 
+    pub fn oauth(&self) -> crate::OAuth {
+        crate::OAuth::new(self.inner.clone())
+    }
     pub fn storage(&self) -> crate::Storage {
         crate::Storage::new(self.inner.clone())
     }
@@ -470,6 +473,9 @@ impl TaskContext {
         process_run(&self.inner, command, args, stdin)
     }
 
+    pub fn oauth(&self) -> crate::OAuth {
+        crate::OAuth::new(self.inner.clone())
+    }
     pub fn storage(&self) -> crate::Storage {
         crate::Storage::new(self.inner.clone())
     }

@@ -1,4 +1,4 @@
-//! System-keychain service. Missing credentials are `Ok(None)`; denied access
+//! Host-selected credential service (local by default, optional OS keyring). Missing credentials are `Ok(None)`; denied access
 //! and an unavailable keychain are distinct typed errors. No secret is logged.
 use crate::{context::ContextInner, RpcError};
 use serde::{de::DeserializeOwned, Serialize};

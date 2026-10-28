@@ -47,6 +47,14 @@ impl Dispatcher {
                         .clamp(1, 86_400_000)
                         + 5_000,
                 )
+            } else if method == "host.oauth.authorize" {
+                Duration::from_millis(
+                    params["timeoutMs"]
+                        .as_u64()
+                        .unwrap_or(300_000)
+                        .clamp(1_000, 600_000)
+                        + 5_000,
+                )
             } else if method.starts_with("host.net.tcp.") {
                 if let Some(deadline) = params["deadlineMs"].as_u64() {
                     let now = std::time::SystemTime::now()

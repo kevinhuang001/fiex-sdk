@@ -108,6 +108,16 @@ impl HostLink for Mock {
             state.tcp_deadlines.push(params["deadlineMs"].clone());
         }
         match method {
+            "host.oauth.authorize" => {
+                assert_eq!(params["clientId"], "user-owned-client");
+                assert_eq!(
+                    params["authorizationEndpoint"],
+                    "https://accounts.google.com/o/oauth2/v2/auth"
+                );
+                Ok(
+                    json!({"code":"one-use","redirectUri":"http://127.0.0.1:1234/oauth/callback","codeVerifier":"verifier"}),
+                )
+            }
             "host.storage.get" => {
                 let value = state.storage.get(params["key"].as_str().unwrap()).cloned();
                 Ok(json!({"found":value.is_some(),"value":value}))
@@ -816,3 +826,24 @@ fn locale_is_request_local_and_inherited_by_background_work() {
 
 #[path = "service_tests.rs"]
 mod service_tests;
+
+#[test]
+fn browser_oauth_uses_the_authenticated_host_service() {
+    let mock = Arc::new(Mock::new());
+    let ctx = RequestContext::new(
+        context(mock.clone()),
+        "connection.validate".into(),
+        json!({}),
+    );
+    let request = crate::OAuthRequest::new(
+        "https://accounts.google.com/o/oauth2/v2/auth",
+        "user-owned-client",
+        vec!["drive".into()],
+    );
+    let code = ctx.oauth().authorize(&request).unwrap();
+    assert_eq!(code.code, "one-use");
+    assert_eq!(code.code_verifier, "verifier");
+    let state = mock.state.lock().unwrap();
+    assert_eq!(state.calls, vec!["host.oauth.authorize"]);
+    assert!(state.authorizations.iter().all(|value| !value.is_null()));
+}
