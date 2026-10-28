@@ -1,5 +1,16 @@
-# Fiex SDK 0.1.1
+# Fiex Rust SDK 0.3.0 — protocol 6
 
-Terminal interfaces now belong to plugin-owned PluginViews. Removed the unused host-terminal Rust bridge and its request/task helpers. Plugins use custom UI RPC for session state and generic SDK TCP services for transport.
+Feature providers use typed, ResourceRef-only `Files` calls over `fs.*`. Storage
+providers implement `VfsProvider`, advertise `FsOperation` and narrow operations
+through discovery; Core invokes them over `vfs.*`. Protocol mismatches fail closed.
+No legacy host filesystem or host terminal API is retained.
 
-Typed Providers, scoped resource references and the optional Tokio adapter remain the supported plugin interfaces. The source ZIP includes the Rust SDK and procedural macros; the UI tarball includes JavaScript and TypeScript declarations.
+Readers and writers use bounded IPC/shared windows, operation-owned handles,
+seek and explicit commit/abort. Readers reject premature EOF rather than silently
+returning a truncated checksum or archive. Content beyond the opened snapshot
+length is not returned.
+
+This release packages Rust SDK 0.3.0 with the unchanged browser UI SDK 0.1.1.
+Release tags follow the Rust package version so the earlier UI tag cannot suppress
+publication of a new native protocol. PluginViews own their UI and business RPC;
+Core supplies generic file, network, process, OAuth, storage and secret services.
