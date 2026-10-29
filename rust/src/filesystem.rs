@@ -57,6 +57,31 @@ pub enum FsOperation {
     Search,
 }
 
+/// Independent modes under the single `vfs.search` RPC.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum SearchMode {
+    Name,
+    Content,
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchCapabilities {
+    #[serde(default)]
+    pub name: bool,
+    #[serde(default)]
+    pub content: bool,
+}
+impl SearchCapabilities {
+    pub fn supports(&self, mode: SearchMode) -> bool {
+        match mode {
+            SearchMode::Name => self.name,
+            SearchMode::Content => self.content,
+        }
+    }
+}
+
 impl FsOperation {
     pub const ALL: [FsOperation; 8] = [
         FsOperation::List,
@@ -341,6 +366,12 @@ impl<'a> FsRequest<'a> {
         self.params.get("query").and_then(Value::as_str)
     }
 
+    pub fn search_mode(&self) -> Result<SearchMode, RpcError> {
+        serde_json::from_value(self.params.get("mode").cloned().ok_or_else(||
+            RpcError::invalid_params("search mode is required"))?)
+            .map_err(|_| RpcError::invalid_params("search mode must be name or content"))
+    }
+
     /// Mount identity, when Core assigned one.
     pub fn mount_id(&self) -> Option<&str> {
         self.params.get("mountId").and_then(Value::as_str)
@@ -449,6 +480,12 @@ fn unsupported(op: FsOperation) -> RpcError {
 /// unknown permissions should return an empty set, never optimistic writes.
 pub trait VfsProvider: Send + Sync {
     fn operations(&self) -> &'static [FsOperation];
+
+    /// Advertise only modes whose native semantics are actually implemented.
+    /// An operation ceiling alone never implies support for both modes.
+    fn search_capabilities(&self, _ctx: &RequestContext) -> SearchCapabilities {
+        SearchCapabilities::default()
+    }
 
     /// Server permissions for this connection/node. SDK intersects this result
     /// with `operations`; discovery can never widen the implementation ceiling.
@@ -581,7 +618,13 @@ impl FsServer {
         ctx: &RequestContext,
     ) -> Result<Option<Value>, RpcError> {
         if ctx.method() == "vfs.discover" {
-            return Ok(Some(json!({"operations": discover(provider, ctx)?})));
+            let operations = discover(provider, ctx)?;
+            let search = if operations.contains(&FsOperation::Search) {
+                provider.search_capabilities(ctx)
+            } else {
+                SearchCapabilities::default()
+            };
+            return Ok(Some(json!({"operations": operations, "search": search})));
         }
         let Some(op) = wire_op(ctx.method()) else {
             return Ok(None);
@@ -710,6 +753,11 @@ impl FsServer {
             _ => {
                 let request = FsRequest::new(ctx, op);
                 let available = require(provider, ctx, op)?;
+                if op == FsOperation::Search
+                    && !provider.search_capabilities(ctx).supports(request.search_mode()?)
+                {
+                    return Err(unsupported(FsOperation::Search));
+                }
                 match invoke(provider, &request)? {
                     FsProduct::Entry(mut entry) => {
                         narrow_entry(&available, &mut entry);

@@ -47,9 +47,16 @@ pub struct SearchResults {
     pub entries: Vec<Value>,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub truncated: bool,
+    #[serde(default, rename = "nextCursor", skip_serializing_if = "Option::is_none")]
+    pub next_cursor: Option<String>,
 }
 
 pub trait SearchProvider: Send + Sync {
+    /// A local search provider can advertise one or both modes. Core filters
+    /// candidates before calling; this check also protects direct RPC calls.
+    fn supports(&self, mode: crate::filesystem::SearchMode) -> bool {
+        mode == crate::filesystem::SearchMode::Name
+    }
     fn query(&self, ctx: &RequestContext) -> Result<SearchResults, RpcError>;
 }
 
@@ -271,13 +278,15 @@ impl Providers {
                 .as_ref()
                 .ok_or_else(|| unsupported(ctx))?
                 .execute(ctx)?,
-            "search.query" => serde_json::to_value(
-                self.search
-                    .as_ref()
-                    .ok_or_else(|| unsupported(ctx))?
-                    .query(ctx)?,
-            )
-            .map_err(|error| RpcError::internal(error.to_string()))?,
+            "search.query" => {
+                let provider = self.search.as_ref().ok_or_else(|| unsupported(ctx))?;
+                let mode: crate::filesystem::SearchMode = serde_json::from_value(
+                    ctx.params().get("mode").cloned().unwrap_or(json!("name")),
+                ).map_err(|_| RpcError::invalid_params("invalid search mode"))?;
+                if !provider.supports(mode) { return Err(unsupported(ctx)); }
+                serde_json::to_value(provider.query(ctx)?)
+                    .map_err(|error| RpcError::internal(error.to_string()))?
+            },
             "hooks.invoke" => self
                 .hooks
                 .as_ref()
