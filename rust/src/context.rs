@@ -311,7 +311,20 @@ impl RequestContext {
             .ok_or_else(|| RpcError::internal("Core returned no view URI"))
     }
 
-    pub fn report_error(
+    /// Report a structured diagnostic without treating it as a user-facing error.
+    pub fn log(&self, level: &str, message: &str) -> Result<(), RpcError> {
+        report_log(&self.inner, level, message)
+    }
+
+    pub 
+fn report_log(inner: &RequestInner, level: &str, message: &str) -> Result<(), RpcError> {
+    if !matches!(level, "trace" | "debug" | "info" | "warn" | "error") {
+        return Err(RpcError::invalid_params("invalid log level"));
+    }
+    inner.call("host.log.report", json!({"level":level,"message":message}))?;
+    Ok(())
+}
+fn report_error(
         &self,
         code: &str,
         message: &str,
@@ -437,6 +450,11 @@ impl TaskContext {
 
     pub fn invoke(&self, method: &str, params: Value) -> Result<Value, RpcError> {
         self.inner.call(method, params)
+    }
+
+    /// Report a structured diagnostic without treating it as a user-facing error.
+    pub fn log(&self, level: &str, message: &str) -> Result<(), RpcError> {
+        report_log(&self.inner, level, message)
     }
 
     pub fn report_error(
