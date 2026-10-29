@@ -321,9 +321,12 @@ impl RequestContext {
         if message.trim().is_empty() || message.len() > 2048 {
             return Err(RpcError::invalid_params("invalid log message"));
         }
-        self.inner.call("host.log.report", json!({
-            "level": level, "message": message, "fields": fields,
-        }))?;
+        self.inner.call(
+            "host.log.report",
+            json!({
+                "level": level, "message": message, "fields": fields,
+            }),
+        )?;
         Ok(())
     }
 
@@ -465,9 +468,12 @@ impl TaskContext {
         if message.trim().is_empty() || message.len() > 2048 {
             return Err(RpcError::invalid_params("invalid log message"));
         }
-        self.inner.call("host.log.report", json!({
-            "level": level, "message": message, "fields": fields,
-        }))?;
+        self.inner.call(
+            "host.log.report",
+            json!({
+                "level": level, "message": message, "fields": fields,
+            }),
+        )?;
         Ok(())
     }
 
