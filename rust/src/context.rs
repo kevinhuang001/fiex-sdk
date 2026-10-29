@@ -317,7 +317,7 @@ impl RequestContext {
     }
 
     pub 
-fn report_log(inner: &RequestInner, level: &str, message: &str) -> Result<(), RpcError> {
+fn report_log(inner: &ContextInner, level: &str, message: &str) -> Result<(), RpcError> {
     if !matches!(level, "trace" | "debug" | "info" | "warn" | "error") {
         return Err(RpcError::invalid_params("invalid log level"));
     }
