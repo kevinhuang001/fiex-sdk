@@ -311,6 +311,22 @@ impl RequestContext {
             .ok_or_else(|| RpcError::internal("Core returned no view URI"))
     }
 
+    /// Send a structured execution log to Core's per-plugin LogCenter.
+    /// No filesystem permission is needed; Core authenticates the calling process,
+    /// limits volume and sanitizes fields before storing anything.
+    pub fn log(&self, level: &str, message: &str, fields: Value) -> Result<(), RpcError> {
+        if !matches!(level, "trace" | "debug" | "info" | "warn" | "error") {
+            return Err(RpcError::invalid_params("unsupported log level"));
+        }
+        if message.trim().is_empty() || message.len() > 2048 {
+            return Err(RpcError::invalid_params("invalid log message"));
+        }
+        self.inner.call("host.log.report", json!({
+            "level": level, "message": message, "fields": fields,
+        }))?;
+        Ok(())
+    }
+
     pub fn report_error(
         &self,
         code: &str,
@@ -437,6 +453,22 @@ impl TaskContext {
 
     pub fn invoke(&self, method: &str, params: Value) -> Result<Value, RpcError> {
         self.inner.call(method, params)
+    }
+
+    /// Send a structured execution log to Core's per-plugin LogCenter.
+    /// No filesystem permission is needed; Core authenticates the calling process,
+    /// limits volume and sanitizes fields before storing anything.
+    pub fn log(&self, level: &str, message: &str, fields: Value) -> Result<(), RpcError> {
+        if !matches!(level, "trace" | "debug" | "info" | "warn" | "error") {
+            return Err(RpcError::invalid_params("unsupported log level"));
+        }
+        if message.trim().is_empty() || message.len() > 2048 {
+            return Err(RpcError::invalid_params("invalid log message"));
+        }
+        self.inner.call("host.log.report", json!({
+            "level": level, "message": message, "fields": fields,
+        }))?;
+        Ok(())
     }
 
     pub fn report_error(
