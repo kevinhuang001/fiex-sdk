@@ -47,7 +47,11 @@ pub struct SearchResults {
     pub entries: Vec<Value>,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub truncated: bool,
-    #[serde(default, rename = "nextCursor", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        rename = "nextCursor",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub next_cursor: Option<String>,
 }
 
@@ -282,11 +286,14 @@ impl Providers {
                 let provider = self.search.as_ref().ok_or_else(|| unsupported(ctx))?;
                 let mode: crate::filesystem::SearchMode = serde_json::from_value(
                     ctx.params().get("mode").cloned().unwrap_or(json!("name")),
-                ).map_err(|_| RpcError::invalid_params("invalid search mode"))?;
-                if !provider.supports(mode) { return Err(unsupported(ctx)); }
+                )
+                .map_err(|_| RpcError::invalid_params("invalid search mode"))?;
+                if !provider.supports(mode) {
+                    return Err(unsupported(ctx));
+                }
                 serde_json::to_value(provider.query(ctx)?)
                     .map_err(|error| RpcError::internal(error.to_string()))?
-            },
+            }
             "hooks.invoke" => self
                 .hooks
                 .as_ref()
