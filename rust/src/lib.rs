@@ -14,6 +14,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::io::{self, BufRead, Write};
 
+pub mod aria2;
 mod context;
 pub mod contracts;
 mod diagnostics;
@@ -30,6 +31,7 @@ pub mod storage;
 pub mod tasks;
 pub mod tcp;
 
+pub use aria2::{Aria2, Aria2Request, Aria2Response};
 pub use context::{RequestContext, TaskContext};
 pub use contracts::{
     EventContext, InfoRow, InfoSection, PackageView, PreviewView, ResourceContext,

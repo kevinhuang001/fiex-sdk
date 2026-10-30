@@ -90,6 +90,10 @@ impl ContextInner {
         HttpClient::new(self.clone())
     }
 
+    pub(crate) fn aria2(&self) -> crate::Aria2 {
+        crate::Aria2::new(self.clone())
+    }
+
     pub(crate) fn tcp(&self) -> TcpClient {
         TcpClient::new(self.clone())
     }
@@ -297,6 +301,10 @@ impl RequestContext {
         self.inner.http()
     }
 
+    pub fn aria2(&self) -> crate::Aria2 {
+        self.inner.aria2()
+    }
+
     pub fn tcp(&self) -> TcpClient {
         self.inner.tcp()
     }
@@ -444,6 +452,10 @@ impl TaskContext {
 
     pub fn http(&self) -> HttpClient {
         self.inner.http()
+    }
+
+    pub fn aria2(&self) -> crate::Aria2 {
+        self.inner.aria2()
     }
 
     pub fn tcp(&self) -> TcpClient {
