@@ -385,12 +385,18 @@ export class FiexUiClient {
       close: () => this.invoke('panel.close'),
     }
   }
-  /** Report a failure the host cannot see (for example a failed render).
-   * Transport, process and RPC errors are recorded by Core automatically. */
+  /** Best-effort logging through the native SDK. Never opens an error dialog. */
+  get logs() {
+    return {
+      write: (level: 'trace' | 'debug' | 'info' | 'warn' | 'error', message: string) =>
+        this.plugin.invoke('diagnostics.log', { level, message }).catch(() => null),
+    }
+  }
+  /** Explicit render/background failure, not a second report of a rejected RPC. */
   get errors() {
     return {
       report: (message: string, detail?: string) =>
-        this.invoke('plugin.error', { message, detail }).catch(() => null as null),
+        this.plugin.invoke('diagnostics.report', { message, ...(detail === undefined ? {} : { detail }) }).catch(() => null),
     }
   }
   get theme() {

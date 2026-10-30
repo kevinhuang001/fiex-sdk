@@ -23,6 +23,7 @@ pub(crate) struct ContextInner {
     tasks: Arc<TaskManager>,
     session: Session,
     cancelled: Arc<AtomicBool>,
+    pub(crate) diagnostics: bool,
 }
 
 impl ContextInner {
@@ -37,6 +38,7 @@ impl ContextInner {
             tasks,
             session,
             cancelled,
+            diagnostics: false,
         }
     }
 
@@ -76,6 +78,7 @@ impl ContextInner {
             tasks: Arc::clone(&self.tasks),
             session,
             cancelled,
+            diagnostics: self.diagnostics,
         }
     }
 
@@ -214,6 +217,13 @@ pub struct RequestContext {
 }
 
 impl RequestContext {
+    pub(crate) fn diagnostic_context(&self) -> ContextInner {
+        self.inner.clone()
+    }
+    pub(crate) fn enable_diagnostics(mut self) -> Self {
+        self.inner.diagnostics = true;
+        self
+    }
     pub(crate) fn new(inner: ContextInner, method: String, params: Value) -> Self {
         let targets = params
             .get("targets")
