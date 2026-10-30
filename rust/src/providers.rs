@@ -128,6 +128,7 @@ struct FsProvider {
 
 #[derive(Default)]
 pub struct Providers {
+    diagnostics: bool,
     filesystem: Option<FsProvider>,
     info: Option<Box<dyn InfoProvider>>,
     preview: Option<Box<dyn PreviewProvider>>,
@@ -143,6 +144,12 @@ pub struct Providers {
 impl Providers {
     pub fn new() -> Self {
         Self::default()
+    }
+    /// Enable payload-free request and inherited task lifecycle logging through Host.
+    /// Failures remain ordinary RPC results; notifications require explicit report_error.
+    pub fn diagnostics(mut self) -> Self {
+        self.diagnostics = true;
+        self
     }
     pub fn info(mut self, provider: impl InfoProvider + 'static) -> Self {
         self.info = Some(Box::new(provider));
@@ -211,9 +218,20 @@ impl Providers {
     {
         let capabilities = self.capabilities();
         crate::serve_declaring(plugin_id, capabilities, move |ctx| {
-            match self.dispatch(&ctx)? {
-                Some(value) => Ok(value),
-                None => fallback(ctx),
+            let run = |ctx: RequestContext| {
+                if let Some(result) = crate::diagnostics::dispatch(&ctx) {
+                    return result;
+                }
+                match self.dispatch(&ctx)? {
+                    Some(value) => Ok(value),
+                    None => fallback(ctx),
+                }
+            };
+            // Diagnostics endpoints must not log their own forwarding requests.
+            if self.diagnostics && !ctx.method().starts_with("diagnostics.") {
+                crate::diagnostics::request(ctx.enable_diagnostics(), run)
+            } else {
+                run(ctx)
             }
         })
     }

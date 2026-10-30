@@ -16,6 +16,7 @@ use std::io::{self, BufRead, Write};
 
 mod context;
 pub mod contracts;
+mod diagnostics;
 pub mod files;
 pub mod filesystem;
 pub mod http;

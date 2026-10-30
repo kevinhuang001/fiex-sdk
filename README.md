@@ -193,3 +193,27 @@ through `reader`. The blocking API is always available. Enable the optional `tok
 completed reads across cancellation and submits owned writes through the same
 broker. `ctx.tcp().with_deadline(instant)` applies one absolute deadline to
 connect, reads and writes.
+
+## Diagnostics through SDK
+
+Enable `Providers::new().diagnostics()` to record payload-free request completion
+and inherited background task lifecycles through the authenticated Host. Typed
+providers and custom fallback methods use the same boundary. The SDK records RPC
+codes and durations, never request parameters, results, headers or raw exception
+messages. Host owns redaction, correlation, retention and rate limits.
+
+Use `ctx.log("info", "operation started")` for explicit diagnostics, and
+`ctx.report_error("archive.extract", "Extraction failed", None)` only when a
+failure cannot be returned to the initiating UI. Error-level logs do not open
+modals. Returning an RPC error and also reporting it would duplicate notification;
+normal cancellation and capability fallback should remain quiet.
+
+Panels use `client.logs.write("debug", "ready")` and
+`client.errors.report("Render failed", "safe details")`. Both call the native
+SDK's diagnostics endpoints through `client.plugin.invoke`; callers cannot attach
+plugin identity or choose a Host log destination. Diagnostic forwarding failures
+are swallowed by the panel helpers to prevent recursive error reporting.
+
+Once the control channel is closed, no SDK request context remains. A generic,
+credential-free stderr message is the emergency transport-failure fallback;
+stdout always contains only framed JSON-RPC.
