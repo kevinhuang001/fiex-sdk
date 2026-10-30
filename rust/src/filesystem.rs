@@ -70,7 +70,20 @@ pub enum SearchMode {
     Content,
 }
 
+/// Optional direct HTTP source for an already-authorized file. Providers that
+/// return this can let Core hand the transfer to aria2 while keeping all
+/// credentials out of the URL where possible.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DownloadSource {
+    pub url: String,
+    #[serde(default)]
+    pub headers: std::collections::BTreeMap<String, String>,
+    #[serde(default)]
+    pub size: Option<u64>,
+}
+
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SearchCapabilities {
     #[serde(default)]
@@ -518,6 +531,16 @@ pub trait VfsProvider: Send + Sync {
         Ok(self.operations().to_vec())
     }
 
+    /// Optional direct HTTP(S) source for aria2 acceleration. Returning
+    /// `None` keeps Core on the regular provider stream.
+    fn download_source(
+        &self,
+        _ctx: &RequestContext,
+        _node_id: &str,
+    ) -> Result<Option<DownloadSource>, RpcError> {
+        Ok(None)
+    }
+
     fn list(&self, request: &FsRequest<'_>) -> Result<FsListing, RpcError> {
         Err(unsupported(request.op()))
     }
@@ -650,6 +673,12 @@ impl FsServer {
             let request: TransferPreflight = serde_json::from_value(ctx.params().clone())
                 .map_err(|error| RpcError::invalid_params(error.to_string()))?;
             return serde_json::to_value(provider.preflight(ctx, &request)?)
+                .map(Some)
+                .map_err(|error| RpcError::internal(error.to_string()));
+        }
+        if ctx.method() == "vfs.downloadSource" {
+            let node = param_str(ctx, "nodeId")?;
+            return serde_json::to_value(provider.download_source(ctx, node)?)
                 .map(Some)
                 .map_err(|error| RpcError::internal(error.to_string()));
         }
