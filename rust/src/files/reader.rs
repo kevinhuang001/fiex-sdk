@@ -40,8 +40,26 @@ impl Read for FileReader {
         if output.is_empty() {
             return Ok(0);
         }
-        self.cache
-            .read(&self.context, &self.handle, &mut self.offset, output)
+        let remaining = self.length.saturating_sub(self.offset);
+        if remaining == 0 {
+            return Ok(0);
+        }
+        let limit = output
+            .len()
+            .min(usize::try_from(remaining).unwrap_or(usize::MAX));
+        let size = self.cache.read(
+            &self.context,
+            &self.handle,
+            &mut self.offset,
+            &mut output[..limit],
+        )?;
+        if size == 0 {
+            return Err(io::Error::new(
+                io::ErrorKind::UnexpectedEof,
+                "file stream ended before its declared length",
+            ));
+        }
+        Ok(size)
     }
 }
 
@@ -66,7 +84,7 @@ impl Drop for FileReader {
         if !self.context.closed() {
             let _: Result<serde_json::Value, RpcError> = self
                 .context
-                .call("host.fs.closeRead", json!({"handle": self.handle}));
+                .call("fs.closeRead", json!({"handle": self.handle}));
         }
     }
 }

@@ -306,7 +306,7 @@ python sdk/rust/examples/check_plugin.py --binary target/debug/fiex-plugin-hello
 成功时类似这样：
 
 ```text
-✅ 初始化成功： {'pluginId': 'org.example.hello', 'protocolVersion': '5.0', 'ready': True}
+✅ 初始化成功： {'pluginId': 'org.example.hello', 'protocolVersion': '6.0', 'ready': True}
 ✅ 方法调用成功： {"message": "你好，新手！"}
 ✅ 正常退出，三项检查全部通过
 ```
@@ -332,7 +332,7 @@ python sdk/rust/examples/check_plugin.py --binary target/debug/fiex-plugin-hello
   "name": "Hello Fiex",
   "version": "0.1.0",
   "runtime": {
-    "protocolVersion": "5.0",
+    "protocolVersion": "6.0",
     "entrypoints": { "windows-x86_64": "fiex-plugin-hello.exe" }
   },
   "permissions": {},

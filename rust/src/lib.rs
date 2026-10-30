@@ -49,7 +49,7 @@ pub use storage::Storage;
 pub use tasks::{TaskHandle, TaskStatus};
 pub use tcp::{TcpClient, TcpReadHalf, TcpStream, TcpWriteHalf};
 
-pub const PROTOCOL_VERSION: &str = "5.0";
+pub const PROTOCOL_VERSION: &str = "6.0";
 pub const MAX_FRAME: usize = 4 * 1024 * 1024;
 const MAX_HEADER: usize = 8192;
 

@@ -74,7 +74,7 @@ impl ReadCache {
             };
             let response = if let Some((_, descriptor)) = &self.shared {
                 match context.call(
-                    "host.fs.readOpen",
+                    "fs.readOpen",
                     json!({"handle": handle, "offset": *offset, "length": requested, "buffer": descriptor.id}),
                 ) {
                     Ok(response) => response,
@@ -84,7 +84,7 @@ impl ReadCache {
                         requested = CHUNK;
                         context
                             .call(
-                                "host.fs.readOpen",
+                                "fs.readOpen",
                                 json!({"handle": handle, "offset": *offset, "length": requested}),
                             )
                             .map_err(io_error)?
@@ -93,7 +93,7 @@ impl ReadCache {
             } else {
                 context
                     .call(
-                        "host.fs.readOpen",
+                        "fs.readOpen",
                         json!({"handle": handle, "offset": *offset, "length": requested}),
                     )
                     .map_err(io_error)?
@@ -172,21 +172,21 @@ pub(crate) fn flush_pending(
             Ok(bytes) if bytes.len() >= pending.len() => {
                 bytes[..pending.len()].copy_from_slice(pending);
                 context.call(
-                    "host.fs.writeBuffer",
+                    "fs.writeBuffer",
                     json!({"handle": handle, "buffer": descriptor.id, "size": pending.len()}),
                 )
             }
             _ => {
                 release_write_buffer(context, shared);
                 context.call(
-                    "host.fs.writeChunk",
+                    "fs.writeChunk",
                     json!({"handle": handle, "base64": STANDARD.encode(&*pending)}),
                 )
             }
         }
     } else {
         context.call(
-            "host.fs.writeChunk",
+            "fs.writeChunk",
             json!({"handle": handle, "base64": STANDARD.encode(&*pending)}),
         )
     };

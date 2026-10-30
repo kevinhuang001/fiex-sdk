@@ -2,9 +2,9 @@
 
 Core owns on-demand materialization, persistent offline directory metadata, recursive pins, eviction, local change detection, retries and conflict presentation. Providers implement protocol I/O only. This applies to every connection type, without provider IDs hard-coded in Core.
 
-Declare a connection factory under `extensions.connections` and register an ordinary `FSProvider`. `operations()` declares its implementation ceiling and `discover(ctx)` narrows it for the current account/resource. Core reads the `vfs: {operations, discovery}` initialization block.
+Declare a connection factory under `extensions.connections` and register an ordinary `VfsProvider`. `operations()` declares its implementation ceiling and `discover(ctx)` narrows it for the current account/resource. Core reads the `vfs: {operations, discovery}` initialization block.
 
-Connections and standalone views use one native wire namespace: `vfs.list`, `vfs.stat`, `vfs.search`, `vfs.mkdir`, `vfs.rename`, `vfs.remove`, `vfs.discover` and the streaming methods below. `host.fs.*` is a separate Core file-service API used by `ctx.files()`; its names are unchanged.
+Connections and standalone views use one native wire namespace: `vfs.list`, `vfs.stat`, `vfs.search`, `vfs.mkdir`, `vfs.rename`, `vfs.remove`, `vfs.discover` and the streaming methods below. `fs.*` is a separate Core file-service API used by `ctx.files()`; its names are unchanged.
 
 Reads open with `vfs.openRead`, pull bounded chunks through `vfs.readStream`, and finish with `vfs.closeRead`. Writes begin with `vfs.beginWrite`, send ordered chunks with `vfs.writeStream`, and finish with `vfs.commit` or `vfs.abort`. A new file names `parentId` and `name`; replacement names `nodeId` and `ifRevision`. The SDK owns stream IDs, offsets and session authorization. Providers implement `Read`/`Write` behavior rather than receiving a Core upload-snapshot resource or an absolute path.
 

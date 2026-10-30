@@ -169,12 +169,12 @@ impl HostLink for Mock {
                 state.secret = None;
                 Ok(json!({"status":"ok"}))
             }
-            "host.fs.openRead" => Ok(json!({"handle":"read", "size":state.bytes.len()})),
-            "host.fs.closeRead" => {
+            "fs.openRead" => Ok(json!({"handle":"read", "size":state.bytes.len()})),
+            "fs.closeRead" => {
                 state.read_closed = true;
                 Ok(Value::Null)
             }
-            "host.fs.readOpen" => {
+            "fs.readOpen" => {
                 let start =
                     (params["offset"].as_u64().unwrap_or(0) as usize).min(state.bytes.len());
                 let end = start
@@ -212,8 +212,8 @@ impl HostLink for Mock {
                 state.shared = None;
                 Ok(Value::Null)
             }
-            "host.fs.beginWrite" => Ok(json!("write")),
-            "host.fs.writeChunk" => {
+            "fs.beginWrite" => Ok(json!("write")),
+            "fs.writeChunk" => {
                 if state.fail_write {
                     state.write_attempts += 1;
                     return Err(RpcError::internal("connection lost"));
@@ -224,7 +224,7 @@ impl HostLink for Mock {
                 write_staged(&mut state, &bytes);
                 Ok(Value::Null)
             }
-            "host.fs.writeBuffer" => {
+            "fs.writeBuffer" => {
                 if state.fail_shared_write {
                     state.shared_write_attempts += 1;
                     return Err(RpcError::internal("connection lost"));
@@ -241,27 +241,27 @@ impl HostLink for Mock {
                 write_staged(&mut state, &bytes);
                 Ok(Value::Null)
             }
-            "host.fs.seekWrite" => {
+            "fs.seekWrite" => {
                 state.position = params["offset"].as_i64().unwrap_or(0) as usize;
                 Ok(json!(state.position))
             }
-            "host.fs.commit" => {
+            "fs.commit" => {
                 state.bytes = state.staged.clone();
                 state.committed = true;
                 Ok(Value::Null)
             }
-            "host.fs.abort" => {
+            "fs.abort" => {
                 state.aborted = true;
                 Ok(Value::Null)
             }
-            "host.fs.stat" => Ok(json!({
+            "fs.stat" => Ok(json!({
                 "path":"file","name":"file","isDir":false,"size":state.bytes.len(),
                 "modified":0,"extension":"txt","mime":"text/plain","readonly":false,"symlink":false
             })),
-            "host.fs.list" => Ok(json!([])),
-            "host.fs.mkdir" => Ok(Value::Null),
-            "host.fs.remove" => Ok(Value::Null),
-            "host.fs.rename" => Ok(Value::Null),
+            "fs.list" => Ok(json!([])),
+            "fs.mkdir" => Ok(Value::Null),
+            "fs.remove" => Ok(Value::Null),
+            "fs.rename" => Ok(Value::Null),
             "host.net.http.open" => {
                 state.http_position = 0;
                 state.http_open_params.push(params.clone());
@@ -565,12 +565,12 @@ fn small_reads_and_writes_are_batched_and_seek_uses_cached_bytes() {
         writer.commit().unwrap();
     }
     assert_eq!(
-        mock.count("host.fs.readOpen"),
+        mock.count("fs.readOpen"),
         1,
         "small reads must not incur one IPC each"
     );
     assert_eq!(
-        mock.count("host.fs.writeChunk"),
+        mock.count("fs.writeChunk"),
         1,
         "small writes must coalesce until commit"
     );
@@ -627,7 +627,7 @@ fn large_write_reuses_shared_buffer_and_commits_once() {
     assert!(state.committed);
     assert!(state.shared.is_none());
     drop(state);
-    assert_eq!(mock.count("host.fs.commit"), 1);
+    assert_eq!(mock.count("fs.commit"), 1);
 }
 
 #[test]
@@ -846,4 +846,28 @@ fn browser_oauth_uses_the_authenticated_host_service() {
     let state = mock.state.lock().unwrap();
     assert_eq!(state.calls, vec!["host.oauth.authorize"]);
     assert!(state.authorizations.iter().all(|value| !value.is_null()));
+}
+
+#[test]
+fn file_reader_rejects_truncation_instead_of_hashing_partial_content() {
+    let mock = Arc::new(Mock::with_bytes(b"original".to_vec()));
+    let inner = context(mock.clone());
+    let mut reader = inner.files().open_read(&reference()).unwrap();
+    mock.state().bytes = b"cut".to_vec();
+    let mut output = Vec::new();
+    let error = reader.read_to_end(&mut output).unwrap_err();
+    assert_eq!(error.kind(), std::io::ErrorKind::UnexpectedEof);
+}
+
+#[test]
+fn file_reader_obeys_snapshot_length_and_seek_past_eof() {
+    let mock = Arc::new(Mock::with_bytes(b"old".to_vec()));
+    let inner = context(mock.clone());
+    let mut reader = inner.files().open_read(&reference()).unwrap();
+    mock.state().bytes = b"old plus newer data".to_vec();
+    let mut output = Vec::new();
+    reader.read_to_end(&mut output).unwrap();
+    assert_eq!(output, b"old");
+    reader.seek(SeekFrom::Start(100)).unwrap();
+    assert_eq!(reader.read(&mut [0; 8]).unwrap(), 0);
 }

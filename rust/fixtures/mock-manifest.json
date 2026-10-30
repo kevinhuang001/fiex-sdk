@@ -5,7 +5,7 @@
   "version": "0.1.0",
   "description": "Mock native plugin used by Core process IPC tests.",
   "runtime": {
-    "protocolVersion": "5.0",
+    "protocolVersion": "6.0",
     "entrypoints": {
       "linux-x86_64": "mock_plugin",
       "macos-aarch64": "mock_plugin",

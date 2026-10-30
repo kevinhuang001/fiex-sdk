@@ -205,6 +205,7 @@ impl Runtime {
                     let mut reply = json!({
                         "pluginId": self.plugin_id,
                         "protocolVersion": PROTOCOL_VERSION,
+                        "sdkVersion": env!("CARGO_PKG_VERSION"),
                         "ready": true,
                         "concurrentRequests": true,
                         "tasks": true,

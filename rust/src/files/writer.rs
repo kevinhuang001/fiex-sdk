@@ -34,7 +34,7 @@ impl FileWriter {
     pub fn commit(mut self) -> io::Result<()> {
         self.flush()?;
         self.context
-            .call("host.fs.commit", json!({"handle": self.handle}))
+            .call("fs.commit", json!({"handle": self.handle}))
             .map_err(rpc_to_io)?;
         self.finished = true;
         Ok(())
@@ -78,7 +78,7 @@ impl Seek for FileWriter {
         }
         self.context
             .call(
-                "host.fs.seekWrite",
+                "fs.seekWrite",
                 json!({"handle": self.handle, "kind": kind, "offset": offset as i64}),
             )
             .map_err(rpc_to_io)?
@@ -93,7 +93,7 @@ impl Drop for FileWriter {
         if !self.finished && !self.context.closed() {
             let _: Result<serde_json::Value, RpcError> = self
                 .context
-                .call("host.fs.abort", json!({"handle": self.handle}));
+                .call("fs.abort", json!({"handle": self.handle}));
         }
     }
 }
