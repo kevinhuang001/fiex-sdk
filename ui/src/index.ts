@@ -396,7 +396,9 @@ export class FiexUiClient {
   get errors() {
     return {
       report: (message: string, detail?: string) =>
-        this.plugin.invoke('diagnostics.report', { message, ...(detail === undefined ? {} : { detail }) }).catch(() => null),
+        this.plugin
+          .invoke('diagnostics.report', { message, ...(detail === undefined ? {} : { detail }) })
+          .catch(() => null),
     }
   }
   get theme() {

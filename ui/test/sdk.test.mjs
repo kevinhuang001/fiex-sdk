@@ -112,14 +112,25 @@ test('typed wrappers cover clipboard, navigation, preview readiness and plugin t
 test('UI diagnostics use the native SDK endpoints without caller-supplied identity', async () => {
   const client = new FiexUiClient()
   const calls = []
-  client.invoke = async (method, params) => { calls.push([method, params]); return null }
+  client.invoke = async (method, params) => {
+    calls.push([method, params])
+    return null
+  }
   await client.logs.write('info', 'ready')
   await client.errors.report('render failed', 'safe details')
   assert.deepEqual(calls, [
     ['plugin.invoke', { method: 'diagnostics.log', params: { level: 'info', message: 'ready' } }],
-    ['plugin.invoke', { method: 'diagnostics.report', params: { message: 'render failed', detail: 'safe details' } }],
+    [
+      'plugin.invoke',
+      {
+        method: 'diagnostics.report',
+        params: { message: 'render failed', detail: 'safe details' },
+      },
+    ],
   ])
-  client.invoke = async () => { throw new Error('host unavailable') }
+  client.invoke = async () => {
+    throw new Error('host unavailable')
+  }
   await client.logs.write('error', 'lost host')
   await client.errors.report('lost host')
 })
