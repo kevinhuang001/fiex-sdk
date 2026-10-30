@@ -205,7 +205,10 @@ impl Read for Aria2Response {
                         if self.read != expected {
                             return Err(io::Error::new(
                                 io::ErrorKind::UnexpectedEof,
-                                format!("aria2 short download: {} of {} bytes", self.read, expected),
+                                format!(
+                                    "aria2 short download: {} of {} bytes",
+                                    self.read, expected
+                                ),
                             ));
                         }
                     }
