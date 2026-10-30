@@ -34,8 +34,10 @@ impl Aria2 {
             url: url.into(),
             headers: BTreeMap::new(),
             timeout: Duration::from_secs(300),
-            connections: 8,
-            split: 8,
+            // These are caller caps; the Core chooses the actual parallelism
+            // using the known file size (unknown sizes remain sequential).
+            connections: 16,
+            split: 16,
             min_split_size: 1024 * 1024,
             allow_invalid_certs: false,
             size: None,
@@ -72,16 +74,19 @@ impl Aria2Request {
         self
     }
 
+    /// Maximum connections allowed; Core chooses fewer for small downloads.
     pub fn connections(mut self, connections: u32) -> Self {
         self.connections = connections;
         self
     }
 
+    /// Maximum segments allowed; Core chooses fewer for small downloads.
     pub fn split(mut self, split: u32) -> Self {
         self.split = split;
         self
     }
 
+    /// Smallest segment Core should plan; unknown sizes remain sequential.
     pub fn min_split_size(mut self, bytes: u64) -> Self {
         self.min_split_size = bytes;
         self
