@@ -16,6 +16,23 @@ parameters as the operation. The reply is `{operations: ["list", "stat", ...]}`.
 This is a negotiated protocol-5 extension: Core retains the static ceiling for
 older providers that do not advertise `discovery: true`.
 
+## Search modes
+
+`FsOperation::Search` gates one `vfs.search` method. It does not imply that
+either filename or content search works. Implement
+`search_capabilities(ctx) -> SearchCapabilities` and report `name` and `content`
+independently. Discovery returns `search: {name: boolean, content: boolean}`
+intersected with the current operation set. An absent declaration means neither
+native mode is available; Core can separately fall back to `list` for names or
+`list + read` for content. Search requests must pass `mode: "name" | "content"`;
+`FsRequest::search_mode()` parses it. Providers must return Unsupported for an
+undeclared mode, not an empty successful page. Runtime errors such as quota,
+network, or authorization failures are not capability absence.
+
+The local `SearchProvider` trait likewise supports a mode predicate. It defaults
+to filename search only and can return paginated `SearchResults.next_cursor`.
+The local search extension is never an implicit search engine for other mounts.
+
 The SDK checks discovery before dispatch, including read/write stream opening,
 and narrows returned node metadata (`allowedOps`). `allowedOps: []` is an explicit
 denial, not an omitted restriction. Existing streams retain their close/abort
