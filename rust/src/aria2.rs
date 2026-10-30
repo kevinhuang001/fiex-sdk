@@ -167,22 +167,38 @@ impl Read for Aria2Response {
                 json!({"streamId": self.stream, "size": size}),
             )
             .map_err(rpc_to_io)?;
-        let bytes = STANDARD
-            .decode(
-                value["base64"]
-                    .as_str()
-                    .ok_or_else(|| io::Error::other("invalid aria2 chunk"))?,
-            )
-            .map_err(io::Error::other)?;
-        if bytes.len() > size {
-            return Err(io::Error::other("aria2 chunk exceeds request"));
+        let mut value = value;
+        loop {
+            let bytes = STANDARD
+                .decode(
+                    value["base64"]
+                        .as_str()
+                        .ok_or_else(|| io::Error::other("invalid aria2 chunk"))?,
+                )
+                .map_err(io::Error::other)?;
+            if bytes.len() > size {
+                return Err(io::Error::other("aria2 chunk exceeds request"));
+            }
+            if !bytes.is_empty() || value["eof"].as_bool() == Some(true) {
+                output[..bytes.len()].copy_from_slice(&bytes);
+                self.read += bytes.len() as u64;
+                if let Some(progress) = &self.progress {
+                    progress(self.read, self.size);
+                }
+                return Ok(bytes.len());
+            }
+            // The host returns an empty non-EOF chunk while the engine waits
+            // for network data. Keep this read call alive instead of exposing
+            // a spurious EOF to Core.
+            std::thread::sleep(std::time::Duration::from_millis(25));
+            value = self
+                .context
+                .call(
+                    "host.aria2.read",
+                    json!({"streamId": self.stream, "size": size}),
+                )
+                .map_err(rpc_to_io)?;
         }
-        output[..bytes.len()].copy_from_slice(&bytes);
-        self.read += bytes.len() as u64;
-        if let Some(progress) = &self.progress {
-            progress(self.read, self.size);
-        }
-        Ok(bytes.len())
     }
 }
 
