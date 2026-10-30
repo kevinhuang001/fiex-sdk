@@ -535,8 +535,7 @@ pub trait VfsProvider: Send + Sync {
     /// `None` keeps Core on the regular provider stream.
     fn download_source(
         &self,
-        _ctx: &RequestContext,
-        _node_id: &str,
+        _request: &FsRequest<'_>,
     ) -> Result<Option<DownloadSource>, RpcError> {
         Ok(None)
     }
@@ -677,8 +676,8 @@ impl FsServer {
                 .map_err(|error| RpcError::internal(error.to_string()));
         }
         if ctx.method() == "vfs.downloadSource" {
-            let node = param_str(ctx, "nodeId")?;
-            return serde_json::to_value(provider.download_source(ctx, node)?)
+            let request = FsRequest::new(ctx, FsOperation::Read);
+            return serde_json::to_value(provider.download_source(&request)?)
                 .map(Some)
                 .map_err(|error| RpcError::internal(error.to_string()));
         }
