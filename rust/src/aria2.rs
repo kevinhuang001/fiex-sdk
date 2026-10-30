@@ -12,6 +12,10 @@ use std::{
 
 type Progress = Arc<dyn Fn(u64, Option<u64>) + Send + Sync>;
 
+// One host RPC can feed several VFS reads. Well below the 4 MiB control frame
+// limit even after base64 encoding, but large enough to amortize IPC overhead.
+const PREFETCH_BYTES: usize = 1024 * 1024;
+
 #[derive(Clone)]
 pub struct Aria2 {
     context: ContextInner,
@@ -135,6 +139,8 @@ impl Aria2Request {
             read: 0,
             progress: self.progress,
             closed: false,
+            pending: Vec::new(),
+            pending_offset: 0,
         })
     }
 }
@@ -146,6 +152,8 @@ pub struct Aria2Response {
     read: u64,
     progress: Option<Progress>,
     closed: bool,
+    pending: Vec<u8>,
+    pending_offset: usize,
 }
 
 impl Aria2Response {
@@ -159,16 +167,28 @@ impl Read for Aria2Response {
         if output.is_empty() || self.closed {
             return Ok(0);
         }
-        let size = output.len().min(256 * 1024);
-        let value = self
-            .context
-            .call(
-                "host.aria2.read",
-                json!({"streamId": self.stream, "size": size}),
-            )
-            .map_err(rpc_to_io)?;
-        let mut value = value;
         loop {
+            if self.pending_offset < self.pending.len() {
+                let remaining = &self.pending[self.pending_offset..];
+                let count = output.len().min(remaining.len());
+                output[..count].copy_from_slice(&remaining[..count]);
+                self.pending_offset += count;
+                self.read += count as u64;
+                if let Some(progress) = &self.progress {
+                    progress(self.read, self.size);
+                }
+                return Ok(count);
+            }
+
+            // Pre-fetch once per MiB rather than issuing a host RPC for every
+            // smaller VFS read. The cursor only advances as bytes are consumed.
+            let value = self
+                .context
+                .call(
+                    "host.aria2.read",
+                    json!({"streamId": self.stream, "size": PREFETCH_BYTES}),
+                )
+                .map_err(rpc_to_io)?;
             let bytes = STANDARD
                 .decode(
                     value["base64"]
@@ -176,28 +196,28 @@ impl Read for Aria2Response {
                         .ok_or_else(|| io::Error::other("invalid aria2 chunk"))?,
                 )
                 .map_err(io::Error::other)?;
-            if bytes.len() > size {
+            if bytes.len() > PREFETCH_BYTES {
                 return Err(io::Error::other("aria2 chunk exceeds request"));
             }
-            if !bytes.is_empty() || value["eof"].as_bool() == Some(true) {
-                output[..bytes.len()].copy_from_slice(&bytes);
-                self.read += bytes.len() as u64;
-                if let Some(progress) = &self.progress {
-                    progress(self.read, self.size);
+            if bytes.is_empty() {
+                if value["eof"].as_bool() == Some(true) {
+                    if let Some(expected) = self.size {
+                        if self.read != expected {
+                            return Err(io::Error::new(
+                                io::ErrorKind::UnexpectedEof,
+                                format!("aria2 short download: {} of {} bytes", self.read, expected),
+                            ));
+                        }
+                    }
+                    return Ok(0);
                 }
-                return Ok(bytes.len());
+                // Network data is not ready yet. An empty non-EOF reply must
+                // never appear to VFS as an end-of-file.
+                std::thread::sleep(Duration::from_millis(50));
+                continue;
             }
-            // The host returns an empty non-EOF chunk while the engine waits
-            // for network data. Keep this read call alive instead of exposing
-            // a spurious EOF to Core.
-            std::thread::sleep(std::time::Duration::from_millis(25));
-            value = self
-                .context
-                .call(
-                    "host.aria2.read",
-                    json!({"streamId": self.stream, "size": size}),
-                )
-                .map_err(rpc_to_io)?;
+            self.pending = bytes;
+            self.pending_offset = 0;
         }
     }
 }
