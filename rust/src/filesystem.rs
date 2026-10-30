@@ -41,6 +41,11 @@ use std::{
     },
 };
 
+mod preflight;
+pub use preflight::{
+    PreflightDecision, TransferAction, TransferDirection, TransferMetadata, TransferPreflight,
+};
+
 /// Maximum bytes a single `vfs.readStream` chunk may return.
 pub const MAX_CHUNK: usize = 4 * 1024 * 1024;
 
@@ -367,9 +372,13 @@ impl<'a> FsRequest<'a> {
     }
 
     pub fn search_mode(&self) -> Result<SearchMode, RpcError> {
-        serde_json::from_value(self.params.get("mode").cloned().ok_or_else(||
-            RpcError::invalid_params("search mode is required"))?)
-            .map_err(|_| RpcError::invalid_params("search mode must be name or content"))
+        serde_json::from_value(
+            self.params
+                .get("mode")
+                .cloned()
+                .ok_or_else(|| RpcError::invalid_params("search mode is required"))?,
+        )
+        .map_err(|_| RpcError::invalid_params("search mode must be name or content"))
     }
 
     /// Mount identity, when Core assigned one.
@@ -479,6 +488,22 @@ fn unsupported(op: FsOperation) -> RpcError {
 /// `discover` narrows it for the current authenticated connection/resource;
 /// unknown permissions should return an empty set, never optimistic writes.
 pub trait VfsProvider: Send + Sync {
+    /// Opt in to per-transfer metadata review. Capabilities remain independent.
+    fn supports_preflight(&self) -> bool {
+        false
+    }
+
+    fn preflight(
+        &self,
+        _ctx: &RequestContext,
+        _request: &TransferPreflight,
+    ) -> Result<PreflightDecision, RpcError> {
+        Ok(PreflightDecision {
+            allowed: true,
+            reason: None,
+        })
+    }
+
     fn operations(&self) -> &'static [FsOperation];
 
     /// Advertise only modes whose native semantics are actually implemented.
@@ -601,6 +626,7 @@ impl FsServer {
         json!({
             "vfs": {
                 "discovery": true,
+                "preflight": provider.supports_preflight(),
                 "operations": provider
                     .operations()
                     .iter()
@@ -617,6 +643,16 @@ impl FsServer {
         provider: &dyn VfsProvider,
         ctx: &RequestContext,
     ) -> Result<Option<Value>, RpcError> {
+        if ctx.method() == "vfs.preflight" {
+            if !provider.supports_preflight() {
+                return Err(RpcError::method_not_found("vfs.preflight"));
+            }
+            let request: TransferPreflight = serde_json::from_value(ctx.params().clone())
+                .map_err(|error| RpcError::invalid_params(error.to_string()))?;
+            return serde_json::to_value(provider.preflight(ctx, &request)?)
+                .map(Some)
+                .map_err(|error| RpcError::internal(error.to_string()));
+        }
         if ctx.method() == "vfs.discover" {
             let operations = discover(provider, ctx)?;
             let search = if operations.contains(&FsOperation::Search) {
@@ -754,7 +790,9 @@ impl FsServer {
                 let request = FsRequest::new(ctx, op);
                 let available = require(provider, ctx, op)?;
                 if op == FsOperation::Search
-                    && !provider.search_capabilities(ctx).supports(request.search_mode()?)
+                    && !provider
+                        .search_capabilities(ctx)
+                        .supports(request.search_mode()?)
                 {
                     return Err(unsupported(FsOperation::Search));
                 }
@@ -1005,8 +1043,51 @@ mod tests {
         assert_eq!(readonly.operations(), &[FsOperation::List]);
         assert_eq!(
             FsServer::capability(&readonly),
-            json!({"vfs": {"discovery":true,"operations": ["list"]}})
+            json!({"vfs": {"discovery":true,"preflight":false,"operations": ["list"]}})
         );
+    }
+
+    #[test]
+    fn transfer_preflight_is_metadata_only_and_does_not_grant_write() {
+        struct Reviewed;
+        impl VfsProvider for Reviewed {
+            fn operations(&self) -> &'static [FsOperation] {
+                &[FsOperation::List]
+            }
+            fn supports_preflight(&self) -> bool {
+                true
+            }
+            fn preflight(
+                &self,
+                _ctx: &RequestContext,
+                review: &TransferPreflight,
+            ) -> Result<PreflightDecision, RpcError> {
+                Ok(PreflightDecision {
+                    allowed: review.metadata.size.is_none_or(|size| size <= 10),
+                    reason: Some("size policy".into()),
+                })
+            }
+        }
+        let server = FsServer::new();
+        let params = json!({"nodeId":"root","direction":"import","action":"copy","name":"x","sameMount":false,
+            "metadata":{"name":"x","kind":"file","size":11,"modified":null,"extension":null,"mime":null,"executableShortcut":null,"system":false}});
+        let reply = server
+            .serve(&Reviewed, &request("vfs.preflight", params.clone()))
+            .unwrap()
+            .unwrap();
+        assert_eq!(reply["allowed"], false);
+        assert!(server
+            .serve(
+                &Reviewed,
+                &request("vfs.beginWrite", json!({"parentId":"root","name":"x"}))
+            )
+            .is_err());
+        assert!(server
+            .serve(&ReadOnly, &request("vfs.preflight", params))
+            .is_err());
+        assert!(server
+            .serve(&Reviewed, &request("vfs.preflight", json!({})))
+            .is_err());
     }
 
     #[test]

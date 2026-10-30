@@ -242,20 +242,26 @@ impl TaskManager {
         let spawned = thread::Builder::new()
             .name(format!("fiex-sdk-{id}"))
             .spawn(move || {
+                let started = std::time::Instant::now();
+                if finish.diagnostics {
+                    crate::diagnostics::log(&finish, "debug", "background task started");
+                }
                 let outcome = catch_unwind(AssertUnwindSafe(|| work(task_context)));
                 let result = match outcome {
                     Ok(Ok(value)) => Ok(value),
                     Ok(Err(error)) => Err(error),
                     Err(_) => Err(RpcError::internal("task panicked")),
                 };
-                let status =
-                    if record_for_thread.is_cancelled() || cancelled.load(Ordering::Acquire) {
-                        TaskStatus::Cancelled
-                    } else if result.is_ok() {
-                        TaskStatus::Completed
-                    } else {
-                        TaskStatus::Failed
-                    };
+                let status = if record_for_thread.is_cancelled()
+                    || cancelled.load(Ordering::Acquire)
+                    || result.as_ref().err().is_some_and(|e| e.code == -32800)
+                {
+                    TaskStatus::Cancelled
+                } else if result.is_ok() {
+                    TaskStatus::Completed
+                } else {
+                    TaskStatus::Failed
+                };
                 let final_result = match status {
                     TaskStatus::Cancelled => Err(RpcError::cancelled()),
                     _ => result,
@@ -265,6 +271,20 @@ impl TaskManager {
                     TaskStatus::Cancelled => "cancelled",
                     TaskStatus::Running | TaskStatus::Failed => "failed",
                 };
+                if finish.diagnostics {
+                    crate::diagnostics::log(
+                        &finish,
+                        if status == TaskStatus::Failed {
+                            "error"
+                        } else {
+                            "info"
+                        },
+                        &format!(
+                            "background task {label}; duration_ms={}",
+                            started.elapsed().as_millis()
+                        ),
+                    );
+                }
                 let _ = finish.call(
                     "host.task.finish",
                     json!({

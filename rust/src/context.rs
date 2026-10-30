@@ -23,6 +23,7 @@ pub(crate) struct ContextInner {
     tasks: Arc<TaskManager>,
     session: Session,
     cancelled: Arc<AtomicBool>,
+    pub(crate) diagnostics: bool,
 }
 
 impl ContextInner {
@@ -37,6 +38,7 @@ impl ContextInner {
             tasks,
             session,
             cancelled,
+            diagnostics: false,
         }
     }
 
@@ -76,6 +78,7 @@ impl ContextInner {
             tasks: Arc::clone(&self.tasks),
             session,
             cancelled,
+            diagnostics: self.diagnostics,
         }
     }
 
@@ -214,6 +217,13 @@ pub struct RequestContext {
 }
 
 impl RequestContext {
+    pub(crate) fn diagnostic_context(&self) -> ContextInner {
+        self.inner.clone()
+    }
+    pub(crate) fn enable_diagnostics(mut self) -> Self {
+        self.inner.diagnostics = true;
+        self
+    }
     pub(crate) fn new(inner: ContextInner, method: String, params: Value) -> Self {
         let targets = params
             .get("targets")
@@ -309,6 +319,11 @@ impl RequestContext {
             .as_str()
             .map(str::to_string)
             .ok_or_else(|| RpcError::internal("Core returned no view URI"))
+    }
+
+    /// Report a structured diagnostic without treating it as a user-facing error.
+    pub fn log(&self, level: &str, message: &str) -> Result<(), RpcError> {
+        report_log(&self.inner, level, message)
     }
 
     pub fn report_error(
@@ -439,6 +454,11 @@ impl TaskContext {
         self.inner.call(method, params)
     }
 
+    /// Report a structured diagnostic without treating it as a user-facing error.
+    pub fn log(&self, level: &str, message: &str) -> Result<(), RpcError> {
+        report_log(&self.inner, level, message)
+    }
+
     pub fn report_error(
         &self,
         code: &str,
@@ -504,6 +524,14 @@ impl TaskContext {
             json!({"taskId": self.record.id(), "done": done, "total": total}),
         );
     }
+}
+
+fn report_log(inner: &ContextInner, level: &str, message: &str) -> Result<(), RpcError> {
+    if !matches!(level, "trace" | "debug" | "info" | "warn" | "error") {
+        return Err(RpcError::invalid_params("invalid log level"));
+    }
+    inner.call("host.log.report", json!({"level":level,"message":message}))?;
+    Ok(())
 }
 
 fn report_error(

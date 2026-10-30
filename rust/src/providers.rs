@@ -47,7 +47,11 @@ pub struct SearchResults {
     pub entries: Vec<Value>,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub truncated: bool,
-    #[serde(default, rename = "nextCursor", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        rename = "nextCursor",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub next_cursor: Option<String>,
 }
 
@@ -124,6 +128,7 @@ struct FsProvider {
 
 #[derive(Default)]
 pub struct Providers {
+    diagnostics: bool,
     filesystem: Option<FsProvider>,
     info: Option<Box<dyn InfoProvider>>,
     preview: Option<Box<dyn PreviewProvider>>,
@@ -139,6 +144,12 @@ pub struct Providers {
 impl Providers {
     pub fn new() -> Self {
         Self::default()
+    }
+    /// Enable payload-free request and inherited task lifecycle logging through Host.
+    /// Failures remain ordinary RPC results; notifications require explicit report_error.
+    pub fn diagnostics(mut self) -> Self {
+        self.diagnostics = true;
+        self
     }
     pub fn info(mut self, provider: impl InfoProvider + 'static) -> Self {
         self.info = Some(Box::new(provider));
@@ -207,9 +218,20 @@ impl Providers {
     {
         let capabilities = self.capabilities();
         crate::serve_declaring(plugin_id, capabilities, move |ctx| {
-            match self.dispatch(&ctx)? {
-                Some(value) => Ok(value),
-                None => fallback(ctx),
+            let run = |ctx: RequestContext| {
+                if let Some(result) = crate::diagnostics::dispatch(&ctx) {
+                    return result;
+                }
+                match self.dispatch(&ctx)? {
+                    Some(value) => Ok(value),
+                    None => fallback(ctx),
+                }
+            };
+            // Diagnostics endpoints must not log their own forwarding requests.
+            if self.diagnostics && !ctx.method().starts_with("diagnostics.") {
+                crate::diagnostics::request(ctx.enable_diagnostics(), run)
+            } else {
+                run(ctx)
             }
         })
     }
@@ -282,11 +304,14 @@ impl Providers {
                 let provider = self.search.as_ref().ok_or_else(|| unsupported(ctx))?;
                 let mode: crate::filesystem::SearchMode = serde_json::from_value(
                     ctx.params().get("mode").cloned().unwrap_or(json!("name")),
-                ).map_err(|_| RpcError::invalid_params("invalid search mode"))?;
-                if !provider.supports(mode) { return Err(unsupported(ctx)); }
+                )
+                .map_err(|_| RpcError::invalid_params("invalid search mode"))?;
+                if !provider.supports(mode) {
+                    return Err(unsupported(ctx));
+                }
                 serde_json::to_value(provider.query(ctx)?)
                     .map_err(|error| RpcError::internal(error.to_string()))?
-            },
+            }
             "hooks.invoke" => self
                 .hooks
                 .as_ref()
