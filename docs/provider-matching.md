@@ -44,7 +44,7 @@ An Applications-only context menu:
     "contextMenus": {
       "priority": 100,
       "match": {
-        "view": {"providerIds": ["core:applications"]},
+        "view": { "providerIds": ["core:applications"] },
         "selection": "single"
       }
     }
@@ -59,7 +59,7 @@ A generic file preview for native or plugin-backed resources:
   "extensions": {
     "preview": {
       "match": {
-        "view": {"types": ["fs", "vfs"]},
+        "view": { "types": ["fs", "vfs"] },
         "kinds": ["file"],
         "mimeTypes": ["image/*"],
         "requiredOps": ["read"]
@@ -76,7 +76,7 @@ A local-only search provider:
   "extensions": {
     "search": {
       "match": {
-        "storage": {"providerIds": ["core:local-fs"]},
+        "storage": { "providerIds": ["core:local-fs"] },
         "kinds": ["directory"]
       }
     }
