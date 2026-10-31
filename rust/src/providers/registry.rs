@@ -30,7 +30,9 @@ impl<T: ?Sized> ProviderSet<T> {
     }
 
     pub fn instances(&self) -> impl Iterator<Item = (&str, &T)> {
-        self.entries.iter().map(|(id, provider)| (id.as_str(), provider.as_ref()))
+        self.entries
+            .iter()
+            .map(|(id, provider)| (id.as_str(), provider.as_ref()))
     }
 
     pub fn select(&self, params: &Value) -> Result<Option<&T>, RpcError> {
