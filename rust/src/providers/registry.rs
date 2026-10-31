@@ -7,13 +7,18 @@ pub(super) struct ProviderSet<T: ?Sized> {
 }
 impl<T: ?Sized> Default for ProviderSet<T> {
     fn default() -> Self {
-        Self { entries: Vec::new() }
+        Self {
+            entries: Vec::new(),
+        }
     }
 }
 impl<T: ?Sized> ProviderSet<T> {
     pub fn register(&mut self, id: String, instance: Box<T>) -> Result<(), String> {
-        if id.is_empty() || id.len() > 128
-            || !id.chars().all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '.' | '_' | '-' | ':'))
+        if id.is_empty()
+            || id.len() > 128
+            || !id
+                .chars()
+                .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '.' | '_' | '-' | ':'))
         {
             return Err("invalid provider ID".into());
         }
@@ -27,19 +32,30 @@ impl<T: ?Sized> ProviderSet<T> {
     pub fn select(&self, params: &Value) -> Result<Option<&T>, RpcError> {
         let selected = params.get("providerId");
         if let Some(value) = selected {
-            let id = value.as_str().ok_or_else(|| RpcError::invalid_params("providerId must be a string"))?;
-            return self.entries.iter().find(|(name, _)| name == id)
+            let id = value
+                .as_str()
+                .ok_or_else(|| RpcError::invalid_params("providerId must be a string"))?;
+            return self
+                .entries
+                .iter()
+                .find(|(name, _)| name == id)
                 .map(|(_, instance)| Some(instance.as_ref()))
                 .ok_or_else(|| RpcError::invalid_params("unknown providerId"));
         }
         match self.entries.as_slice() {
             [] => Ok(None),
             [(_, only)] => Ok(Some(only.as_ref())),
-            _ => Err(RpcError::invalid_params("providerId required for multiple registered providers")),
+            _ => Err(RpcError::invalid_params(
+                "providerId required for multiple registered providers",
+            )),
         }
     }
     #[cfg(test)]
-    pub fn len(&self) -> usize { self.entries.len() }
+    pub fn len(&self) -> usize {
+        self.entries.len()
+    }
     #[cfg(test)]
-    pub fn is_empty(&self) -> bool { self.entries.is_empty() }
+    pub fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
 }

@@ -155,7 +155,11 @@ impl Providers {
     /// Register a info provider under a distinct, stable ID.
     /// A repeated ID is rejected during server startup rather than silently
     /// replacing an existing registered provider.
-    pub fn info_named(mut self, id: impl Into<String>, provider: impl InfoProvider + 'static) -> Self {
+    pub fn info_named(
+        mut self,
+        id: impl Into<String>,
+        provider: impl InfoProvider + 'static,
+    ) -> Self {
         if let Err(error) = self.info.register(id.into(), Box::new(provider)) {
             self.registration_errors.push(format!("info: {error}"));
         }
@@ -168,7 +172,11 @@ impl Providers {
     /// Register a preview provider under a distinct, stable ID.
     /// A repeated ID is rejected during server startup rather than silently
     /// replacing an existing registered provider.
-    pub fn preview_named(mut self, id: impl Into<String>, provider: impl PreviewProvider + 'static) -> Self {
+    pub fn preview_named(
+        mut self,
+        id: impl Into<String>,
+        provider: impl PreviewProvider + 'static,
+    ) -> Self {
         if let Err(error) = self.preview.register(id.into(), Box::new(provider)) {
             self.registration_errors.push(format!("preview: {error}"));
         }
@@ -181,9 +189,14 @@ impl Providers {
     /// Register a decorations provider under a distinct, stable ID.
     /// A repeated ID is rejected during server startup rather than silently
     /// replacing an existing registered provider.
-    pub fn decorations_named(mut self, id: impl Into<String>, provider: impl DecorationProvider + 'static) -> Self {
+    pub fn decorations_named(
+        mut self,
+        id: impl Into<String>,
+        provider: impl DecorationProvider + 'static,
+    ) -> Self {
         if let Err(error) = self.decorations.register(id.into(), Box::new(provider)) {
-            self.registration_errors.push(format!("decorations: {error}"));
+            self.registration_errors
+                .push(format!("decorations: {error}"));
         }
         self
     }
@@ -194,9 +207,14 @@ impl Providers {
     /// Register a context_menu provider under a distinct, stable ID.
     /// A repeated ID is rejected during server startup rather than silently
     /// replacing an existing registered provider.
-    pub fn context_menu_named(mut self, id: impl Into<String>, provider: impl ContextMenuProvider + 'static) -> Self {
+    pub fn context_menu_named(
+        mut self,
+        id: impl Into<String>,
+        provider: impl ContextMenuProvider + 'static,
+    ) -> Self {
         if let Err(error) = self.context_menu.register(id.into(), Box::new(provider)) {
-            self.registration_errors.push(format!("context_menu: {error}"));
+            self.registration_errors
+                .push(format!("context_menu: {error}"));
         }
         self
     }
@@ -207,20 +225,35 @@ impl Providers {
     /// Register a connection_context_menu provider under a distinct, stable ID.
     /// A repeated ID is rejected during server startup rather than silently
     /// replacing an existing registered provider.
-    pub fn connection_context_menu_named(mut self, id: impl Into<String>, provider: impl ConnectionContextMenuProvider + 'static) -> Self {
-        if let Err(error) = self.connection_context_menu.register(id.into(), Box::new(provider)) {
-            self.registration_errors.push(format!("connection_context_menu: {error}"));
+    pub fn connection_context_menu_named(
+        mut self,
+        id: impl Into<String>,
+        provider: impl ConnectionContextMenuProvider + 'static,
+    ) -> Self {
+        if let Err(error) = self
+            .connection_context_menu
+            .register(id.into(), Box::new(provider))
+        {
+            self.registration_errors
+                .push(format!("connection_context_menu: {error}"));
         }
         self
     }
     /// Convenience for single-provider plugins.
-    pub fn connection_context_menu(self, provider: impl ConnectionContextMenuProvider + 'static) -> Self {
+    pub fn connection_context_menu(
+        self,
+        provider: impl ConnectionContextMenuProvider + 'static,
+    ) -> Self {
         self.connection_context_menu_named("default", provider)
     }
     /// Register a search provider under a distinct, stable ID.
     /// A repeated ID is rejected during server startup rather than silently
     /// replacing an existing registered provider.
-    pub fn search_named(mut self, id: impl Into<String>, provider: impl SearchProvider + 'static) -> Self {
+    pub fn search_named(
+        mut self,
+        id: impl Into<String>,
+        provider: impl SearchProvider + 'static,
+    ) -> Self {
         if let Err(error) = self.search.register(id.into(), Box::new(provider)) {
             self.registration_errors.push(format!("search: {error}"));
         }
@@ -233,7 +266,11 @@ impl Providers {
     /// Register a hooks provider under a distinct, stable ID.
     /// A repeated ID is rejected during server startup rather than silently
     /// replacing an existing registered provider.
-    pub fn hooks_named(mut self, id: impl Into<String>, provider: impl HookProvider + 'static) -> Self {
+    pub fn hooks_named(
+        mut self,
+        id: impl Into<String>,
+        provider: impl HookProvider + 'static,
+    ) -> Self {
         if let Err(error) = self.hooks.register(id.into(), Box::new(provider)) {
             self.registration_errors.push(format!("hooks: {error}"));
         }
@@ -246,7 +283,11 @@ impl Providers {
     /// Register a toolbar provider under a distinct, stable ID.
     /// A repeated ID is rejected during server startup rather than silently
     /// replacing an existing registered provider.
-    pub fn toolbar_named(mut self, id: impl Into<String>, provider: impl ToolbarProvider + 'static) -> Self {
+    pub fn toolbar_named(
+        mut self,
+        id: impl Into<String>,
+        provider: impl ToolbarProvider + 'static,
+    ) -> Self {
         if let Err(error) = self.toolbar.register(id.into(), Box::new(provider)) {
             self.registration_errors.push(format!("toolbar: {error}"));
         }
@@ -259,9 +300,14 @@ impl Providers {
     /// Register a connection provider under a distinct, stable ID.
     /// A repeated ID is rejected during server startup rather than silently
     /// replacing an existing registered provider.
-    pub fn connection_named(mut self, id: impl Into<String>, provider: impl ConnectionProvider + 'static) -> Self {
+    pub fn connection_named(
+        mut self,
+        id: impl Into<String>,
+        provider: impl ConnectionProvider + 'static,
+    ) -> Self {
         if let Err(error) = self.connection.register(id.into(), Box::new(provider)) {
-            self.registration_errors.push(format!("connection: {error}"));
+            self.registration_errors
+                .push(format!("connection: {error}"));
         }
         self
     }
@@ -275,7 +321,8 @@ impl Providers {
         P: VfsProvider + 'static,
     {
         if self.filesystem.is_some() {
-            self.registration_errors.push("filesystem: duplicate provider".into());
+            self.registration_errors
+                .push("filesystem: duplicate provider".into());
         } else {
             self.filesystem = Some(FsProvider {
                 dispatch: Box::new(provider),
@@ -336,50 +383,80 @@ impl Providers {
         }
         let value = match ctx.method() {
             "info.resolve" => {
-                let sections = self.info.select(ctx.params())?
-                    .ok_or_else(|| unsupported(ctx))?.resolve(ctx)?;
+                let sections = self
+                    .info
+                    .select(ctx.params())?
+                    .ok_or_else(|| unsupported(ctx))?
+                    .resolve(ctx)?;
                 json!({"sections":sections})
             }
             "preview.open" => {
-                let view = self.preview.select(ctx.params())?
-                    .ok_or_else(|| unsupported(ctx))?.open(ctx)?;
+                let view = self
+                    .preview
+                    .select(ctx.params())?
+                    .ok_or_else(|| unsupported(ctx))?
+                    .open(ctx)?;
                 serde_json::to_value(view).map_err(|error| RpcError::internal(error.to_string()))?
             }
             "decorations.resolve" => {
-                let decorations = self.decorations.select(ctx.params())?
-                    .ok_or_else(|| unsupported(ctx))?.resolve(ctx)?;
+                let decorations = self
+                    .decorations
+                    .select(ctx.params())?
+                    .ok_or_else(|| unsupported(ctx))?
+                    .resolve(ctx)?;
                 json!({"decorations":decorations})
             }
             "contextMenu.resolve" => {
-                let items = self.context_menu.select(ctx.params())?
-                    .ok_or_else(|| unsupported(ctx))?.resolve(ctx)?;
+                let items = self
+                    .context_menu
+                    .select(ctx.params())?
+                    .ok_or_else(|| unsupported(ctx))?
+                    .resolve(ctx)?;
                 json!({"items":items})
             }
-            "contextMenu.execute" => self.context_menu.select(ctx.params())?
-                .ok_or_else(|| unsupported(ctx))?.execute(ctx)?,
+            "contextMenu.execute" => self
+                .context_menu
+                .select(ctx.params())?
+                .ok_or_else(|| unsupported(ctx))?
+                .execute(ctx)?,
             "connectionContextMenu.resolve" => {
-                let items = self.connection_context_menu.select(ctx.params())?
-                    .ok_or_else(|| unsupported(ctx))?.resolve(ctx)?;
+                let items = self
+                    .connection_context_menu
+                    .select(ctx.params())?
+                    .ok_or_else(|| unsupported(ctx))?
+                    .resolve(ctx)?;
                 json!({"items":items})
             }
-            "connectionContextMenu.execute" => self.connection_context_menu.select(ctx.params())?
-                .ok_or_else(|| unsupported(ctx))?.execute(ctx)?,
+            "connectionContextMenu.execute" => self
+                .connection_context_menu
+                .select(ctx.params())?
+                .ok_or_else(|| unsupported(ctx))?
+                .execute(ctx)?,
             "search.query" => {
-                let provider = self.search.select(ctx.params())?
+                let provider = self
+                    .search
+                    .select(ctx.params())?
                     .ok_or_else(|| unsupported(ctx))?;
                 let mode: crate::filesystem::SearchMode = serde_json::from_value(
                     ctx.params().get("mode").cloned().unwrap_or(json!("name")),
-                ).map_err(|_| RpcError::invalid_params("invalid search mode"))?;
+                )
+                .map_err(|_| RpcError::invalid_params("invalid search mode"))?;
                 if !provider.supports(mode) {
                     return Err(unsupported(ctx));
                 }
                 serde_json::to_value(provider.query(ctx)?)
                     .map_err(|error| RpcError::internal(error.to_string()))?
             }
-            "hooks.invoke" => self.hooks.select(ctx.params())?
-                .ok_or_else(|| unsupported(ctx))?.invoke(ctx)?,
-            "toolbar.invoke" => self.toolbar.select(ctx.params())?
-                .ok_or_else(|| unsupported(ctx))?.invoke(ctx)?,
+            "hooks.invoke" => self
+                .hooks
+                .select(ctx.params())?
+                .ok_or_else(|| unsupported(ctx))?
+                .invoke(ctx)?,
+            "toolbar.invoke" => self
+                .toolbar
+                .select(ctx.params())?
+                .ok_or_else(|| unsupported(ctx))?
+                .invoke(ctx)?,
             "connection.validate" => match self.connection.select(ctx.params())? {
                 Some(provider) => provider.validate(ctx)?,
                 None => return Ok(None),
@@ -442,8 +519,15 @@ mod tests {
             .info_named("media", ExampleInfo);
         assert_eq!(providers.info.len(), 2);
         assert!(providers.info.select(&json!({})).is_err());
-        assert!(providers.info.select(&json!({"providerId":"media"})).unwrap().is_some());
-        assert!(providers.info.select(&json!({"providerId":"other"})).is_err());
+        assert!(providers
+            .info
+            .select(&json!({"providerId":"media"}))
+            .unwrap()
+            .is_some());
+        assert!(providers
+            .info
+            .select(&json!({"providerId":"other"}))
+            .is_err());
     }
 
     #[test]
