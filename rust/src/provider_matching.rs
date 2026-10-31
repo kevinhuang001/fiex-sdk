@@ -270,7 +270,7 @@ mod tests {
             "view":{"type":"vfs","providerId":"plugin:drive","mountId":"connection-a"},
             "storage":{"type":"vfs","providerId":"plugin:drive","mountId":"connection-a"}
         });
-        assert!(rule.matches_targets(&[connection.clone()], 1));
+        assert!(rule.matches_targets(std::slice::from_ref(&connection), 1));
         assert!(!rule.matches_targets(
             &[json!({"kind":"file", "view":connection["view"], "storage":connection["storage"]})],
             1
