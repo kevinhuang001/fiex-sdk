@@ -78,9 +78,14 @@ impl ProviderMatchRule {
     }
 
     pub fn matches(&self, ext: &str, mime: &str, is_dir: bool) -> bool {
+        let kind = if is_dir { "directory" } else { "file" };
+        self.matches_content(ext, mime)
+            && (self.kinds.is_empty() || self.kinds.iter().any(|name| name == kind))
+    }
+
+    fn matches_content(&self, ext: &str, mime: &str) -> bool {
         let ext = ext.trim().trim_start_matches('.').to_ascii_lowercase();
         let mime = mime.trim().to_ascii_lowercase();
-        let kind = if is_dir { "directory" } else { "file" };
         let ext_ok = self.extensions.is_empty()
             || self.extensions.iter().any(|v| {
                 let v = v
@@ -101,12 +106,7 @@ impl ProviderMatchRule {
                     None => pattern == mime,
                 }
             });
-        let kind_ok = self.kinds.is_empty()
-            || self.kinds.iter().any(|v| {
-                let v = v.trim().to_ascii_lowercase();
-                v == kind || (kind == "directory" && v == "dir")
-            });
-        ext_ok && mime_ok && kind_ok
+        ext_ok && mime_ok
     }
 
     /// The caller decides which directory snapshot to use for a blank canvas.
@@ -125,18 +125,19 @@ impl ProviderMatchRule {
         }
         targets.iter().all(|m| {
             let kind = match m["kind"].as_str() {
-                Some("directory") => Some(true),
-                Some("file") => Some(false),
-                _ => m["isDir"].as_bool(),
+                Some("directory") => Some("directory"),
+                Some("file") => Some("file"),
+                Some("connection") => Some("connection"),
+                _ => m["isDir"].as_bool().map(|dir| if dir { "directory" } else { "file" }),
             };
             m.is_object()
                 && (self.extensions.is_empty() || m["extension"].is_string())
                 && (self.mime_types.is_empty() || m["mime"].is_string())
-                && (self.kinds.is_empty() || kind.is_some())
-                && self.matches(
+                && (self.kinds.is_empty()
+                    || kind.is_some_and(|kind| self.kinds.iter().any(|name| name == kind)))
+                && self.matches_content(
                     m["extension"].as_str().unwrap_or(""),
                     m["mime"].as_str().unwrap_or(""),
-                    kind.unwrap_or(false),
                 )
                 && self
                     .view
@@ -252,6 +253,23 @@ mod tests {
         assert!(rule.matches_targets(std::slice::from_ref(&entry), 1));
         assert!(!rule.matches_targets(&[json!({"view":entry["view"],"kind":"file"})], 1));
         assert!(!rule.matches_targets(&[entry.clone(), json!({"kind":"file"})], 2));
+    }
+
+    #[test]
+    fn connections_use_the_same_view_and_storage_constraints() {
+        let rule: ProviderMatchRule = serde_json::from_value(json!({
+            "kinds":["connection"],
+            "view":{"types":["vfs"],"providerIds":["plugin:drive"]},
+            "storage":{"mountIds":["connection-a"]}
+        })).unwrap();
+        let connection = json!({
+            "kind":"connection",
+            "view":{"type":"vfs","providerId":"plugin:drive","mountId":"connection-a"},
+            "storage":{"type":"vfs","providerId":"plugin:drive","mountId":"connection-a"}
+        });
+        assert!(rule.matches_targets(&[connection.clone()], 1));
+        assert!(!rule.matches_targets(&[json!({"kind":"file", "view":connection["view"], "storage":connection["storage"]})], 1));
+        assert!(!rule.matches_targets(&[json!({"kind":"connection", "view":connection["view"]})], 1));
     }
 
     #[test]
