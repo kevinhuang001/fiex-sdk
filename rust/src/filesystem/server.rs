@@ -26,6 +26,7 @@ pub struct FsServer {
 
 enum Stream {
     Read {
+        mount_id: Option<String>,
         reader: Box<dyn Read + Send>,
         offset: u64,
         /// Keeps host handles opened while creating the stream authorized until
@@ -35,11 +36,23 @@ enum Stream {
         session: Option<StreamSession>,
     },
     Write {
+        mount_id: Option<String>,
         write: FsWrite,
         offset: u64,
         /// Keeps the upload's host handles authorized until `vfs.commit`/`abort`.
         session: Option<StreamSession>,
     },
+}
+
+impl Stream {
+    /// Stream IDs are scoped to their Core-verified mount even when a single
+    /// SDK provider instance serves multiple accounts.
+    fn belongs_to(&self, ctx: &RequestContext) -> bool {
+        let expected = match self {
+            Self::Read { mount_id, .. } | Self::Write { mount_id, .. } => mount_id.as_deref(),
+        };
+        expected == ctx.params().get("mountId").and_then(Value::as_str)
+    }
 }
 
 impl Default for FsServer {
@@ -111,6 +124,7 @@ impl FsServer {
                 self.lock()?.insert(
                     id.clone(),
                     Stream::Read {
+                        mount_id: ctx.params().get("mountId").and_then(Value::as_str).map(str::to_owned),
                         reader: read.reader,
                         offset: 0,
                         session,
@@ -126,13 +140,17 @@ impl FsServer {
                     .unwrap_or(256 * 1024 + 1)
                     .clamp(1, MAX_CHUNK as u64) as usize;
                 let mut streams = self.lock()?;
+                let stream = streams
+                    .get_mut(id)
+                    .ok_or_else(|| RpcError::invalid_params("unknown streamId"))?;
+                if !stream.belongs_to(ctx) {
+                    return Err(RpcError::invalid_params("unknown streamId"));
+                }
                 let Stream::Read {
                     reader,
                     offset: cursor,
                     ..
-                } = streams
-                    .get_mut(id)
-                    .ok_or_else(|| RpcError::invalid_params("unknown streamId"))?
+                } = stream
                 else {
                     return Err(RpcError::invalid_params("stream is not readable"));
                 };
@@ -149,7 +167,12 @@ impl FsServer {
                 let id = param_str(ctx, "streamId")?;
                 // Drop the stream outside the registry lock: releasing the
                 // session is a host call.
-                let removed = self.lock()?.remove(id);
+                let mut streams = self.lock()?;
+                if !streams.get(id).is_some_and(|stream| stream.belongs_to(ctx)) {
+                    return Err(RpcError::invalid_params("unknown streamId"));
+                }
+                let removed = streams.remove(id);
+                drop(streams);
                 drop(removed);
                 Value::Null
             }
@@ -162,6 +185,7 @@ impl FsServer {
                 self.lock()?.insert(
                     id.clone(),
                     Stream::Write {
+                        mount_id: ctx.params().get("mountId").and_then(Value::as_str).map(str::to_owned),
                         write,
                         offset: 0,
                         session,
@@ -174,13 +198,17 @@ impl FsServer {
                 let offset = ctx.params()["offset"].as_u64().unwrap_or(0);
                 let bytes = decode_chunk(ctx)?;
                 let mut guard = self.lock()?;
+                let stream = guard
+                    .get_mut(&id)
+                    .ok_or_else(|| RpcError::invalid_params("unknown streamId"))?;
+                if !stream.belongs_to(ctx) {
+                    return Err(RpcError::invalid_params("unknown streamId"));
+                }
                 let Stream::Write {
                     write,
                     offset: written,
                     ..
-                } = guard
-                    .get_mut(&id)
-                    .ok_or_else(|| RpcError::invalid_params("unknown streamId"))?
+                } = stream
                 else {
                     return Err(RpcError::invalid_params("stream is not writable"));
                 };
@@ -198,10 +226,12 @@ impl FsServer {
             }
             "vfs.commit" => {
                 let id = param_str(ctx, "streamId")?.to_string();
-                let stream = self
-                    .lock()?
-                    .remove(&id)
-                    .ok_or_else(|| RpcError::invalid_params("unknown streamId"))?;
+                let mut streams = self.lock()?;
+                if !streams.get(&id).is_some_and(|stream| stream.belongs_to(ctx)) {
+                    return Err(RpcError::invalid_params("unknown streamId"));
+                }
+                let stream = streams.remove(&id).expect("checked stream ownership");
+                drop(streams);
                 let Stream::Write { write, session, .. } = stream else {
                     return Err(RpcError::invalid_params("stream is not writable"));
                 };
@@ -215,7 +245,12 @@ impl FsServer {
             }
             "vfs.abort" => {
                 let id = param_str(ctx, "streamId")?;
-                let removed = self.lock()?.remove(id);
+                let mut streams = self.lock()?;
+                if !streams.get(id).is_some_and(|stream| stream.belongs_to(ctx)) {
+                    return Err(RpcError::invalid_params("unknown streamId"));
+                }
+                let removed = streams.remove(id);
+                drop(streams);
                 if let Some(Stream::Write { write, session, .. }) = removed {
                     write.abort();
                     drop(session);
