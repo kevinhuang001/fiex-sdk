@@ -94,6 +94,10 @@ mod instances;
 pub use instances::ProviderInstances;
 mod pagination;
 pub use pagination::VfsPage;
+mod preflight;
+pub use preflight::{
+    PreflightDecision, TransferAction, TransferDirection, TransferMetadata, TransferPreflight,
+};
 mod vfs;
 pub use vfs::{FsEntry, FsKind, FsListing, SearchCapabilities, SearchMode};
 
