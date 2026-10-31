@@ -44,6 +44,13 @@ enum Stream {
     },
 }
 
+fn stream_mount_id(ctx: &RequestContext) -> Option<String> {
+    ctx.params()
+        .get("mountId")
+        .and_then(Value::as_str)
+        .map(str::to_owned)
+}
+
 impl Stream {
     /// Stream IDs are scoped to their Core-verified mount even when a single
     /// SDK provider instance serves multiple accounts.
@@ -124,7 +131,7 @@ impl FsServer {
                 self.lock()?.insert(
                     id.clone(),
                     Stream::Read {
-                        mount_id: ctx.params().get("mountId").and_then(Value::as_str).map(str::to_owned),
+                        mount_id: stream_mount_id(ctx),
                         reader: read.reader,
                         offset: 0,
                         session,
@@ -185,7 +192,7 @@ impl FsServer {
                 self.lock()?.insert(
                     id.clone(),
                     Stream::Write {
-                        mount_id: ctx.params().get("mountId").and_then(Value::as_str).map(str::to_owned),
+                        mount_id: stream_mount_id(ctx),
                         write,
                         offset: 0,
                         session,
