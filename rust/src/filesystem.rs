@@ -49,18 +49,7 @@ pub use preflight::{
 /// Maximum bytes a single `vfs.readStream` chunk may return.
 pub const MAX_CHUNK: usize = 4 * 1024 * 1024;
 
-/// One capability a file-system provider can implement.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum FsOperation {
-    List,
-    Stat,
-    Read,
-    Write,
-    Mkdir,
-    Rename,
-    Remove,
-    Search,
-}
+pub use fiex_provider_contracts::FsOperation;
 
 /// Independent modes under the single `vfs.search` RPC.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -84,76 +73,6 @@ impl SearchCapabilities {
             SearchMode::Name => self.name,
             SearchMode::Content => self.content,
         }
-    }
-}
-
-impl FsOperation {
-    pub const ALL: [FsOperation; 8] = [
-        FsOperation::List,
-        FsOperation::Stat,
-        FsOperation::Read,
-        FsOperation::Write,
-        FsOperation::Mkdir,
-        FsOperation::Rename,
-        FsOperation::Remove,
-        FsOperation::Search,
-    ];
-
-    pub fn as_str(self) -> &'static str {
-        match self {
-            FsOperation::List => "list",
-            FsOperation::Stat => "stat",
-            FsOperation::Read => "read",
-            FsOperation::Write => "write",
-            FsOperation::Mkdir => "mkdir",
-            FsOperation::Rename => "rename",
-            FsOperation::Remove => "remove",
-            FsOperation::Search => "search",
-        }
-    }
-
-    pub fn parse(value: &str) -> Option<Self> {
-        FsOperation::ALL.into_iter().find(|op| op.as_str() == value)
-    }
-
-    /// Resolve a storage-provider wire method to the shared logical operation.
-    pub fn from_method(method: &str) -> Option<Self> {
-        Self::ALL
-            .into_iter()
-            .find(|op| op.methods().contains(&method))
-    }
-
-    /// Wire methods unlocked by this capability.
-    pub fn methods(self) -> &'static [&'static str] {
-        match self {
-            FsOperation::List => &["vfs.list"],
-            FsOperation::Stat => &["vfs.stat"],
-            FsOperation::Read => &["vfs.openRead", "vfs.readStream", "vfs.closeRead"],
-            FsOperation::Write => &[
-                "vfs.beginWrite",
-                "vfs.writeStream",
-                "vfs.commit",
-                "vfs.abort",
-            ],
-            FsOperation::Mkdir => &["vfs.mkdir"],
-            FsOperation::Rename => &["vfs.rename"],
-            FsOperation::Remove => &["vfs.remove"],
-            FsOperation::Search => &["vfs.search"],
-        }
-    }
-}
-
-impl Serialize for FsOperation {
-    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        serializer.serialize_str(self.as_str())
-    }
-}
-
-impl<'de> Deserialize<'de> for FsOperation {
-    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        let value = String::deserialize(deserializer)?;
-        FsOperation::parse(&value)
-            .ok_or_else(|| serde::de::Error::custom(format!("unknown fs operation: {value}")))
     }
 }
 
