@@ -3,9 +3,8 @@ use super::*;
 impl Providers {
     pub(super) fn dispatch(&self, ctx: &RequestContext) -> Result<Option<Value>, RpcError> {
         if ctx.method().starts_with("vfs.") {
-            let Some(fs) = self.filesystem.select(ctx.params())? else {
-                return Ok(None);
-            };
+            let fs = self.filesystem.select(ctx.params())?
+                .ok_or_else(|| unsupported(ctx))?;
             return fs.server.serve(fs.dispatch.as_ref(), ctx);
         }
         let value = match ctx.method() {
@@ -84,18 +83,15 @@ impl Providers {
                 .select(ctx.params())?
                 .ok_or_else(|| unsupported(ctx))?
                 .invoke(ctx)?,
-            "connection.validate" => match self.connection.select(ctx.params())? {
-                Some(provider) => provider.validate(ctx)?,
-                None => return Ok(None),
-            },
-            "connection.open" => match self.connection.select(ctx.params())? {
-                Some(provider) => provider.open(ctx)?,
-                None => return Ok(None),
-            },
-            "connection.create" => match self.connection.select(ctx.params())? {
-                Some(provider) => provider.create(ctx)?,
-                None => return Ok(None),
-            },
+            "connection.validate" => self.connection.select(ctx.params())?
+                .ok_or_else(|| unsupported(ctx))?
+                .validate(ctx)?,
+            "connection.open" => self.connection.select(ctx.params())?
+                .ok_or_else(|| unsupported(ctx))?
+                .open(ctx)?,
+            "connection.create" => self.connection.select(ctx.params())?
+                .ok_or_else(|| unsupported(ctx))?
+                .create(ctx)?,
             _ => return Ok(None),
         };
         Ok(Some(value))
