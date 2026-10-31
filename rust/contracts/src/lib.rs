@@ -94,6 +94,8 @@ mod instances;
 pub use instances::ProviderInstances;
 mod pagination;
 pub use pagination::VfsPage;
+mod vfs;
+pub use vfs::{FsEntry, FsKind, FsListing, SearchCapabilities, SearchMode};
 
 mod resources;
 pub use resources::{
