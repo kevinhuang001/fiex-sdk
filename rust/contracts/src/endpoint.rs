@@ -60,6 +60,14 @@ pub trait ProviderEndpoint: Send + Sync {
     fn invoke(&self, request: &ProviderRequest) -> Result<Value, String>;
 }
 
+/// Registered, shared endpoint instances use the same runtime-neutral
+/// dispatch contract as stack-allocated implementations.
+impl<T: ProviderEndpoint + ?Sized> ProviderEndpoint for std::sync::Arc<T> {
+    fn invoke(&self, request: &ProviderRequest) -> Result<Value, String> {
+        (**self).invoke(request)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
