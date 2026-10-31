@@ -35,7 +35,10 @@ pub fn event(method: &str) -> Option<Event> {
         "connectionContextMenu.execute" => ("connectionContextMenus", Owner),
         _ => return None,
     };
-    Some(Event { extension, dispatch })
+    Some(Event {
+        extension,
+        dispatch,
+    })
 }
 
 /// A transport-neutral request. No direct host path, authentication token,
@@ -80,8 +83,16 @@ mod tests {
             ("hooks.invoke", "hooks", Dispatch::FirstSupported),
             ("toolbar.invoke", "toolbar", Dispatch::Owner),
             ("connection.validate", "connections", Dispatch::Owner),
-            ("connectionContextMenu.resolve", "connectionContextMenus", Dispatch::Merge),
-            ("connectionContextMenu.execute", "connectionContextMenus", Dispatch::Owner),
+            (
+                "connectionContextMenu.resolve",
+                "connectionContextMenus",
+                Dispatch::Merge,
+            ),
+            (
+                "connectionContextMenu.execute",
+                "connectionContextMenus",
+                Dispatch::Owner,
+            ),
         ] {
             let kind = event(name).expect("registered method");
             assert_eq!(kind.extension, extension);
@@ -94,7 +105,13 @@ mod tests {
     #[test]
     fn both_transports_share_one_endpoint_signature() {
         let endpoint: &dyn ProviderEndpoint = &Echo;
-        let call = ProviderRequest { method: "info.resolve".into(), params: json!({"resource":"opaque"}) };
-        assert_eq!(endpoint.invoke(&call).unwrap(), json!({"method":"info.resolve","params":{"resource":"opaque"}}));
+        let call = ProviderRequest {
+            method: "info.resolve".into(),
+            params: json!({"resource":"opaque"}),
+        };
+        assert_eq!(
+            endpoint.invoke(&call).unwrap(),
+            json!({"method":"info.resolve","params":{"resource":"opaque"}})
+        );
     }
 }
