@@ -20,6 +20,25 @@ pub struct Event {
     pub dispatch: Dispatch,
 }
 
+impl Event {
+    /// One canonical event-family identity for descriptor and IPC validation.
+    pub fn kind(self) -> Option<crate::ProviderKind> {
+        use crate::ProviderKind;
+        match self.extension {
+            "info" => Some(ProviderKind::Info),
+            "preview" => Some(ProviderKind::Preview),
+            "decorations" => Some(ProviderKind::Decoration),
+            "contextMenus" => Some(ProviderKind::ContextMenu),
+            "search" => Some(ProviderKind::Search),
+            "toolbar" => Some(ProviderKind::Toolbar),
+            "hooks" => Some(ProviderKind::Hook),
+            "connections" => Some(ProviderKind::Connection),
+            "connectionContextMenus" => Some(ProviderKind::ConnectionContextMenu),
+            _ => None,
+        }
+    }
+}
+
 pub fn event(method: &str) -> Option<Event> {
     use Dispatch::*;
     let (extension, dispatch) = match method {
@@ -106,6 +125,7 @@ mod tests {
             let kind = event(name).expect("registered method");
             assert_eq!(kind.extension, extension);
             assert_eq!(kind.dispatch, dispatch);
+            assert!(kind.kind().is_some(), "{name} has no provider kind");
         }
         assert!(event("fs.read").is_none());
         assert!(event("custom.example").is_none());
