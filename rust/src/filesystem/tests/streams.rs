@@ -294,85 +294,42 @@ fn http_backed_streams_keep_their_handles_across_requests() {
     assert_eq!(finish.1["status"], "completed");
 }
 
+fn scoped_stream_call(
+    server: &FsServer,
+    provider: &Memory,
+    method: &str,
+    mount: &str,
+    id: &str,
+) -> Result<Option<Value>, RpcError> {
+    let params = json!({
+        "mountId": mount, "streamId": id, "offset": 0,
+        "maxBytes": 2, "base64": "YQ=="
+    });
+    server.serve(provider, &request(method, params))
+}
+
 #[test]
 fn read_and_write_sessions_are_restricted_to_the_opening_mount() {
     let server = FsServer::new();
     let provider = Memory { writable: true };
-    let opened = server
-        .serve(
-            &provider,
-            &request("vfs.openRead", json!({"mountId":"account-a","nodeId":"a"})),
-        )
-        .unwrap()
-        .unwrap();
+    let open_read = request("vfs.openRead", json!({"mountId":"account-a","nodeId":"a"}));
+    let opened = server.serve(&provider, &open_read).unwrap().unwrap();
     let read_id = opened["streamId"].as_str().unwrap();
     for method in ["vfs.readStream", "vfs.closeRead"] {
-        assert!(server
-            .serve(
-                &provider,
-                &request(method, json!({
-                    "mountId":"account-b","streamId":read_id,
-                    "offset":0,"maxBytes":2
-                })),
-            )
-            .is_err());
+        assert!(scoped_stream_call(&server, &provider, method, "account-b", read_id).is_err());
     }
-    let chunk = server
-        .serve(
-            &provider,
-            &request("vfs.readStream", json!({
-                "mountId":"account-a","streamId":read_id,
-                "offset":0,"maxBytes":2
-            })),
-        )
+    let chunk = scoped_stream_call(&server, &provider, "vfs.readStream", "account-a", read_id)
         .unwrap()
         .unwrap();
     assert_eq!(chunk["base64"], "YWI=");
-    server
-        .serve(
-            &provider,
-            &request("vfs.closeRead", json!({
-                "mountId":"account-a","streamId":read_id
-            })),
-        )
-        .unwrap();
+    scoped_stream_call(&server, &provider, "vfs.closeRead", "account-a", read_id).unwrap();
 
-    let opened = server
-        .serve(
-            &provider,
-            &request("vfs.beginWrite", json!({
-                "mountId":"account-a","nodeId":"a"
-            })),
-        )
-        .unwrap()
-        .unwrap();
+    let open_write = request("vfs.beginWrite", json!({"mountId":"account-a","nodeId":"a"}));
+    let opened = server.serve(&provider, &open_write).unwrap().unwrap();
     let write_id = opened["streamId"].as_str().unwrap();
     for method in ["vfs.writeStream", "vfs.commit", "vfs.abort"] {
-        assert!(server
-            .serve(
-                &provider,
-                &request(method, json!({
-                    "mountId":"account-b","streamId":write_id,
-                    "offset":0,"base64":"YQ=="
-                })),
-            )
-            .is_err());
+        assert!(scoped_stream_call(&server, &provider, method, "account-b", write_id).is_err());
     }
-    server
-        .serve(
-            &provider,
-            &request("vfs.writeStream", json!({
-                "mountId":"account-a","streamId":write_id,
-                "offset":0,"base64":"YQ=="
-            })),
-        )
-        .unwrap();
-    assert!(server
-        .serve(
-            &provider,
-            &request("vfs.commit", json!({
-                "mountId":"account-a","streamId":write_id
-            })),
-        )
-        .is_ok());
+    scoped_stream_call(&server, &provider, "vfs.writeStream", "account-a", write_id).unwrap();
+    scoped_stream_call(&server, &provider, "vfs.commit", "account-a", write_id).unwrap();
 }
