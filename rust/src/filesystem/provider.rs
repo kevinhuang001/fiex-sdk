@@ -76,7 +76,10 @@ pub trait VfsProvider: Send + Sync {
     }
 }
 
-pub(super) fn invoke(provider: &dyn VfsProvider, request: &FsRequest<'_>) -> Result<FsProduct, RpcError> {
+pub(super) fn invoke(
+    provider: &dyn VfsProvider,
+    request: &FsRequest<'_>,
+) -> Result<FsProduct, RpcError> {
     Ok(match request.op() {
         FsOperation::List => FsProduct::Listing(provider.list(request)?),
         FsOperation::Stat => FsProduct::Entry(provider.stat(request)?),
