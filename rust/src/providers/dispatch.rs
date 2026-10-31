@@ -3,7 +3,9 @@ use super::*;
 impl Providers {
     pub(super) fn dispatch(&self, ctx: &RequestContext) -> Result<Option<Value>, RpcError> {
         if ctx.method().starts_with("vfs.") {
-            let fs = self.filesystem.select(ctx.params())?
+            let fs = self
+                .filesystem
+                .select(ctx.params())?
                 .ok_or_else(|| unsupported(ctx))?;
             return fs.server.serve(fs.dispatch.as_ref(), ctx);
         }
@@ -83,13 +85,19 @@ impl Providers {
                 .select(ctx.params())?
                 .ok_or_else(|| unsupported(ctx))?
                 .invoke(ctx)?,
-            "connection.validate" => self.connection.select(ctx.params())?
+            "connection.validate" => self
+                .connection
+                .select(ctx.params())?
                 .ok_or_else(|| unsupported(ctx))?
                 .validate(ctx)?,
-            "connection.open" => self.connection.select(ctx.params())?
+            "connection.open" => self
+                .connection
+                .select(ctx.params())?
                 .ok_or_else(|| unsupported(ctx))?
                 .open(ctx)?,
-            "connection.create" => self.connection.select(ctx.params())?
+            "connection.create" => self
+                .connection
+                .select(ctx.params())?
                 .ok_or_else(|| unsupported(ctx))?
                 .create(ctx)?,
             _ => return Ok(None),
