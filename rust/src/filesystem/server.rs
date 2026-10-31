@@ -234,7 +234,10 @@ impl FsServer {
             "vfs.commit" => {
                 let id = param_str(ctx, "streamId")?.to_string();
                 let mut streams = self.lock()?;
-                if !streams.get(&id).is_some_and(|stream| stream.belongs_to(ctx)) {
+                if !streams
+                    .get(&id)
+                    .is_some_and(|stream| stream.belongs_to(ctx))
+                {
                     return Err(RpcError::invalid_params("unknown streamId"));
                 }
                 let stream = streams.remove(&id).expect("checked stream ownership");
