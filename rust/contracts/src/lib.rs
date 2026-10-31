@@ -88,6 +88,11 @@ impl<'de> Deserialize<'de> for FsOperation {
 }
 
 
+mod resources;
+pub use resources::{
+    EventContext, InfoRow, InfoSection, PackageView, PreviewView,
+    ResourceContext, ResourceMetadata, ResourceRef,
+};
 pub mod matching;
 pub use matching::{LocationMatch, ProviderMatchRule};
 
