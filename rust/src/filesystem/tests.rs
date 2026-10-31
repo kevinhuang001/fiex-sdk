@@ -2,7 +2,6 @@ use super::*;
 use crate::{RequestContext, RpcError};
 use serde_json::{json, Value};
 
-use super::*;
 use crate::{
     context::ContextInner,
     runtime::{session::Session, HostLink},

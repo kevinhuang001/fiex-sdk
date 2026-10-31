@@ -1,4 +1,5 @@
 use super::*;
+use std::sync::Mutex;
 
 #[test]
 fn read_stream_honours_offsets_and_rejects_backward_seeks() {
