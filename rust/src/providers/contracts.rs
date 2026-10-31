@@ -34,18 +34,7 @@ pub trait ConnectionContextMenuProvider: Send + Sync {
 
 /// `search.query`: local entries are paths relative to the authorized root;
 /// standalone VFS providers return the same entry shape as `vfs.search`.
-#[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
-pub struct SearchResults {
-    pub entries: Vec<Value>,
-    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
-    pub truncated: bool,
-    #[serde(
-        default,
-        rename = "nextCursor",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub next_cursor: Option<String>,
-}
+pub use fiex_provider_contracts::SearchResults;
 
 pub trait SearchProvider: Send + Sync {
     /// A local search provider can advertise one or both modes. Core filters
