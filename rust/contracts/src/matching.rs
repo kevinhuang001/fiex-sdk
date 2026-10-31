@@ -10,11 +10,11 @@ use serde_json::Value;
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct LocationMatch {
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub types: Option<Vec<String>>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub provider_ids: Option<Vec<String>>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mount_ids: Option<Vec<String>>,
 }
 
@@ -39,9 +39,9 @@ impl LocationMatch {
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ProviderMatchRule {
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub view: Option<LocationMatch>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub storage: Option<LocationMatch>,
     #[serde(default)]
     pub extensions: Vec<String>,
@@ -52,7 +52,7 @@ pub struct ProviderMatchRule {
     pub kinds: Vec<String>,
     #[serde(default)]
     pub required_ops: Vec<FsOperation>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub selection: Option<String>,
 }
 
@@ -288,6 +288,22 @@ mod tests {
             &[json!({"kind":"connection", "view":connection["view"]})],
             1
         ));
+    }
+
+    #[test]
+    fn optional_location_fields_serialize_without_null_selector_values() {
+        let rule = ProviderMatchRule {
+            view: Some(LocationMatch {
+                provider_ids: Some(vec!["core:applications".into()]),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let value = serde_json::to_value(&rule).unwrap();
+        assert_eq!(value["view"]["providerIds"][0], "core:applications");
+        assert!(value["view"].get("types").is_none());
+        assert!(value["view"].get("mountIds").is_none());
+        assert!(rule.validate_consistency().is_ok());
     }
 
     #[test]
