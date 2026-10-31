@@ -92,6 +92,8 @@ mod endpoint;
 pub use endpoint::{event, Dispatch, Event, ProviderEndpoint, ProviderRequest};
 mod instances;
 pub use instances::ProviderInstances;
+mod pagination;
+pub use pagination::VfsPage;
 
 mod resources;
 pub use resources::{
