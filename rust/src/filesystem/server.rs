@@ -16,7 +16,10 @@ use helpers::*;
 ///
 /// The provider owns the `Read`/`Write` implementations; the SDK owns stream
 /// ids, chunk offsets, close semantics and commit ordering.
+static NEXT_FS_SERVER_ID: AtomicU64 = AtomicU64::new(1);
+
 pub struct FsServer {
+    namespace: u64,
     next: AtomicU64,
     streams: Mutex<HashMap<String, Stream>>,
 }
@@ -42,6 +45,7 @@ enum Stream {
 impl Default for FsServer {
     fn default() -> Self {
         Self {
+            namespace: NEXT_FS_SERVER_ID.fetch_add(1, Ordering::Relaxed),
             next: AtomicU64::new(1),
             streams: Mutex::new(HashMap::new()),
         }
@@ -244,7 +248,7 @@ impl FsServer {
     }
 
     fn mint(&self, kind: &str) -> String {
-        format!("{kind}-{}", self.next.fetch_add(1, Ordering::Relaxed))
+        format!("{}-{kind}-{}", self.namespace, self.next.fetch_add(1, Ordering::Relaxed))
     }
 
     fn lock(&self) -> Result<std::sync::MutexGuard<'_, HashMap<String, Stream>>, RpcError> {

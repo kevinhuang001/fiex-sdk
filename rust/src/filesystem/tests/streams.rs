@@ -2,6 +2,27 @@ use super::*;
 use std::sync::Mutex;
 
 #[test]
+fn independent_vfs_instances_never_share_stream_identifiers() {
+    let left = FsServer::new();
+    let right = FsServer::new();
+    let left_stream = left
+        .serve(&Memory { writable: true }, &request("vfs.openRead", json!({"nodeId":"a"})))
+        .unwrap()
+        .unwrap();
+    let right_stream = right
+        .serve(&Memory { writable: true }, &request("vfs.openRead", json!({"nodeId":"a"})))
+        .unwrap()
+        .unwrap();
+    assert_ne!(left_stream["streamId"], right_stream["streamId"]);
+    assert!(right.serve(
+        &Memory { writable: true },
+        &request("vfs.readStream", json!({
+            "streamId":left_stream["streamId"], "offset":0, "maxBytes":1
+        }))
+    ).is_err());
+}
+
+#[test]
 fn read_stream_honours_offsets_and_rejects_backward_seeks() {
     let server = FsServer::new();
     let opened = server
