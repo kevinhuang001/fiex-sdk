@@ -105,7 +105,7 @@ pub trait ConnectionProvider: Send + Sync {
     }
 }
 
-fn unsupported(ctx: &RequestContext) -> RpcError {
+pub(super) fn unsupported(ctx: &RequestContext) -> RpcError {
     RpcError::method_not_found(ctx.method())
 }
 
