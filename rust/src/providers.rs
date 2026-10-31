@@ -29,7 +29,6 @@ struct FsProvider {
     dispatch: Box<dyn VfsProvider>,
     server: FsServer,
 }
-#[derive(Default)]
 pub struct Providers {
     diagnostics: bool,
     registration_errors: Vec<String>,
@@ -43,6 +42,26 @@ pub struct Providers {
     hooks: ProviderSet<dyn HookProvider>,
     toolbar: ProviderSet<dyn ToolbarProvider>,
     connection: ProviderSet<dyn ConnectionProvider>,
+}
+
+impl Default for Providers {
+    fn default() -> Self {
+        use fiex_provider_contracts::ProviderKind;
+        Self {
+            diagnostics: false,
+            registration_errors: Vec::new(),
+            filesystem: ProviderSet::new(ProviderKind::Vfs),
+            info: ProviderSet::new(ProviderKind::Info),
+            preview: ProviderSet::new(ProviderKind::Preview),
+            decorations: ProviderSet::new(ProviderKind::Decoration),
+            context_menu: ProviderSet::new(ProviderKind::ContextMenu),
+            connection_context_menu: ProviderSet::new(ProviderKind::ConnectionContextMenu),
+            search: ProviderSet::new(ProviderKind::Search),
+            hooks: ProviderSet::new(ProviderKind::Hook),
+            toolbar: ProviderSet::new(ProviderKind::Toolbar),
+            connection: ProviderSet::new(ProviderKind::Connection),
+        }
+    }
 }
 
 impl Providers {
