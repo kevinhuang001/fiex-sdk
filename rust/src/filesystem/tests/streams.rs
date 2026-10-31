@@ -326,7 +326,10 @@ fn read_and_write_sessions_are_restricted_to_the_opening_mount() {
     assert_eq!(chunk["base64"], "YWI=");
     scoped_stream_call(&server, &provider, "vfs.closeRead", "account-a", read_id).unwrap();
 
-    let open_write = request("vfs.beginWrite", json!({"mountId":"account-a","nodeId":"a"}));
+    let open_write = request(
+        "vfs.beginWrite",
+        json!({"mountId":"account-a","nodeId":"a"}),
+    );
     let opened = server.serve(&provider, &open_write).unwrap().unwrap();
     let write_id = opened["streamId"].as_str().unwrap();
     for method in ["vfs.writeStream", "vfs.commit", "vfs.abort"] {
