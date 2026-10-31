@@ -175,7 +175,10 @@ impl FsServer {
                 // Drop the stream outside the registry lock: releasing the
                 // session is a host call.
                 let mut streams = self.lock()?;
-                if !streams.get(id).is_some_and(|stream| stream.belongs_to(ctx)) {
+                if !streams
+                    .get(id)
+                    .is_some_and(|stream| matches!(stream, Stream::Read { .. }) && stream.belongs_to(ctx))
+                {
                     return Err(RpcError::invalid_params("unknown streamId"));
                 }
                 let removed = streams.remove(id);
@@ -234,10 +237,9 @@ impl FsServer {
             "vfs.commit" => {
                 let id = param_str(ctx, "streamId")?.to_string();
                 let mut streams = self.lock()?;
-                if !streams
-                    .get(&id)
-                    .is_some_and(|stream| stream.belongs_to(ctx))
-                {
+                if !streams.get(&id).is_some_and(|stream| {
+                    matches!(stream, Stream::Write { .. }) && stream.belongs_to(ctx)
+                }) {
                     return Err(RpcError::invalid_params("unknown streamId"));
                 }
                 let stream = streams.remove(&id).expect("checked stream ownership");
@@ -256,7 +258,10 @@ impl FsServer {
             "vfs.abort" => {
                 let id = param_str(ctx, "streamId")?;
                 let mut streams = self.lock()?;
-                if !streams.get(id).is_some_and(|stream| stream.belongs_to(ctx)) {
+                if !streams
+                    .get(id)
+                    .is_some_and(|stream| matches!(stream, Stream::Write { .. }) && stream.belongs_to(ctx))
+                {
                     return Err(RpcError::invalid_params("unknown streamId"));
                 }
                 let removed = streams.remove(id);
