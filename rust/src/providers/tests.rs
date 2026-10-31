@@ -66,4 +66,3 @@ impl SearchProvider for ExampleInfoSearch {
         Ok(SearchResults::default())
     }
 }
-

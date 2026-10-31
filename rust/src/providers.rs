@@ -4,17 +4,22 @@
 //! system events it implements here. Custom RPC methods still go through the
 //! fallback handler. Provider implementations stay optional and composable;
 //! nothing forces a plugin to implement events it does not own.
-use crate::{filesystem::{FsServer, VfsProvider}, RequestContext, RpcError};
+use crate::{
+    filesystem::{FsServer, VfsProvider},
+    RequestContext, RpcError,
+};
 use serde_json::{json, Value};
 
 mod contracts;
 use contracts::unsupported;
-pub use contracts::{ConnectionContextMenuProvider, ConnectionProvider, ConnectionValidation,
-    ContextMenuProvider, DecorationProvider, HookProvider, InfoProvider, PreviewProvider,
-    SearchProvider, SearchResults, ToolbarProvider};
+pub use contracts::{
+    ConnectionContextMenuProvider, ConnectionProvider, ConnectionValidation, ContextMenuProvider,
+    DecorationProvider, HookProvider, InfoProvider, PreviewProvider, SearchProvider, SearchResults,
+    ToolbarProvider,
+};
 
-mod registry;
 mod dispatch;
+mod registry;
 use registry::ProviderSet;
 
 /// Trait-specific SDK registry. One plugin can expose multiple distinct
@@ -271,7 +276,6 @@ impl Providers {
             Err(RpcError::method_not_found(ctx.method()))
         })
     }
-
 }
 
 #[cfg(test)]
