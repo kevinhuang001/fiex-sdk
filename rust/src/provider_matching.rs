@@ -83,7 +83,11 @@ impl ProviderMatchRule {
         let kind = if is_dir { "directory" } else { "file" };
         let ext_ok = self.extensions.is_empty()
             || self.extensions.iter().any(|v| {
-                let v = v.trim().trim_start_matches("*.").trim_start_matches('.').to_ascii_lowercase();
+                let v = v
+                    .trim()
+                    .trim_start_matches("*.")
+                    .trim_start_matches('.')
+                    .to_ascii_lowercase();
                 v == "*" || v == ext
             });
         let mime_ok = self.mime_types.is_empty()
@@ -134,8 +138,14 @@ impl ProviderMatchRule {
                     m["mime"].as_str().unwrap_or(""),
                     kind.unwrap_or(false),
                 )
-                && self.view.as_ref().is_none_or(|rule| rule.matches(&m["view"]))
-                && self.storage.as_ref().is_none_or(|rule| rule.matches(&m["storage"]))
+                && self
+                    .view
+                    .as_ref()
+                    .is_none_or(|rule| rule.matches(&m["view"]))
+                && self
+                    .storage
+                    .as_ref()
+                    .is_none_or(|rule| rule.matches(&m["storage"]))
                 && self.required_ops.iter().all(|op| {
                     m["operations"].as_array().is_some_and(|ops| {
                         ops.iter().any(|value| value.as_str() == Some(op.as_str()))
@@ -156,28 +166,41 @@ impl ProviderMatchRule {
         }
         for key in ["extensions", "mimeTypes", "kinds"] {
             if let Some(items) = object.get(key) {
-                let items = items.as_array().ok_or_else(|| format!("match.{key} must be an array"))?;
+                let items = items
+                    .as_array()
+                    .ok_or_else(|| format!("match.{key} must be an array"))?;
                 if items.iter().any(|v| !v.is_string()) {
                     return Err(format!("match.{key} entries must be strings"));
                 }
             }
         }
-        for (label, target) in [("view", object.get("view")), ("storage", object.get("storage"))] {
+        for (label, target) in [
+            ("view", object.get("view")),
+            ("storage", object.get("storage")),
+        ] {
             let Some(target) = target else { continue };
-            let fields = target.as_object().ok_or_else(|| format!("match.{label} must be an object"))?;
+            let fields = target
+                .as_object()
+                .ok_or_else(|| format!("match.{label} must be an object"))?;
             if fields.is_empty() {
-                return Err(format!("match.{label} must constrain types, providerIds or mountIds"));
+                return Err(format!(
+                    "match.{label} must constrain types, providerIds or mountIds"
+                ));
             }
             for (key, values) in fields {
                 if !matches!(key.as_str(), "types" | "providerIds" | "mountIds") {
                     return Err(format!("match.{label}.{key} is unknown"));
                 }
-                let values = values.as_array().ok_or_else(|| format!("match.{label}.{key} must be an array"))?;
+                let values = values
+                    .as_array()
+                    .ok_or_else(|| format!("match.{label}.{key} must be an array"))?;
                 if values.is_empty() || values.len() > 64 {
                     return Err(format!("match.{label}.{key} must have 1..64 entries"));
                 }
                 for value in values {
-                    let item = value.as_str().ok_or_else(|| format!("match.{label}.{key} requires strings"))?;
+                    let item = value
+                        .as_str()
+                        .ok_or_else(|| format!("match.{label}.{key} requires strings"))?;
                     if item.is_empty() || item.len() > 256 || item.chars().any(char::is_control) {
                         return Err(format!("match.{label}.{key} contains an invalid value"));
                     }
@@ -188,12 +211,17 @@ impl ProviderMatchRule {
             }
         }
         if let Some(kinds) = object.get("kinds").and_then(Value::as_array) {
-            if kinds.iter().any(|value| !matches!(value.as_str(), Some("file" | "directory" | "connection"))) {
+            if kinds
+                .iter()
+                .any(|value| !matches!(value.as_str(), Some("file" | "directory" | "connection")))
+            {
                 return Err("match.kinds accepts only file, directory or connection".into());
             }
         }
         if let Some(selection) = object.get("selection") {
-            let choice = selection.as_str().ok_or("match.selection must be any, zero, single or multi")?;
+            let choice = selection
+                .as_str()
+                .ok_or("match.selection must be any, zero, single or multi")?;
             if !matches!(choice, "any" | "zero" | "single" | "multi") {
                 return Err("match.selection must be any, zero, single or multi".into());
             }
@@ -214,7 +242,8 @@ mod tests {
             "view":{"providerIds":["core:recent"]},
             "storage":{"types":["vfs"],"mountIds":["account-a"]},
             "kinds":["file"],"requiredOps":["read"]
-        })).unwrap();
+        }))
+        .unwrap();
         let entry = json!({
             "view":{"type":"vfs","providerId":"core:recent","mountId":"core:recent"},
             "storage":{"type":"vfs","providerId":"plugin:drive","mountId":"account-a"},
@@ -234,7 +263,10 @@ mod tests {
             json!({"kinds":["vfs"]}),
             json!({"storage":{"domains":["drive"]}}),
         ] {
-            assert!(ProviderMatchRule::validate(Some(&value), true).is_err(), "{value}");
+            assert!(
+                ProviderMatchRule::validate(Some(&value), true).is_err(),
+                "{value}"
+            );
         }
     }
 }
