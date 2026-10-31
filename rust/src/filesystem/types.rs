@@ -1,8 +1,6 @@
 use super::*;
 use crate::{RequestContext, RpcError};
-pub use fiex_provider_contracts::{
-    FsEntry, FsKind, FsListing, SearchCapabilities, SearchMode,
-};
+pub use fiex_provider_contracts::{FsEntry, FsKind, FsListing, SearchCapabilities, SearchMode};
 use serde_json::Value;
 
 /// A parsed `vfs.*` request. Providers read only the fields their operation
