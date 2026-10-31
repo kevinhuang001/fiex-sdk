@@ -33,7 +33,7 @@ struct FsProvider {
 pub struct Providers {
     diagnostics: bool,
     registration_errors: Vec<String>,
-    filesystem: Option<FsProvider>,
+    filesystem: ProviderSet<FsProvider>,
     info: ProviderSet<dyn InfoProvider>,
     preview: ProviderSet<dyn PreviewProvider>,
     decorations: ProviderSet<dyn DecorationProvider>,
@@ -217,27 +217,46 @@ impl Providers {
     pub fn connection(self, provider: impl ConnectionProvider + 'static) -> Self {
         self.connection_named("default", provider)
     }
-    /// Register a VFS provider, with its original stream registry.
-    pub fn filesystem<P>(mut self, provider: P) -> Self
+    /// Register an independently scoped VFS implementation by stable ID.
+    /// Every instance owns its own read/write stream session registry; calls
+    /// must select an explicit providerId when multiple are registered.
+    pub fn filesystem_named<P>(mut self, id: impl Into<String>, provider: P) -> Self
     where
         P: VfsProvider + 'static,
     {
-        if self.filesystem.is_some() {
+        let instance = FsProvider {
+            dispatch: Box::new(provider),
+            server: FsServer::new(),
+        };
+        if let Err(error) = self.filesystem.register(id.into(), Box::new(instance)) {
             self.registration_errors
-                .push("filesystem: duplicate provider".into());
-        } else {
-            self.filesystem = Some(FsProvider {
-                dispatch: Box::new(provider),
-                server: FsServer::new(),
-            });
+                .push(format!("filesystem: {error}"));
         }
         self
     }
 
+    pub fn filesystem<P>(self, provider: P) -> Self
+    where
+        P: VfsProvider + 'static,
+    {
+        self.filesystem_named("default", provider)
+    }
+
+    /// The handshake advertises the ceiling across registered VFS instances.
+    /// Every selected provider is checked again by its own discover() result.
     pub fn capabilities(&self) -> Value {
-        match &self.filesystem {
-            Some(fs) => FsServer::capability(fs.dispatch.as_ref()),
-            None => Value::Null,
+        let mut operations = std::collections::BTreeSet::new();
+        let mut preflight = false;
+        let mut has_provider = false;
+        for (_, fs) in self.filesystem.instances() {
+            has_provider = true;
+            preflight |= fs.dispatch.supports_preflight();
+            operations.extend(fs.dispatch.operations().iter().map(|op| op.as_str()));
+        }
+        if !has_provider {
+            Value::Null
+        } else {
+            json!({"vfs":{"discovery":true,"preflight":preflight,"operations":operations}})
         }
     }
 

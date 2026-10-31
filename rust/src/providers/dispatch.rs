@@ -2,10 +2,11 @@
 use super::*;
 impl Providers {
     pub(super) fn dispatch(&self, ctx: &RequestContext) -> Result<Option<Value>, RpcError> {
-        if let Some(fs) = &self.filesystem {
-            if let Some(value) = fs.server.serve(fs.dispatch.as_ref(), ctx)? {
-                return Ok(Some(value));
-            }
+        if ctx.method().starts_with("vfs.") {
+            let Some(fs) = self.filesystem.select(ctx.params())? else {
+                return Ok(None);
+            };
+            return fs.server.serve(fs.dispatch.as_ref(), ctx);
         }
         let value = match ctx.method() {
             "info.resolve" => {
