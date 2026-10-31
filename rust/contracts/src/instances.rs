@@ -139,6 +139,8 @@ mod tests {
         ).is_err());
         assert_eq!(registry.len(), 1);
         assert_eq!(registry.get("native").unwrap().id(), 7);
+        let handle = registry.get_arc("native").unwrap();
+        assert_eq!(handle.id(), 7);
         assert_eq!(registry.only().unwrap().id(), 7);
         assert_eq!(registry.descriptor("native").unwrap().kind, ProviderKind::Info);
         registry
