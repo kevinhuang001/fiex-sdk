@@ -249,7 +249,7 @@ mod tests {
             "storage":{"type":"vfs","providerId":"plugin:drive","mountId":"account-a"},
             "kind":"file","operations":["read"]
         });
-        assert!(rule.matches_targets(&[entry.clone()], 1));
+        assert!(rule.matches_targets(std::slice::from_ref(&entry), 1));
         assert!(!rule.matches_targets(&[json!({"view":entry["view"],"kind":"file"})], 1));
         assert!(!rule.matches_targets(&[entry.clone(), json!({"kind":"file"})], 2));
     }
