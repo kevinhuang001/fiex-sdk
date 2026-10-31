@@ -127,6 +127,9 @@ impl ProviderDescriptor {
         if !(-100_000..=100_000).contains(&self.priority) {
             return Err("provider priority out of bounds".into());
         }
+        if self.kind != ProviderKind::ContextMenu && self.r#match.selection.is_some() {
+            return Err("match.selection is only valid for contextMenus".into());
+        }
         self.r#match.validate_consistency()
     }
 }
@@ -147,5 +150,21 @@ mod tests {
         invalid = good;
         invalid.priority = i64::MAX;
         assert!(invalid.validate().is_err());
+
+        let invalid = ProviderDescriptor {
+            id: "core.illegal-selection".into(),
+            kind: ProviderKind::Info,
+            priority: 0,
+            r#match: ProviderMatchRule {
+                selection: Some("single".into()),
+                ..Default::default()
+            },
+        };
+        assert!(invalid.validate().is_err());
+        let menu = ProviderDescriptor {
+            kind: ProviderKind::ContextMenu,
+            ..invalid
+        };
+        assert!(menu.validate().is_ok());
     }
 }
