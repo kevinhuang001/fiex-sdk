@@ -128,7 +128,9 @@ impl ProviderMatchRule {
                 Some("directory") => Some("directory"),
                 Some("file") => Some("file"),
                 Some("connection") => Some("connection"),
-                _ => m["isDir"].as_bool().map(|dir| if dir { "directory" } else { "file" }),
+                _ => m["isDir"]
+                    .as_bool()
+                    .map(|dir| if dir { "directory" } else { "file" }),
             };
             m.is_object()
                 && (self.extensions.is_empty() || m["extension"].is_string())
@@ -261,15 +263,22 @@ mod tests {
             "kinds":["connection"],
             "view":{"types":["vfs"],"providerIds":["plugin:drive"]},
             "storage":{"mountIds":["connection-a"]}
-        })).unwrap();
+        }))
+        .unwrap();
         let connection = json!({
             "kind":"connection",
             "view":{"type":"vfs","providerId":"plugin:drive","mountId":"connection-a"},
             "storage":{"type":"vfs","providerId":"plugin:drive","mountId":"connection-a"}
         });
         assert!(rule.matches_targets(&[connection.clone()], 1));
-        assert!(!rule.matches_targets(&[json!({"kind":"file", "view":connection["view"], "storage":connection["storage"]})], 1));
-        assert!(!rule.matches_targets(&[json!({"kind":"connection", "view":connection["view"]})], 1));
+        assert!(!rule.matches_targets(
+            &[json!({"kind":"file", "view":connection["view"], "storage":connection["storage"]})],
+            1
+        ));
+        assert!(!rule.matches_targets(
+            &[json!({"kind":"connection", "view":connection["view"]})],
+            1
+        ));
     }
 
     #[test]
