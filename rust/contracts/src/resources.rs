@@ -84,12 +84,9 @@ impl SearchResults {
         if self.entries.len() > limit {
             return Err("search provider exceeded requested page limit".into());
         }
-        if let Some(cursor) = &self.next_cursor {
-            if cursor.is_empty() || cursor.len() > 2048 || cursor.chars().any(char::is_control) {
-                return Err("invalid search pagination cursor".into());
-            }
-        }
-        Ok(())
+        crate::pagination::validate_cursor(self.next_cursor.as_deref())
+            .map_err(|_| "invalid search pagination cursor".to_string())
+
     }
 }
 
