@@ -247,16 +247,31 @@ impl Providers {
     pub fn capabilities(&self) -> Value {
         let mut operations = std::collections::BTreeSet::new();
         let mut preflight = false;
-        let mut has_provider = false;
-        for (_, fs) in self.filesystem.instances() {
-            has_provider = true;
+        let mut providers = Vec::new();
+        for (id, fs) in self.filesystem.instances() {
+            let methods = fs
+                .dispatch
+                .operations()
+                .iter()
+                .map(|op| op.as_str())
+                .collect::<Vec<_>>();
             preflight |= fs.dispatch.supports_preflight();
-            operations.extend(fs.dispatch.operations().iter().map(|op| op.as_str()));
+            operations.extend(methods.iter().copied());
+            providers.push(json!({
+                "id": id,
+                "operations": methods,
+                "preflight": fs.dispatch.supports_preflight(),
+            }));
         }
-        if !has_provider {
+        if providers.is_empty() {
             Value::Null
         } else {
-            json!({"vfs":{"discovery":true,"preflight":preflight,"operations":operations}})
+            json!({"vfs":{
+                "discovery":true,
+                "preflight":preflight,
+                "operations":operations,
+                "providers":providers,
+            }})
         }
     }
 
