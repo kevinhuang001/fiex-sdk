@@ -248,7 +248,11 @@ impl FsServer {
     }
 
     fn mint(&self, kind: &str) -> String {
-        format!("{}-{kind}-{}", self.namespace, self.next.fetch_add(1, Ordering::Relaxed))
+        format!(
+            "{}-{kind}-{}",
+            self.namespace,
+            self.next.fetch_add(1, Ordering::Relaxed)
+        )
     }
 
     fn lock(&self) -> Result<std::sync::MutexGuard<'_, HashMap<String, Stream>>, RpcError> {

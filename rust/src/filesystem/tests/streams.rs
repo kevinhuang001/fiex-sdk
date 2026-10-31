@@ -6,20 +6,31 @@ fn independent_vfs_instances_never_share_stream_identifiers() {
     let left = FsServer::new();
     let right = FsServer::new();
     let left_stream = left
-        .serve(&Memory { writable: true }, &request("vfs.openRead", json!({"nodeId":"a"})))
+        .serve(
+            &Memory { writable: true },
+            &request("vfs.openRead", json!({"nodeId":"a"})),
+        )
         .unwrap()
         .unwrap();
     let right_stream = right
-        .serve(&Memory { writable: true }, &request("vfs.openRead", json!({"nodeId":"a"})))
+        .serve(
+            &Memory { writable: true },
+            &request("vfs.openRead", json!({"nodeId":"a"})),
+        )
         .unwrap()
         .unwrap();
     assert_ne!(left_stream["streamId"], right_stream["streamId"]);
-    assert!(right.serve(
-        &Memory { writable: true },
-        &request("vfs.readStream", json!({
-            "streamId":left_stream["streamId"], "offset":0, "maxBytes":1
-        }))
-    ).is_err());
+    assert!(right
+        .serve(
+            &Memory { writable: true },
+            &request(
+                "vfs.readStream",
+                json!({
+                    "streamId":left_stream["streamId"], "offset":0, "maxBytes":1
+                })
+            )
+        )
+        .is_err());
 }
 
 #[test]
