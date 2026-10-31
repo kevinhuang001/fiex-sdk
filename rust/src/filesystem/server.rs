@@ -243,7 +243,9 @@ impl FsServer {
             "vfs.commit" => {
                 let id = param_str(ctx, "streamId")?.to_string();
                 let mut streams = self.lock()?;
-                let allowed = streams.get(&id).is_some_and(|stream| stream.write_owner(ctx));
+                let allowed = streams
+                    .get(&id)
+                    .is_some_and(|stream| stream.write_owner(ctx));
                 if !allowed {
                     return Err(RpcError::invalid_params("unknown streamId"));
                 }
@@ -263,7 +265,9 @@ impl FsServer {
             "vfs.abort" => {
                 let id = param_str(ctx, "streamId")?;
                 let mut streams = self.lock()?;
-                let allowed = streams.get(id).is_some_and(|stream| stream.write_owner(ctx));
+                let allowed = streams
+                    .get(id)
+                    .is_some_and(|stream| stream.write_owner(ctx));
                 if !allowed {
                     return Err(RpcError::invalid_params("unknown streamId"));
                 }
