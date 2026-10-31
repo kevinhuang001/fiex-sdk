@@ -24,6 +24,8 @@ pub mod http;
 pub mod i18n;
 pub mod ipc;
 pub mod oauth;
+pub mod provider_contracts;
+pub mod provider_matching;
 mod providers;
 mod runtime;
 pub mod secrets;
@@ -42,6 +44,8 @@ pub use files::{FileReader, FileWriter, Files};
 pub use http::{HttpClient, Request, Response, StreamingBody};
 pub use ipc::{Entry, ProcessResult};
 pub use oauth::{AuthorizationCode, OAuth, OAuthRequest};
+pub use provider_contracts::{ProviderEndpoint, ProviderRequest};
+pub use provider_matching::{LocationMatch, ProviderMatchRule};
 pub use providers::{
     ConnectionContextMenuProvider, ConnectionProvider, ConnectionValidation, ContextMenuProvider,
     DecorationProvider, HookProvider, InfoProvider, PreviewProvider, Providers, SearchProvider,

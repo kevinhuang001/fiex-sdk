@@ -4,8 +4,8 @@ use std::sync::Mutex;
 
 static LATE_FILES: Mutex<Option<Files>> = Mutex::new(None);
 
-fn main() {
-    sdk::serve("org.fiex.mock", |ctx| match ctx.method() {
+fn dispatch(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
+    match ctx.method() {
         "mock.locale" => Ok(json!({"locale": ctx.locale().as_str(), "params": ctx.params()})),
         "mock.echo" => Ok(json!({"echo": ctx.params()})),
         "mock.directExec" => match std::process::Command::new("git").arg("--version").output() {
@@ -106,26 +106,41 @@ fn main() {
             let result = ctx.process_run("git", &["--version".into()], None)?;
             Ok(json!({"stdout": result.stdout}))
         }
-        "search.query" => Ok(json!({
-            "entries": [{
-                "path": std::path::Path::new(ctx.params()["root"].as_str().unwrap_or("."))
-                    .join("fiex-mock-search.txt"),
-                "name": "fiex-mock-search.txt",
-                "isDir": false,
-                "isSymlink": false,
-                "size": 12,
-                "modified": 1,
-                "created": 1,
-                "extension": "txt",
-                "mime": "text/plain",
-                "readonly": false,
-                "linkTarget": null,
-                "tags": [],
-                "sync": null
-            }],
-            "truncated": false
-        })),
         other => Err(RpcError::method_not_found(other)),
-    })
-    .expect("mock IPC process failed");
+    }
+}
+
+/// The fixture uses the same explicit SDK SearchProvider contract as official
+/// plugins. The Core supplies the authorized root as a ResourceRef, not a host
+/// path; results are relative to that root and verified by the Core.
+struct MockSearch;
+impl sdk::SearchProvider for MockSearch {
+    fn query(&self, _ctx: &sdk::RequestContext) -> Result<sdk::SearchResults, RpcError> {
+        Ok(sdk::SearchResults {
+            entries: vec![json!({
+                "path":"fiex-mock-search.txt",
+                "name":"fiex-mock-search.txt",
+                "isDir":false,
+                "isSymlink":false,
+                "size":12,
+                "modified":1,
+                "created":1,
+                "extension":"txt",
+                "mime":"text/plain",
+                "readonly":false,
+                "linkTarget":null,
+                "tags":[],
+                "sync":null
+            })],
+            truncated: false,
+            next_cursor: None,
+        })
+    }
+}
+
+fn main() {
+    sdk::Providers::new()
+        .search(MockSearch)
+        .serve_with("org.fiex.mock", dispatch)
+        .expect("mock IPC process failed");
 }
