@@ -59,7 +59,10 @@ pub struct ProviderMatchRule {
 impl ProviderMatchRule {
     pub fn validate_consistency(&self) -> Result<(), String> {
         // Round-trip through the canonical manifest validator.
-        let value = serde_json::to_value(self).map_err(|e| e.to_string())?;
+        let mut value = serde_json::to_value(self).map_err(|e| e.to_string())?;
+        if let Some(fields) = value.as_object_mut() {
+            fields.retain(|_, entry| !entry.is_null());
+        }
         Self::validate(Some(&value), true)
     }
 
