@@ -57,6 +57,14 @@ impl<T: ?Sized + Send + Sync> ProviderInstances<T> {
             .map(|value| value.implementation.as_ref())
     }
 
+    /// Return an owned reference without keeping registry locks alive across
+    /// a slow operation or IPC call. The caller rechecks permissions on use.
+    pub fn get_arc(&self, id: &str) -> Option<Arc<T>> {
+        self.entries
+            .get(id)
+            .map(|value| Arc::clone(&value.implementation))
+    }
+
     pub fn descriptor(&self, id: &str) -> Option<&ProviderDescriptor> {
         self.entries.get(id).map(|value| &value.descriptor)
     }
