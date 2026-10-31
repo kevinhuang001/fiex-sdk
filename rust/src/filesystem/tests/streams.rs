@@ -318,6 +318,8 @@ fn read_and_write_sessions_are_restricted_to_the_opening_mount() {
     for method in ["vfs.readStream", "vfs.closeRead"] {
         assert!(scoped_stream_call(&server, &provider, method, "account-b", read_id).is_err());
     }
+    assert!(scoped_stream_call(&server, &provider, "vfs.commit", "account-a", read_id).is_err());
+    assert!(scoped_stream_call(&server, &provider, "vfs.abort", "account-a", read_id).is_err());
     let chunk = scoped_stream_call(&server, &provider, "vfs.readStream", "account-a", read_id)
         .unwrap()
         .unwrap();
@@ -330,6 +332,9 @@ fn read_and_write_sessions_are_restricted_to_the_opening_mount() {
     for method in ["vfs.writeStream", "vfs.commit", "vfs.abort"] {
         assert!(scoped_stream_call(&server, &provider, method, "account-b", write_id).is_err());
     }
+    assert!(
+        scoped_stream_call(&server, &provider, "vfs.closeRead", "account-a", write_id).is_err()
+    );
     scoped_stream_call(&server, &provider, "vfs.writeStream", "account-a", write_id).unwrap();
     scoped_stream_call(&server, &provider, "vfs.commit", "account-a", write_id).unwrap();
 }
