@@ -14,9 +14,8 @@ mod contracts;
 use contracts::unsupported;
 pub use contracts::{
     ConnectionContextMenuProvider, ConnectionProvider, ConnectionValidation, ContextMenuProvider,
-    DecorationBadge, DecorationContribution, DecorationField, DecorationProvider, DecorationStyle,
-    HookProvider, HookResult, InfoProvider, PreviewProvider, SearchProvider, SearchResults,
-    ToolbarProvider, ToolbarResult,
+    DecorationProvider, HookProvider, HookResult, InfoProvider, PreviewProvider, SearchProvider,
+    SearchResults, ToolbarProvider, ToolbarResult,
 };
 
 mod dispatch;
