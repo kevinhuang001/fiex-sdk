@@ -12,6 +12,15 @@ A match makes a provider a **candidate**, never an authority to read or write
 the selected files. User grants, Operation Scope, ownership and effective
 resource operations are checked independently.
 
+The typed `ProviderInvocation` also exposes the Core-resolved per-resource
+`view`, `storage`, `capabilities`, and original `selection_count`. For example,
+a Recent alias can report `view.provider_id = "core:recent"` while its live
+source reports a different `storage.provider_id`. These fields contain no host
+paths or credentials. They are a snapshot for provider behavior; Core still
+re-resolves the owner and checks the current scope on every operation. A blank
+context-menu request has `selection_count == 0` and may include its resolved
+current directory separately from the selected targets.
+
 ## Location identity
 
 A resource has a **view**, describing where it is presented, and possibly a

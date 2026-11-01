@@ -116,7 +116,8 @@ pub use vfs::{FsEntry, FsKind, FsListing, SearchCapabilities, SearchMode};
 mod resources;
 pub use resources::{
     EventContext, InfoRow, InfoSection, PackageView, PreviewView,
-    ResourceContext, ResourceMetadata, ResourceRef, SearchResults,
+    ResourceCapabilities, ResourceContext, ResourceLocation, ResourceMetadata,
+    ResourceRef, ResourceType, ResolvedResourceContext, SearchResults,
 };
 pub mod matching;
 pub use matching::{LocationMatch, ProviderMatchRule};
