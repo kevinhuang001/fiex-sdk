@@ -99,7 +99,7 @@ pub use fs_request::{FsProduct, FsRead, FsRequest, FsWrite};
 mod providers;
 pub use providers::{
     ConnectionContextMenuProvider, ConnectionProvider, ConnectionValidation,
-    ContextMenuProvider, DecorationProvider, HookProvider, InfoProvider,
+    ContextMenuProvider, DecorationProvider, HookProvider, HookResult, InfoProvider,
     PreviewProvider, SearchProvider, ToolbarProvider, VfsProvider,
 };
 mod instances;
