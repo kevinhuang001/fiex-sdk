@@ -1,5 +1,5 @@
 use super::*;
-use crate::{RequestContext, RpcError};
+use crate::{ProviderInvocationExt, RequestContext, RpcError};
 use serde_json::{json, Value};
 
 use crate::{

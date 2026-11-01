@@ -1,6 +1,7 @@
 //! SDK stream dispatch helpers around the canonical shared VFS trait.
 use super::*;
 use fiex_provider_contracts::ProviderInvocation;
+use crate::RpcError;
 pub use fiex_provider_contracts::VfsProvider;
 
 pub(super) fn unsupported(op: FsOperation) -> RpcError {
