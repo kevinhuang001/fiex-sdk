@@ -26,6 +26,33 @@ pub enum ProviderInput {
 
 impl ProviderInput {
     pub fn decode(method: &str, params: &Value) -> Result<Self, String> {
+        if !matches!(
+            method,
+            "info.resolve"
+                | "preview.open"
+                | "decorations.resolve"
+                | "contextMenu.resolve"
+                | "contextMenu.execute"
+                | "connectionContextMenu.resolve"
+                | "connectionContextMenu.execute"
+                | "search.query"
+                | "vfs.discover"
+                | "vfs.list"
+                | "vfs.stat"
+                | "vfs.openRead"
+                | "vfs.beginWrite"
+                | "vfs.mkdir"
+                | "vfs.rename"
+                | "vfs.remove"
+                | "vfs.search"
+                | "connection.validate"
+                | "connection.open"
+                | "connection.create"
+                | "hooks.invoke"
+                | "toolbar.invoke"
+        ) {
+            return Ok(Self::Unspecified);
+        }
         let mut object = params
             .as_object()
             .cloned()
@@ -191,5 +218,21 @@ impl ProviderInput {
 
     pub fn hook_request(&self) -> Option<&HookRequest> {
         match self { Self::Hook(request) => Some(request), _ => None }
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn custom_methods_preserve_arbitrary_params_while_typed_events_require_objects() {
+        assert_eq!(
+            ProviderInput::decode("example.echo", &json!(["item"])).unwrap(),
+            ProviderInput::Unspecified
+        );
+        assert!(ProviderInput::decode("search.query", &json!(["item"])).is_err());
     }
 }
