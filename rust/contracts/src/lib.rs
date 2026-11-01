@@ -18,7 +18,7 @@ mod error;
 mod invocation;
 pub use invocation::ProviderInvocation;
 mod fs_request;
-pub use fs_request::{FsProduct, FsRead, FsRequest, FsWrite};
+pub use fs_request::{FsProduct, FsRead, FsReadAt, FsRequest, FsWrite};
 mod providers;
 pub use providers::{
     ConnectionContextMenuProvider, ConnectionProvider, ContextMenuProvider,

@@ -112,12 +112,14 @@ impl<'a> FsRequest<'a> {
     }
 }
 
+/// A bounded provider-owned random-read callback for a VFS stream.
+pub type FsReadAt =
+    Box<dyn FnMut(u64, usize) -> Result<(Vec<u8>, bool), ProviderError> + Send>;
+
 pub struct FsRead {
     pub reader: Box<dyn Read + Send>,
     pub size: Option<u64>,
-    pub read_at: Option<
-        Box<dyn FnMut(u64, usize) -> Result<(Vec<u8>, bool), ProviderError> + Send>,
-    >,
+    pub read_at: Option<FsReadAt>,
 }
 
 impl FsRead {
