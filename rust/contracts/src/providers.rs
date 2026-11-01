@@ -1,10 +1,10 @@
 //! Canonical typed provider traits. SDK runtime and Core native handlers
 //! implement these same interfaces; transport adapters stay outside this crate.
 use crate::{
-    ConnectionOpenResult, DecorationContribution, FsEntry, FsListing, FsOperation, FsRequest,
-    InfoSection, MenuExecuteResult, MenuItem, PreviewView,
-    PreflightDecision, ProviderError, ProviderInvocation, SearchCapabilities,
-    SearchEntry, SearchMode, SearchResults, TransferPreflight,
+    ConnectionOpenResult, ConnectionValidation, DecorationContribution, FsEntry, FsListing,
+    FsOperation, FsRequest, HookResult, InfoSection, MenuExecuteResult, MenuItem, PreviewView,
+    PreflightDecision, ProviderError, ProviderInvocation, SearchCapabilities, SearchEntry,
+    SearchMode, SearchResults, ToolbarResult, TransferPreflight,
 };
 
 pub trait VfsProvider: Send + Sync {
