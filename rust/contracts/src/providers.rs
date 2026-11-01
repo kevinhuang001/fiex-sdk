@@ -10,7 +10,7 @@ use serde_json::Value;
 
 #[cfg(test)]
 mod tests {
-    use super::{ConnectionValidation, HookResult};
+    use super::{ConnectionValidation, HookResult, ToolbarResult};
 
     #[test]
     fn hook_result_requires_handled_and_rejects_legacy_fields() {
@@ -39,6 +39,18 @@ mod tests {
         assert!(serde_json::from_value::<ConnectionValidation>(serde_json::json!({})).is_err());
         assert!(serde_json::from_value::<ConnectionValidation>(serde_json::json!({
             "valid": true,
+            "legacy": true
+        }))
+        .is_err());
+    }
+
+    #[test]
+    fn toolbar_result_is_an_empty_success_marker() {
+        assert_eq!(
+            serde_json::to_value(ToolbarResult::default()).unwrap(),
+            serde_json::json!({})
+        );
+        assert!(serde_json::from_value::<ToolbarResult>(serde_json::json!({
             "legacy": true
         }))
         .is_err());
@@ -171,8 +183,14 @@ pub struct HookResult {
     pub handled: bool,
 }
 
+/// Toolbar invocations have no consumer-defined return payload. Core ignores
+/// plugin-specific output, so the contract is a strict empty success marker.
+#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ToolbarResult {}
+
 pub trait ToolbarProvider: Send + Sync {
-    fn invoke(&self, ctx: &dyn ProviderInvocation) -> Result<Value, ProviderError>;
+    fn invoke(&self, ctx: &dyn ProviderInvocation) -> Result<ToolbarResult, ProviderError>;
 }
 
 #[derive(Clone, Debug, Default, Deserialize, PartialEq, Eq, Serialize)]

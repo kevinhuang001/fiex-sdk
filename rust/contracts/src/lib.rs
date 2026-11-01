@@ -100,7 +100,7 @@ mod providers;
 pub use providers::{
     ConnectionContextMenuProvider, ConnectionProvider, ConnectionValidation,
     ContextMenuProvider, DecorationProvider, HookProvider, HookResult, InfoProvider,
-    PreviewProvider, SearchProvider, ToolbarProvider, VfsProvider,
+    PreviewProvider, SearchProvider, ToolbarProvider, ToolbarResult, VfsProvider,
 };
 mod instances;
 pub use instances::ProviderInstances;
