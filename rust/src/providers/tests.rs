@@ -42,15 +42,15 @@ fn multiple_named_instances_require_an_explicit_selection() {
         .info_named("metadata", ExampleInfo)
         .info_named("media", ExampleInfo);
     assert_eq!(providers.info.len(), 2);
-    assert!(providers.info.select(&json!({})).is_err());
+    assert!(providers.info.select(None).is_err());
     assert!(providers
         .info
-        .select(&json!({"providerId":"media"}))
+        .select(Some("media"))
         .unwrap()
         .is_some());
     assert!(providers
         .info
-        .select(&json!({"providerId":"other"}))
+        .select(Some("other"))
         .is_err());
 }
 
@@ -89,15 +89,15 @@ fn named_vfs_providers_are_independently_selected() {
             },
         );
     assert_eq!(providers.filesystem.len(), 2);
-    assert!(providers.filesystem.select(&json!({})).is_err());
+    assert!(providers.filesystem.select(None).is_err());
     assert!(providers
         .filesystem
-        .select(&json!({"providerId":"drive"}))
+        .select(Some("drive"))
         .unwrap()
         .is_some());
     assert!(providers
         .filesystem
-        .select(&json!({"providerId":"missing"}))
+        .select(Some("missing"))
         .is_err());
     let capabilities = providers.capabilities();
     assert_eq!(capabilities["vfs"]["operations"], json!(["list", "stat"]));
