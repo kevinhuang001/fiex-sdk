@@ -120,7 +120,7 @@ pub use resources::{
     ResourceRef, ResourceType, ResolvedResourceContext, SearchResults,
 };
 pub mod matching;
-pub use matching::{LocationMatch, ProviderMatchRule};
+pub use matching::{LocationMatch, ProviderMatcher, ProviderMatchRule};
 
 /// Transport-independent provider kind. A VFS owns storage; the other
 /// kinds contribute behavior and may match any Core-resolved view/storage.

@@ -243,6 +243,27 @@ impl ProviderMatchRule {
     }
 }
 
+/// Evaluates the canonical rule for both selected resources and blank-canvas
+/// events. A zero-selection event is matched against its trusted directory
+/// context, while its original cardinality remains zero for `selection`.
+pub struct ProviderMatcher;
+
+impl ProviderMatcher {
+    pub fn matches(
+        rule: &ProviderMatchRule,
+        targets: &[Value],
+        directory: Option<&Value>,
+        selection_count: usize,
+    ) -> bool {
+        let context = if targets.is_empty() {
+            directory.map(std::slice::from_ref).unwrap_or(&[])
+        } else {
+            targets
+        };
+        rule.matches_targets(context, selection_count)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -288,6 +309,25 @@ mod tests {
             &[json!({"kind":"connection", "view":connection["view"]})],
             1
         ));
+    }
+
+    #[test]
+    fn shared_matcher_uses_trusted_directory_for_zero_selection() {
+        let rule: ProviderMatchRule = serde_json::from_value(json!({
+            "view":{"providerIds":["core:applications"]},
+            "selection":"zero",
+            "kinds":["directory"]
+        }))
+        .unwrap();
+        let directory = json!({
+            "kind":"directory",
+            "view":{"type":"vfs","providerId":"core:applications","mountId":"core:applications"},
+            "storage":{"type":"vfs","providerId":"core:applications","mountId":"core:applications"},
+            "operations":["list","mkdir"]
+        });
+        assert!(ProviderMatcher::matches(&rule, &[], Some(&directory), 0));
+        assert!(!ProviderMatcher::matches(&rule, &[], None, 0));
+        assert!(!ProviderMatcher::matches(&rule, &[], Some(&directory), 1));
     }
 
     #[test]
