@@ -39,7 +39,7 @@ pub use contracts::{
     ConnectionOpenResult, ConnectionRequest, ConnectionSettings, ConnectionSummary,
     ContextMenuExecuteRequest, ContextMenuResolveRequest, CoreMenuAction, CoreMenuActionKind,
     DecorationBadge, DecorationContribution, DecorationField, DecorationStyle, EventContext,
-    HookRequest, InfoRow, InfoSection, MenuActivity, MenuActivityKind, MenuExecuteResult,
+    HookRequest, HookResult, InfoRow, InfoSection, MenuActivity, MenuActivityKind, MenuExecuteResult,
     MenuHandledFlag, MenuHandledKind, MenuHandledKindTag, MenuItemKind, MenuPlacement,
     NativeMenuAction, NativeMenuActionKind, PackageView, PluginPanelAction, PluginPanelActionKind,
     PluginPanelSize, PreviewView, ProviderInput, RemoteMenuAction, RemoteMenuActionKind,
