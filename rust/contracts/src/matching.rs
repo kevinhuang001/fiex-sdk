@@ -3,7 +3,7 @@
 //! Matching does not grant any IO capability. Core builds trusted location and
 //! operation snapshots before using these predicates, then authorizes again
 //! during provider invocation. Plugins cannot mint a Core-owned location.
-use crate::FsOperation;
+use crate::{FsOperation, ResourceCapabilities, ResourceLocation, ResourceMetadata};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -20,20 +20,42 @@ pub struct LocationMatch {
 
 impl LocationMatch {
     /// OR inside each list and AND across the declared dimensions.
-    pub fn matches(&self, location: &Value) -> bool {
-        let field_matches = |key: &str, accepted: &Option<Vec<String>>| {
-            accepted.as_ref().is_none_or(|values| {
-                location
-                    .get(key)
-                    .and_then(Value::as_str)
-                    .is_some_and(|actual| values.iter().any(|value| value == actual))
-            })
+    pub fn matches(&self, location: Option<&ResourceLocation>) -> bool {
+        let Some(location) = location else {
+            return false;
         };
-        location.is_object()
-            && field_matches("type", &self.types)
-            && field_matches("providerId", &self.provider_ids)
-            && field_matches("mountId", &self.mount_ids)
+        self.types.as_ref().is_none_or(|values| {
+            values
+                .iter()
+                .any(|value| value.as_str() == location_type(location))
+        }) && self.provider_ids.as_ref().is_none_or(|values| {
+            values
+                .iter()
+                .any(|value| value == &location.provider_id)
+        }) && self.mount_ids.as_ref().is_none_or(|values| {
+            location
+                .mount_id
+                .as_ref()
+                .is_some_and(|actual| values.contains(actual))
+        })
     }
+}
+
+fn location_type(location: &ResourceLocation) -> &'static str {
+    match location.resource_type {
+        crate::ResourceType::Fs => "fs",
+        crate::ResourceType::Vfs => "vfs",
+    }
+}
+
+/// Trusted, typed inputs to the shared provider matcher. Core constructs these
+/// from its live resource and capability registries before candidate discovery.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct MatchResource {
+    pub metadata: Option<ResourceMetadata>,
+    pub view: Option<ResourceLocation>,
+    pub storage: Option<ResourceLocation>,
+    pub capabilities: ResourceCapabilities,
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -86,41 +108,39 @@ impl ProviderMatchRule {
         }
     }
 
-    pub fn matches(&self, ext: &str, mime: &str, is_dir: bool) -> bool {
-        let kind = if is_dir { "directory" } else { "file" };
-        self.matches_content(ext, mime)
-            && (self.kinds.is_empty() || self.kinds.iter().any(|name| name == kind))
-    }
-
-    fn matches_content(&self, ext: &str, mime: &str) -> bool {
-        let ext = ext.trim().trim_start_matches('.').to_ascii_lowercase();
-        let mime = mime.trim().to_ascii_lowercase();
+    fn matches_content(&self, ext: Option<&str>, mime: Option<&str>) -> bool {
+        let ext = ext.map(|value| value.trim().trim_start_matches('.').to_ascii_lowercase());
+        let mime = mime.map(|value| value.trim().to_ascii_lowercase());
         let ext_ok = self.extensions.is_empty()
-            || self.extensions.iter().any(|v| {
-                let v = v
-                    .trim()
-                    .trim_start_matches("*.")
-                    .trim_start_matches('.')
-                    .to_ascii_lowercase();
-                v == "*" || v == ext
+            || ext.as_deref().is_some_and(|ext| {
+                self.extensions.iter().any(|value| {
+                    let value = value
+                        .trim()
+                        .trim_start_matches("*.")
+                        .trim_start_matches('.')
+                        .to_ascii_lowercase();
+                    value == "*" || value.as_str() == ext
+                })
             });
         let mime_ok = self.mime_types.is_empty()
-            || self.mime_types.iter().any(|pattern| {
-                let pattern = pattern.trim().to_ascii_lowercase();
-                if pattern == "*/*" || pattern == "*" {
-                    return true;
-                }
-                match pattern.strip_suffix("/*") {
-                    Some(prefix) => mime.split('/').next().is_some_and(|v| v == prefix),
-                    None => pattern == mime,
-                }
+            || mime.as_deref().is_some_and(|mime| {
+                self.mime_types.iter().any(|pattern| {
+                    let pattern = pattern.trim().to_ascii_lowercase();
+                    if pattern == "*/*" || pattern == "*" {
+                        return true;
+                    }
+                    match pattern.strip_suffix("/*") {
+                        Some(prefix) => mime.split('/').next().is_some_and(|value| value == prefix),
+                        None => pattern.as_str() == mime,
+                    }
+                })
             });
         ext_ok && mime_ok
     }
 
     /// The caller decides which directory snapshot to use for a blank canvas.
     /// Selection cardinality always uses the original number of selected items.
-    pub fn matches_targets(&self, targets: &[Value], selection_count: usize) -> bool {
+    pub fn matches_targets(&self, targets: &[MatchResource], selection_count: usize) -> bool {
         if !self.matches_selection(selection_count) {
             return false;
         }
@@ -132,37 +152,28 @@ impl ProviderMatchRule {
                 && self.storage.is_none()
                 && self.required_ops.is_empty();
         }
-        targets.iter().all(|m| {
-            let kind = match m["kind"].as_str() {
-                Some("directory") => Some("directory"),
-                Some("file") => Some("file"),
-                Some("connection") => Some("connection"),
-                _ => m["isDir"]
-                    .as_bool()
-                    .map(|dir| if dir { "directory" } else { "file" }),
-            };
-            m.is_object()
-                && (self.extensions.is_empty() || m["extension"].is_string())
-                && (self.mime_types.is_empty() || m["mime"].is_string())
-                && (self.kinds.is_empty()
-                    || kind.is_some_and(|kind| self.kinds.iter().any(|name| name == kind)))
-                && self.matches_content(
-                    m["extension"].as_str().unwrap_or(""),
-                    m["mime"].as_str().unwrap_or(""),
-                )
-                && self
-                    .view
-                    .as_ref()
-                    .is_none_or(|rule| rule.matches(&m["view"]))
+        targets.iter().all(|target| {
+            let kind = target.metadata.as_ref().map(|metadata| metadata.kind.as_str());
+            let extension = target
+                .metadata
+                .as_ref()
+                .and_then(|metadata| metadata.extension.as_deref());
+            let mime = target
+                .metadata
+                .as_ref()
+                .and_then(|metadata| metadata.mime.as_deref());
+            (self.kinds.is_empty()
+                || kind.is_some_and(|kind| self.kinds.iter().any(|name| name == kind)))
+                && self.matches_content(extension, mime)
+                && self.view.as_ref().is_none_or(|rule| rule.matches(target.view.as_ref()))
                 && self
                     .storage
                     .as_ref()
-                    .is_none_or(|rule| rule.matches(&m["storage"]))
-                && self.required_ops.iter().all(|op| {
-                    m["operations"].as_array().is_some_and(|ops| {
-                        ops.iter().any(|value| value.as_str() == Some(op.as_str()))
-                    })
-                })
+                    .is_none_or(|rule| rule.matches(target.storage.as_ref()))
+                && self
+                    .required_ops
+                    .iter()
+                    .all(|operation| target.capabilities.allows(*operation))
         })
     }
 
@@ -251,8 +262,8 @@ pub struct ProviderMatcher;
 impl ProviderMatcher {
     pub fn matches(
         rule: &ProviderMatchRule,
-        targets: &[Value],
-        directory: Option<&Value>,
+        targets: &[MatchResource],
+        directory: Option<&MatchResource>,
         selection_count: usize,
     ) -> bool {
         let context = if targets.is_empty() {
@@ -269,6 +280,30 @@ mod tests {
     use super::*;
     use serde_json::json;
 
+    fn location(resource_type: crate::ResourceType, provider: &str, mount: &str) -> ResourceLocation {
+        ResourceLocation {
+            resource_type,
+            provider_id: provider.into(),
+            mount_id: Some(mount.into()),
+        }
+    }
+
+    fn target(kind: &str, view: Option<ResourceLocation>, storage: Option<ResourceLocation>) -> MatchResource {
+        MatchResource {
+            metadata: Some(ResourceMetadata {
+                kind: kind.into(),
+                extension: Some("zip".into()),
+                mime: Some("application/zip".into()),
+                ..Default::default()
+            }),
+            view,
+            storage,
+            capabilities: ResourceCapabilities {
+                operations: vec![FsOperation::Read],
+            },
+        }
+    }
+
     #[test]
     fn location_matches_are_conjunctive_and_must_be_present() {
         let rule: ProviderMatchRule = serde_json::from_value(json!({
@@ -277,14 +312,33 @@ mod tests {
             "kinds":["file"],"requiredOps":["read"]
         }))
         .unwrap();
-        let entry = json!({
-            "view":{"type":"vfs","providerId":"core:recent","mountId":"core:recent"},
-            "storage":{"type":"vfs","providerId":"plugin:drive","mountId":"account-a"},
-            "kind":"file","operations":["read"]
-        });
+        let entry = target(
+            "file",
+            Some(location(crate::ResourceType::Vfs, "core:recent", "core:recent")),
+            Some(location(crate::ResourceType::Vfs, "plugin:drive", "account-a")),
+        );
         assert!(rule.matches_targets(std::slice::from_ref(&entry), 1));
-        assert!(!rule.matches_targets(&[json!({"view":entry["view"],"kind":"file"})], 1));
-        assert!(!rule.matches_targets(&[entry.clone(), json!({"kind":"file"})], 2));
+        assert!(!rule.matches_targets(&[target("file", entry.view.clone(), None)], 1));
+        assert!(!rule.matches_targets(&[entry.clone(), MatchResource::default()], 2));
+    }
+
+    #[test]
+    fn typed_matcher_checks_content_kind_and_effective_capabilities() {
+        let rule: ProviderMatchRule = serde_json::from_value(json!({
+            "extensions":["*.ZIP"],
+            "mimeTypes":["application/*"],
+            "kinds":["file"],
+            "requiredOps":["read"]
+        }))
+        .unwrap();
+        let file = target("file", None, None);
+        assert!(rule.matches_targets(&[file.clone()], 1));
+        let mut directory = file.clone();
+        directory.metadata.as_mut().unwrap().kind = "directory".into();
+        assert!(!rule.matches_targets(&[directory], 1));
+        let mut unreadable = file;
+        unreadable.capabilities.operations.clear();
+        assert!(!rule.matches_targets(&[unreadable], 1));
     }
 
     #[test]
@@ -295,20 +349,14 @@ mod tests {
             "storage":{"mountIds":["connection-a"]}
         }))
         .unwrap();
-        let connection = json!({
-            "kind":"connection",
-            "view":{"type":"vfs","providerId":"plugin:drive","mountId":"connection-a"},
-            "storage":{"type":"vfs","providerId":"plugin:drive","mountId":"connection-a"}
-        });
+        let connection = target(
+            "connection",
+            Some(location(crate::ResourceType::Vfs, "plugin:drive", "connection-a")),
+            Some(location(crate::ResourceType::Vfs, "plugin:drive", "connection-a")),
+        );
         assert!(rule.matches_targets(std::slice::from_ref(&connection), 1));
-        assert!(!rule.matches_targets(
-            &[json!({"kind":"file", "view":connection["view"], "storage":connection["storage"]})],
-            1
-        ));
-        assert!(!rule.matches_targets(
-            &[json!({"kind":"connection", "view":connection["view"]})],
-            1
-        ));
+        assert!(!rule.matches_targets(&[target("file", connection.view.clone(), connection.storage.clone())], 1));
+        assert!(!rule.matches_targets(&[target("connection", connection.view.clone(), None)], 1));
     }
 
     #[test]
@@ -319,12 +367,19 @@ mod tests {
             "kinds":["directory"]
         }))
         .unwrap();
-        let directory = json!({
-            "kind":"directory",
-            "view":{"type":"vfs","providerId":"core:applications","mountId":"core:applications"},
-            "storage":{"type":"vfs","providerId":"core:applications","mountId":"core:applications"},
-            "operations":["list","mkdir"]
-        });
+        let directory_location = location(
+            crate::ResourceType::Vfs,
+            "core:applications",
+            "core:applications",
+        );
+        let mut directory = target(
+            "directory",
+            Some(directory_location.clone()),
+            Some(directory_location),
+        );
+        directory.metadata.as_mut().unwrap().extension = None;
+        directory.metadata.as_mut().unwrap().mime = None;
+        directory.capabilities.operations = vec![FsOperation::List, FsOperation::Mkdir];
         assert!(ProviderMatcher::matches(&rule, &[], Some(&directory), 0));
         assert!(!ProviderMatcher::matches(&rule, &[], None, 0));
         assert!(!ProviderMatcher::matches(&rule, &[], Some(&directory), 1));
