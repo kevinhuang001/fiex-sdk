@@ -15,7 +15,7 @@ use contracts::unsupported;
 pub use contracts::{
     ConnectionContextMenuProvider, ConnectionProvider, ConnectionValidation, ContextMenuProvider,
     DecorationProvider, HookProvider, HookResult, InfoProvider, PreviewProvider, SearchProvider,
-    SearchResults, ToolbarProvider,
+    SearchResults, ToolbarProvider, ToolbarResult,
 };
 
 mod dispatch;

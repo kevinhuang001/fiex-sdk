@@ -88,7 +88,11 @@ impl Providers {
                 .toolbar
                 .select(ctx.params())?
                 .ok_or_else(|| unsupported(ctx))?
-                .invoke(ctx)?,
+                .invoke(ctx)
+                .and_then(|result| {
+                    serde_json::to_value(result)
+                        .map_err(|error| RpcError::internal(error.to_string()))
+                })?,
             "connection.validate" => self
                 .connection
                 .select(ctx.params())?
