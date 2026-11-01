@@ -67,13 +67,19 @@ pub trait ProviderInvocation: Send + Sync {
     fn directory(&self) -> Option<&ResourceContext> { self.request().directory.as_ref() }
     fn selection_count(&self) -> usize { self.request().selection_count() }
     fn view(&self) -> Option<&ResourceLocation> {
-        self.target().and_then(|resource| resource.view.as_ref())
+        self.target()
+            .or_else(|| self.directory())
+            .and_then(|resource| resource.view.as_ref())
     }
     fn storage(&self) -> Option<&ResourceLocation> {
-        self.target().and_then(|resource| resource.storage.as_ref())
+        self.target()
+            .or_else(|| self.directory())
+            .and_then(|resource| resource.storage.as_ref())
     }
     fn capabilities(&self) -> Option<&ResourceCapabilities> {
-        self.target().map(|resource| &resource.capabilities)
+        self.target()
+            .or_else(|| self.directory())
+            .map(|resource| &resource.capabilities)
     }
     fn locale_tag(&self) -> &str { &self.request().locale }
 }
