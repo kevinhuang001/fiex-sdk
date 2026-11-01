@@ -117,31 +117,6 @@ pub struct EventContext {
     pub targets: Vec<ResourceContext>,
 }
 
-/// A bounded page of Local SearchProvider results. Both Core's validator and
-/// the plugin SDK serialize exactly this shape, including optional cursors.
-/// Entries stay JSON because local filesystem and provider VFS entries use
-/// different, separately validated storage-specific DTOs.
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SearchResults {
-    pub entries: Vec<Value>,
-    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
-    pub truncated: bool,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub next_cursor: Option<String>,
-}
-
-impl SearchResults {
-    pub fn validate_page(&self, limit: usize) -> Result<(), String> {
-        if self.entries.len() > limit {
-            return Err("search provider exceeded requested page limit".into());
-        }
-        crate::pagination::validate_cursor(self.next_cursor.as_deref())
-            .map_err(|_| "invalid search pagination cursor".to_string())
-
-    }
-}
-
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct InfoRow {
@@ -312,30 +287,6 @@ mod tests {
         assert_eq!(wire["storage"]["type"], "fs");
         assert_eq!(wire["capabilities"]["operations"][0], "read");
         assert!(wire.get("path").is_none());
-    }
-
-    #[test]
-    fn search_page_rejects_wrong_flag_and_excessive_cursor() {
-        let page = SearchResults {
-            entries: vec![serde_json::json!({"path":"file"})],
-            ..Default::default()
-        };
-        assert!(page.validate_page(1).is_ok());
-        assert!(page.validate_page(0).is_err());
-        let serialized = serde_json::to_value(&page).unwrap();
-        assert!(serialized.get("truncated").is_none());
-        assert!(serialized.get("nextCursor").is_none());
-        assert!(serde_json::from_value::<SearchResults>(
-            serde_json::json!({"entries":[], "truncated":"false"})
-        ).is_err());
-        assert!(serde_json::from_value::<SearchResults>(
-            serde_json::json!({"entries":[], "truncated":null})
-        ).is_err());
-        let malformed = SearchResults {
-            next_cursor: Some("x".repeat(2049)),
-            ..Default::default()
-        };
-        assert!(malformed.validate_page(1).is_err());
     }
 
     #[test]

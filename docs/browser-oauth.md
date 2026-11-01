@@ -22,12 +22,11 @@ Core memory; do not return them through a plugin UI RPC.
 For connections, declare private generated field names in
 `extensions.connections.credentials: ["refreshToken"]`. These are secret fields
 that Core stores but the connection form does not ask the user to fill out.
-`connection.validate` returns a typed `ConnectionValidation`, optionally with
-private values such as `ConnectionValidation::valid().credential("refreshToken", token)`.
-Core rejects undeclared secret names, persists accepted values in the selected
-credential backend, and omits secrets from editable config and frontend
-responses. Ordinary secret input fields (such as a user-owned OAuth client
-secret) use the same backend.
+`connection.validate` may return `ConnectionValidation::valid()
+.credential("refreshToken", token)`. Core rejects undeclared secret
+names, persists accepted values in the selected credential backend, and omits
+secrets from editable config and frontend responses. Ordinary secret input fields
+(such as a user-owned OAuth client secret) use the same backend.
 
 Use optional `connections.description` and `connections.setupUrl` to explain how
 to create an application. Setup URLs must be HTTPS. Google Drive requests a

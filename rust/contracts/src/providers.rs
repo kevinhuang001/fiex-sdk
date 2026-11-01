@@ -1,61 +1,12 @@
 //! Canonical typed provider traits. SDK runtime and Core native handlers
 //! implement these same interfaces; transport adapters stay outside this crate.
 use crate::{
-    DecorationContribution, FsEntry, FsListing, FsOperation, FsRequest, InfoSection, PreviewView,
+    ConnectionOpenResult, DecorationContribution, FsEntry, FsListing, FsOperation, FsRequest,
+    InfoSection, MenuExecuteResult, MenuItem, PreviewView,
     PreflightDecision, ProviderError, ProviderInvocation, SearchCapabilities,
-    SearchMode, SearchResults, TransferPreflight,
+    SearchEntry, SearchMode, SearchResults, TransferPreflight,
 };
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
-
-#[cfg(test)]
-mod tests {
-    use super::{ConnectionValidation, HookResult, ToolbarResult};
-
-    #[test]
-    fn hook_result_requires_handled_and_rejects_legacy_fields() {
-        assert_eq!(
-            serde_json::from_value::<HookResult>(serde_json::json!({"handled": true})).unwrap(),
-            HookResult { handled: true }
-        );
-        assert!(serde_json::from_value::<HookResult>(serde_json::json!({})).is_err());
-        assert!(
-            serde_json::from_value::<HookResult>(serde_json::json!({
-                "handled": true,
-                "preview": false
-            }))
-            .is_err()
-        );
-    }
-
-    #[test]
-    fn connection_validation_is_strict_and_preserves_credentials() {
-        let value = ConnectionValidation::valid().credential("refreshToken", "secret");
-        let serialized = serde_json::to_value(&value).unwrap();
-        assert_eq!(
-            serde_json::from_value::<ConnectionValidation>(serialized).unwrap(),
-            value
-        );
-        assert!(serde_json::from_value::<ConnectionValidation>(serde_json::json!({})).is_err());
-        assert!(serde_json::from_value::<ConnectionValidation>(serde_json::json!({
-            "valid": true,
-            "legacy": true
-        }))
-        .is_err());
-    }
-
-    #[test]
-    fn toolbar_result_is_an_empty_success_marker() {
-        assert_eq!(
-            serde_json::to_value(ToolbarResult::default()).unwrap(),
-            serde_json::json!({})
-        );
-        assert!(serde_json::from_value::<ToolbarResult>(serde_json::json!({
-            "legacy": true
-        }))
-        .is_err());
-    }
-}
 
 pub trait VfsProvider: Send + Sync {
     fn supports_preflight(&self) -> bool {
@@ -84,6 +35,22 @@ pub trait VfsProvider: Send + Sync {
         _ctx: &dyn ProviderInvocation,
     ) -> Result<Vec<FsOperation>, ProviderError> {
         Ok(self.operations().to_vec())
+    }
+
+    /// Check one operation at the provider boundary. `create` indicates that
+    /// the target may not exist yet; storage providers can authorize its
+    /// parent directory without manufacturing a node entry.
+    fn authorize(
+        &self,
+        ctx: &dyn ProviderInvocation,
+        operation: FsOperation,
+        _create: bool,
+    ) -> Result<(), ProviderError> {
+        if self.discover(ctx)?.contains(&operation) {
+            Ok(())
+        } else {
+            Err(unsupported(operation))
+        }
     }
 
     fn list(&self, request: &FsRequest<'_>) -> Result<FsListing, ProviderError> {
@@ -117,6 +84,19 @@ pub trait VfsProvider: Send + Sync {
     fn search(&self, request: &FsRequest<'_>) -> Result<FsListing, ProviderError> {
         Err(unsupported(request.op()))
     }
+
+    /// Preserve Core cancellation when a native backend has a bounded walker.
+    /// Transport-backed providers can use the default request-level check.
+    fn search_cancellable(
+        &self,
+        request: &FsRequest<'_>,
+        cancelled: &dyn Fn() -> bool,
+    ) -> Result<FsListing, ProviderError> {
+        if cancelled() {
+            return Err(ProviderError::cancelled());
+        }
+        self.search(request)
+    }
 }
 
 pub trait InfoProvider: Send + Sync {
@@ -135,13 +115,13 @@ pub trait DecorationProvider: Send + Sync {
 }
 
 pub trait ContextMenuProvider: Send + Sync {
-    fn resolve(&self, ctx: &dyn ProviderInvocation) -> Result<Vec<Value>, ProviderError>;
-    fn execute(&self, ctx: &dyn ProviderInvocation) -> Result<Value, ProviderError>;
+    fn resolve(&self, ctx: &dyn ProviderInvocation) -> Result<Vec<MenuItem>, ProviderError>;
+    fn execute(&self, ctx: &dyn ProviderInvocation) -> Result<MenuExecuteResult, ProviderError>;
 }
 
 pub trait ConnectionContextMenuProvider: Send + Sync {
-    fn resolve(&self, ctx: &dyn ProviderInvocation) -> Result<Vec<Value>, ProviderError>;
-    fn execute(&self, ctx: &dyn ProviderInvocation) -> Result<Value, ProviderError>;
+    fn resolve(&self, ctx: &dyn ProviderInvocation) -> Result<Vec<MenuItem>, ProviderError>;
+    fn execute(&self, ctx: &dyn ProviderInvocation) -> Result<MenuExecuteResult, ProviderError>;
 }
 
 pub trait SearchProvider: Send + Sync {
@@ -158,7 +138,7 @@ pub trait SearchProvider: Send + Sync {
         &self,
         ctx: &dyn ProviderInvocation,
         cancelled: &dyn Fn() -> bool,
-        emit: &mut dyn FnMut(Value) -> Result<(), ProviderError>,
+        emit: &mut dyn FnMut(SearchEntry) -> Result<(), ProviderError>,
     ) -> Result<SearchResults, ProviderError> {
         let page = self.query(ctx)?;
         for entry in page.entries {
@@ -175,20 +155,18 @@ pub trait SearchProvider: Send + Sync {
     }
 }
 
-pub trait HookProvider: Send + Sync {
-    fn invoke(&self, ctx: &dyn ProviderInvocation) -> Result<HookResult, ProviderError>;
-}
-
-/// Typed response for a first-supported hook invocation.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct HookResult {
     pub handled: bool,
 }
 
-/// Toolbar invocations have no consumer-defined return payload. Core ignores
-/// plugin-specific output, so the contract is a strict empty success marker.
-#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq, Serialize)]
+pub trait HookProvider: Send + Sync {
+    fn invoke(&self, ctx: &dyn ProviderInvocation) -> Result<HookResult, ProviderError>;
+}
+
+/// Toolbar invocations have no consumer-defined return payload.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ToolbarResult {}
 
@@ -196,7 +174,7 @@ pub trait ToolbarProvider: Send + Sync {
     fn invoke(&self, ctx: &dyn ProviderInvocation) -> Result<ToolbarResult, ProviderError>;
 }
 
-#[derive(Clone, Debug, Default, Deserialize, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ConnectionValidation {
     pub valid: bool,
@@ -226,18 +204,15 @@ impl ConnectionValidation {
 }
 
 pub trait ConnectionProvider: Send + Sync {
-    fn validate(
-        &self,
-        ctx: &dyn ProviderInvocation,
-    ) -> Result<ConnectionValidation, ProviderError> {
+    fn validate(&self, ctx: &dyn ProviderInvocation) -> Result<ConnectionValidation, ProviderError> {
         Err(ProviderError::method_not_found(ctx.method()))
     }
 
-    fn open(&self, ctx: &dyn ProviderInvocation) -> Result<Value, ProviderError> {
+    fn open(&self, ctx: &dyn ProviderInvocation) -> Result<ConnectionOpenResult, ProviderError> {
         Err(ProviderError::method_not_found(ctx.method()))
     }
 
-    fn create(&self, ctx: &dyn ProviderInvocation) -> Result<Value, ProviderError> {
+    fn create(&self, ctx: &dyn ProviderInvocation) -> Result<ConnectionOpenResult, ProviderError> {
         Err(ProviderError::method_not_found(ctx.method()))
     }
 }

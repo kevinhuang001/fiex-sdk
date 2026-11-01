@@ -123,6 +123,22 @@ impl FsEntry {
     pub fn is_dir(&self) -> bool {
         self.kind == FsKind::Directory
     }
+
+    /// A missing node-level declaration leaves the provider declaration as
+    /// the operation ceiling; a present declaration may only narrow it.
+    pub fn allows(&self, operation: FsOperation) -> bool {
+        self.allowed_ops
+            .as_ref()
+            .is_none_or(|operations| operations.contains(&operation))
+    }
+
+    pub fn is_readonly(&self) -> bool {
+        self.readonly.unwrap_or(false)
+            || !(self.allows(FsOperation::Write)
+                || self.allows(FsOperation::Mkdir)
+                || self.allows(FsOperation::Rename)
+                || self.allows(FsOperation::Remove))
+    }
 }
 
 /// One page of a directory listing or a search result.

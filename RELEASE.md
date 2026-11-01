@@ -1,6 +1,6 @@
 # Fiex Rust SDK 0.3.0 — protocol 6
 
-Feature providers use typed, ResourceRef-only `Files` calls over `fs.*`. Storage
+Feature providers use typed, ResourceRef-only `Files` calls over `host.fs.*`. Storage
 providers implement `VfsProvider`, advertise `FsOperation` and narrow operations
 through discovery; Core invokes them over `vfs.*`. Protocol mismatches fail closed.
 No legacy host filesystem or host terminal API is retained.

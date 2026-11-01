@@ -4,7 +4,7 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-/// A directory page. Search uses the shared SearchResults envelope instead.
+/// A VFS page. Local SearchProvider results use typed [`crate::SearchResults`].
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct VfsPage {

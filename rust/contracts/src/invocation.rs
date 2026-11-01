@@ -1,5 +1,5 @@
 //! Safe request projection and process-local invocation boundary.
-use crate::{ResourceCapabilities, ResourceContext, ResourceLocation};
+use crate::{ProviderError, ProviderInput, ResourceCapabilities, ResourceContext, ResourceLocation};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::any::Any;
@@ -11,8 +11,10 @@ use std::any::Any;
 #[serde(rename_all = "camelCase")]
 pub struct ProviderRequestContext {
     pub method: String,
-    #[serde(default)]
-    pub params: Value,
+    #[serde(skip)]
+    pub input: ProviderInput,
+    #[serde(skip)]
+    pub input_error: Option<String>,
     #[serde(default)]
     pub targets: Vec<ResourceContext>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -29,7 +31,8 @@ pub struct ProviderRequestContext {
 }
 
 impl ProviderRequestContext {
-    pub fn from_params(method: impl Into<String>, params: Value, locale: impl Into<String>) -> Self {
+    pub fn from_params(method: impl Into<String>, params: &Value, locale: impl Into<String>) -> Self {
+        let method = method.into();
         let targets: Vec<ResourceContext> = params
             .get("targets")
             .and_then(Value::as_array)
@@ -45,12 +48,23 @@ impl ProviderRequestContext {
             .and_then(|value| usize::try_from(value).ok())
             .unwrap_or(targets.len());
         let session_id = params.get("sessionId").and_then(Value::as_str).unwrap_or_default().to_owned();
-        Self { method: method.into(), params, targets, directory, session_id, selection_count, locale: locale.into() }
+        let (input, input_error) = match ProviderInput::decode(&method, params) {
+            Ok(input) => (input, None),
+            Err(error) => (ProviderInput::Unspecified, Some(error)),
+        };
+        Self { method, input, input_error, targets, directory, session_id, selection_count, locale: locale.into() }
     }
 
     pub fn target(&self) -> Option<&ResourceContext> { self.targets.first() }
 
     pub fn selection_count(&self) -> usize { self.selection_count }
+
+    pub fn input(&self) -> Result<&ProviderInput, ProviderError> {
+        if let Some(error) = &self.input_error {
+            return Err(ProviderError::invalid_params(error.clone()));
+        }
+        Ok(&self.input)
+    }
 }
 
 /// One invocation interface used by both shared provider traits and their
@@ -61,7 +75,7 @@ pub trait ProviderInvocation: Send + Sync {
     fn local_service_handle(&self) -> Option<&dyn Any> { None }
 
     fn method(&self) -> &str { &self.request().method }
-    fn params(&self) -> &Value { &self.request().params }
+    fn input(&self) -> Result<&ProviderInput, ProviderError> { self.request().input() }
     fn targets(&self) -> &[ResourceContext] { &self.request().targets }
     fn target(&self) -> Option<&ResourceContext> { self.request().target() }
     fn directory(&self) -> Option<&ResourceContext> { self.request().directory.as_ref() }
@@ -94,7 +108,7 @@ mod tests {
     fn request_context_preserves_blank_selection_and_trusted_directory_location() {
         let context = ProviderRequestContext::from_params(
             "contextMenu.resolve",
-            json!({
+            &json!({
                 "selectionCount": 0,
                 "targets": [],
                 "directory": {

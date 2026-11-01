@@ -16,7 +16,7 @@
 # use fiex_plugin_sdk::{self as sdk, RpcError};
 # fn example(ctx: &sdk::RequestContext) -> Result<(), Box<dyn std::error::Error>> {
 let files = ctx.files();
-// 协议 5.0 只接受 ResourceRef，不接受宿主路径。
+// 协议 6.0 只接受 ResourceRef，不接受宿主路径。
 let target = ctx.target().ok_or("missing target")?;
 let text = files.read_to_string(&target.reference)?;
 files.write(&target.reference, b"updated")?; // 修改本次操作授权的文件
@@ -44,7 +44,7 @@ output.commit()?;
 # Ok(()) }
 ```
 
-`begin_write` 后的数据由 Core 暂存。只有 `commit` 成功才会替换目标；原文件发生变化时返回冲突。没有提交就释放 writer，会自动取消暂存。`read` 最多读取 64 MiB；更大文件用 `open_read`。文件访问限于宿主为本次操作授权的所选文件或目录。协议 5.0 的公开输入是 `ResourceRef`：系统事件从 `ctx.targets()` 取得，文件/目录选择框也返回 `ResourceContext`；不要再传宿主路径。未提交的写入在操作结束时取消。
+`begin_write` 后的数据由 Core 暂存。只有 `commit` 成功才会替换目标；原文件发生变化时返回冲突。没有提交就释放 writer，会自动取消暂存。`read` 最多读取 64 MiB；更大文件用 `open_read`。文件访问限于宿主为本次操作授权的所选文件或目录。协议 6.0 的公开输入是 `ResourceRef`：系统事件从 `ctx.targets()` 取得，文件/目录选择框也返回 `ResourceContext`；不要再传宿主路径。未提交的写入在操作结束时取消。
 
 普通文件接口集中在 `ctx.files()`：`read`、`read_to_string`、`open_read`、`write`、`create`、`begin_write`、`list`、`metadata`、`child`、`create_dir`、`remove`、`rename`。`open_read` 返回实现 `Read + Seek + Send + 'static` 的 `FileReader`，`begin_write` 返回实现 `Write + Seek + Send + 'static` 的 `FileWriter`，并要求显式 `commit()`。Reader/Writer 自己持有 SDK 内部通信句柄，可以先 `drop(files)` 再继续使用；`'static` 只表示类型不依赖临时借用，文件授权仍由 Core 按操作作用域校验。SDK 自动对小读取使用 256 KiB IPC 缓存，对大块读取复用最多 4 MiB 的共享缓冲；大块写入复用 256 KiB 共享缓冲。共享缓冲不可分配时退回有界 IPC。缓冲占用不随文件长度增长。
 
@@ -299,7 +299,7 @@ python sdk/rust/examples/check_plugin.py --binary target/debug/fiex-plugin-hello
 测试器会依次做：
 
 1. 启动你刚刚编译出来的可执行文件。
-2. 发起 `plugin.initialize` 握手，协议版本为 `5.0`。
+2. 发起 `plugin.initialize` 握手，协议版本为 `6.0`。
 3. 调用 `hello.greet`，默认发送 `{"name":"新手"}`。
 4. 发起 `plugin.shutdown` 并确认正常退出。
 
@@ -529,7 +529,7 @@ SDK 当前公开的关键接口：
 
 - **所有插件都需要授权。** Fiex 官方与第三方插件没有权限特权，也不使用插件签名来免除授权。
 - **Native 独立进程不等于操作系统沙箱。** 当前宿主 API 会检查授权，但原生插件仍可能直接访问操作系统允许当前用户访问的文件和网络。只运行信任来源的插件。
-- SDK 处理 `Content-Length` + JSON-RPC 2.0 的 stdin/stdout 协议，当前协议版本 `5.0`，单帧最大 **4 MiB**；不要把大文件直接放入 JSON 返回值。
+- SDK 处理 `Content-Length` + JSON-RPC 2.0 的 stdin/stdout 协议，当前协议版本 `6.0`，单帧最大 **4 MiB**；不要把大文件直接放入 JSON 返回值。
 - 复杂插件的 UI、连接、远程文件系统、取消、流式传输和缓存/同步有各自的职责；**不要把 Fiex Core 的设计提案中的拟议代码当作当前已发布 SDK API。**
 
 ### 继续学习
@@ -540,7 +540,7 @@ SDK 当前公开的关键接口：
 - **连接类插件：** [WebDAV](https://github.com/kevinhuang001/fiex-official-plugins/tree/main/official/webdav)
 - **Fiex Core 插件技术文档：** [docs/plugins](https://github.com/kevinhuang001/fiex/tree/main/docs/plugins)（注意其中包含标注为“拟议”的设计，不都是当前 API）
 
-**一句话总结：** 先学会 `sdk::serve` + `match` + JSON 返回值，跑通真实进程测试；再用 `manifest.json` 声明入口和权限，最后打包成 `.fiexplugin` 通过 GitHub Release 分发。
+**一句话总结：** 标准 Provider 使用 `sdk::Providers` 和共享类型化 Traits；自定义 RPC 可由 `serve_with` fallback handler 处理。再用 `manifest.json` 声明入口和权限，最后打包成 `.fiexplugin` 通过 GitHub Release 分发。
 
 ## Core-owned VFS views and connection eligibility
 
@@ -550,13 +550,13 @@ UI extensions never confer provider eligibility. `scheme`, `schemes`, `uriPrefix
 
 Within a selected-resource request, call `ctx.open_vfs_view("history", selected_root, immutable_context)`.
 Core authenticates the process identity, contribution ownership, and resource scope, and returns a `fiex://mount/<id>/` navigation URI.
-The plugin must not construct URIs. Core sends contributionId/viewContext/nodeId with vfs.list/stat/readSmall/search; return opaque nodeId plus Entry metadata, and relativePath for search. Root nodeId is empty.
+The plugin must not construct URIs. Core sends contributionId/viewContext/nodeId with vfs.list/stat/openRead/readStream/closeRead/search; return opaque nodeId plus Entry metadata, and relativePath for search. Root nodeId is empty.
 Core binds returned entries to its mount and retains only explicitly saved small view descriptors across restarts.
 
 Connection-specific vfs.* provider requests are Core-only and require an installed, active connection factory bound to that instance.
 Ordinary VFS registration does not grant sync, pin, eviction, conflict, or cache control. Generic files/HTTP/TCP remain subject to their existing operation/network grants.
 These are application navigation URIs, not OS mounts. Connection files stream to Core-managed cache files before external opening.
-Standalone readSmall exports are bounded (1 MiB complete file); larger exports fail explicitly pending a streaming VFS contract.
+Standalone view reads use the same bounded streaming contract as connection VFS providers; the SDK owns stream IDs, offsets, and closure.
 
 ### Request language
 

@@ -93,12 +93,26 @@ pub use endpoint::{event, Dispatch, Event, ProviderRequest};
 mod error;
 pub use error::ProviderError;
 mod decoration;
-pub use decoration::{
-    DecorationBadge, DecorationContribution, DecorationField, DecorationStyle,
-    NativeDecorationBadge,
+pub use decoration::{DecorationBadge, DecorationContribution, DecorationField, DecorationStyle, NativeDecorationBadge};
+mod connection;
+pub use connection::ConnectionOpenResult;
+mod menu;
+pub use menu::{
+    ConnectionCoreMenuAction, CoreMenuAction, CoreMenuActionKind, MenuActivity, MenuActivityKind, MenuExecuteResult,
+    MenuHandledFlag, MenuHandledKind, MenuHandledKindTag, MenuItem, MenuItemKind,
+    MenuNativeAction, MenuPlacement, NativeMenuAction, NativeMenuActionKind,
+    PluginPanelAction, PluginPanelActionKind, PluginPanelSize, RemoteMenuAction,
+    RemoteMenuActionKind,
 };
 mod invocation;
 pub use invocation::{ProviderInvocation, ProviderRequestContext};
+mod requests;
+pub use requests::{
+    ConnectionFieldValue, ConnectionMenuExecuteRequest, ConnectionMenuResolveRequest,
+    ConnectionRequest, ConnectionSettings, ConnectionSummary, ContextMenuExecuteRequest,
+    ContextMenuResolveRequest, HookRequest, ProviderInput, ResourceEventRequest,
+    SearchQueryRequest, ToolbarRequest, VfsRequest,
+};
 mod fs_request;
 pub use fs_request::{FsProduct, FsRead, FsRequest, FsWrite};
 mod providers;
@@ -107,6 +121,8 @@ pub use providers::{
     ContextMenuProvider, DecorationProvider, HookProvider, HookResult, InfoProvider,
     PreviewProvider, SearchProvider, ToolbarProvider, ToolbarResult, VfsProvider,
 };
+mod search;
+pub use search::{SearchEntry, SearchResults, SearchTag};
 mod instances;
 pub use instances::ProviderInstances;
 mod pagination;
@@ -122,10 +138,10 @@ mod resources;
 pub use resources::{
     EventContext, InfoRow, InfoSection, PackageView, PreviewView,
     ResourceCapabilities, ResourceContext, ResourceLocation, ResourceMetadata,
-    ResourceRef, ResourceType, ResolvedResourceContext, SearchResults,
+    ResourceRef, ResourceType, ResolvedResourceContext,
 };
 pub mod matching;
-pub use matching::{LocationMatch, MatchResource, ProviderMatcher, ProviderMatchRule};
+pub use matching::{LocationMatch, ProviderMatcher, ProviderMatchRule};
 
 /// Transport-independent provider kind. A VFS owns storage; the other
 /// kinds contribute behavior and may match any Core-resolved view/storage.

@@ -35,8 +35,16 @@ pub mod tcp;
 pub use aria2::{Aria2, Aria2Request, Aria2Response};
 pub use context::{ProviderInvocationExt, RequestContext, TaskContext};
 pub use contracts::{
-    DecorationBadge, DecorationContribution, DecorationField, DecorationStyle, EventContext,
-    InfoRow, InfoSection, PackageView, PreviewView, ResourceContext, ResourceMetadata, ResourceRef,
+    ConnectionOpenResult, DecorationBadge, DecorationContribution, DecorationField, DecorationStyle, EventContext,
+    InfoRow, InfoSection, MenuActivity, MenuActivityKind, MenuItemKind,
+    MenuExecuteResult, MenuHandledFlag, MenuHandledKind, MenuHandledKindTag, MenuNativeAction,
+    MenuPlacement, NativeMenuAction, NativeMenuActionKind, CoreMenuAction, CoreMenuActionKind,
+    PluginPanelAction, PluginPanelActionKind, PluginPanelSize, RemoteMenuAction,
+    RemoteMenuActionKind, PackageView, PreviewView, ResourceContext,
+    ResourceMetadata, ResourceRef, ConnectionFieldValue, ConnectionMenuExecuteRequest,
+    ConnectionMenuResolveRequest, ConnectionRequest, ConnectionSettings, ConnectionSummary,
+    ContextMenuExecuteRequest, ContextMenuResolveRequest, HookRequest, ProviderInput,
+    ResourceEventRequest, SearchQueryRequest, ToolbarRequest, VfsRequest,
 };
 
 pub use fiex_provider_contracts::{
@@ -50,8 +58,8 @@ pub use provider_contracts::ProviderRequest;
 pub use provider_matching::{LocationMatch, ProviderMatchRule};
 pub use providers::{
     ConnectionContextMenuProvider, ConnectionProvider, ConnectionValidation, ContextMenuProvider,
-    DecorationProvider, HookProvider, HookResult, InfoProvider, PreviewProvider, Providers,
-    SearchProvider, SearchResults, ToolbarProvider, ToolbarResult,
+    DecorationProvider, HookProvider, InfoProvider, MenuItem, PreviewProvider, Providers,
+    SearchProvider, SearchEntry, SearchResults, SearchTag, ToolbarProvider, ToolbarResult,
 };
 pub use secrets::{SecretError, Secrets};
 pub use storage::Storage;
