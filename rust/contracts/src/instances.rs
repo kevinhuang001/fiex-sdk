@@ -51,6 +51,14 @@ impl<T: ?Sized + Send + Sync> ProviderInstances<T> {
         }
     }
 
+    /// Remove one provider when its owning plugin is uninstalled or revoked.
+    /// Any in-flight caller keeps its `Arc`; later lookups cannot reacquire it.
+    pub fn unregister(&mut self, id: &str) -> Option<Arc<T>> {
+        self.entries
+            .remove(id)
+            .map(|registration| registration.implementation)
+    }
+
     pub fn get(&self, id: &str) -> Option<&T> {
         self.entries
             .get(id)
