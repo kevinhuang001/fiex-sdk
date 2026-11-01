@@ -1,7 +1,7 @@
 //! Canonical typed provider traits. SDK runtime and Core native handlers
 //! implement these same interfaces; transport adapters stay outside this crate.
 use crate::{
-    FsEntry, FsListing, FsOperation, FsRequest, InfoSection, PreviewView,
+    DecorationContribution, FsEntry, FsListing, FsOperation, FsRequest, InfoSection, PreviewView,
     PreflightDecision, ProviderError, ProviderInvocation, SearchCapabilities,
     SearchMode, SearchResults, TransferPreflight,
 };
@@ -128,7 +128,10 @@ pub trait PreviewProvider: Send + Sync {
 }
 
 pub trait DecorationProvider: Send + Sync {
-    fn resolve(&self, ctx: &dyn ProviderInvocation) -> Result<Vec<Value>, ProviderError>;
+    fn resolve(
+        &self,
+        ctx: &dyn ProviderInvocation,
+    ) -> Result<Vec<DecorationContribution>, ProviderError>;
 }
 
 pub trait ContextMenuProvider: Send + Sync {

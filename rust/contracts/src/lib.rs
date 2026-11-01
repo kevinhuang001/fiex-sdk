@@ -92,6 +92,11 @@ mod endpoint;
 pub use endpoint::{event, Dispatch, Event, ProviderRequest};
 mod error;
 pub use error::ProviderError;
+mod decoration;
+pub use decoration::{
+    DecorationBadge, DecorationContribution, DecorationField, DecorationStyle,
+    NativeDecorationBadge,
+};
 mod invocation;
 pub use invocation::{ProviderInvocation, ProviderRequestContext};
 mod fs_request;
