@@ -188,6 +188,38 @@ pub struct PreviewView {
     pub message: Option<String>,
     #[serde(default, skip_serializing_if = "Value::is_null")]
     pub state: Value,
+    /// Native Core render data. Plugin responses may omit these fields; Core
+    /// validates their provenance before placing any value in this DTO.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub html: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mime: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub media: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub extension: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub truncated: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub size: Option<u64>,
+    /// Resolved Core session fields are present only after the plugin view has
+    /// passed package confinement and session authorization.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub entry: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub session_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub plugin_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub contribution_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub timeout_ms: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub context: Option<Value>,
 }
 
 impl PreviewView {
@@ -201,6 +233,20 @@ impl PreviewView {
             text: None,
             message: None,
             state: Value::Null,
+            html: None,
+            path: None,
+            name: None,
+            mime: None,
+            media: None,
+            extension: None,
+            truncated: None,
+            size: None,
+            entry: None,
+            session_id: None,
+            plugin_id: None,
+            contribution_id: None,
+            timeout_ms: None,
+            context: None,
         }
     }
 }
@@ -297,5 +343,24 @@ mod tests {
         let view = PreviewView::html("ui/preview.html");
         assert_eq!(view.kind, "html");
         assert_eq!(view.view.unwrap().entry, "ui/preview.html");
+    }
+
+    #[test]
+    fn preview_dto_covers_native_render_fields_and_rejects_unknown_data() {
+        let image: PreviewView = serde_json::from_value(serde_json::json!({
+            "kind": "image",
+            "path": "/brokered/image.png",
+            "name": "image.png",
+            "mime": "image/png"
+        }))
+        .unwrap();
+        assert_eq!(image.kind, "image");
+        assert_eq!(image.name.as_deref(), Some("image.png"));
+        assert_eq!(image.path.as_deref(), Some("/brokered/image.png"));
+        assert!(serde_json::from_value::<PreviewView>(serde_json::json!({
+            "kind": "html",
+            "view": {"source": "external", "entry": "https://example.test"}
+        }))
+        .is_err());
     }
 }
