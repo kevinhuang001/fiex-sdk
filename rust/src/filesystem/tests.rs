@@ -177,7 +177,9 @@ impl VfsProvider for AccountFs {
                 .connection
                 .as_ref()
                 .and_then(|values| values.get("writable"))
-                .is_some_and(|value| value == &fiex_provider_contracts::ConnectionFieldValue::Boolean(true)),
+                .is_some_and(|value| {
+                    value == &fiex_provider_contracts::ConnectionFieldValue::Boolean(true)
+                }),
             _ => false,
         };
         Ok(if writable {

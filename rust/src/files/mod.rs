@@ -63,7 +63,10 @@ impl Files {
     pub fn begin_write(&self, reference: &ResourceRef, create: bool) -> io::Result<FileWriter> {
         let handle = self
             .context
-            .call("host.fs.beginWrite", json!({"ref":reference,"create":create}))
+            .call(
+                "host.fs.beginWrite",
+                json!({"ref":reference,"create":create}),
+            )
             .map_err(rpc_to_io)?
             .as_str()
             .map(str::to_owned)
