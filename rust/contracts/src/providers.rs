@@ -98,6 +98,29 @@ pub trait SearchProvider: Send + Sync {
     }
 
     fn query(&self, ctx: &dyn ProviderInvocation) -> Result<SearchResults, ProviderError>;
+
+    /// Stream native or transport-backed results through one shared provider
+    /// contract. The default adapts the existing bounded page API; Core-native
+    /// walkers can override it to preserve incremental delivery and cancellation.
+    fn query_stream(
+        &self,
+        ctx: &dyn ProviderInvocation,
+        cancelled: &dyn Fn() -> bool,
+        emit: &mut dyn FnMut(Value) -> Result<(), ProviderError>,
+    ) -> Result<SearchResults, ProviderError> {
+        let page = self.query(ctx)?;
+        for entry in page.entries {
+            if cancelled() {
+                return Err(ProviderError::cancelled());
+            }
+            emit(entry)?;
+        }
+        Ok(SearchResults {
+            entries: Vec::new(),
+            truncated: page.truncated,
+            next_cursor: page.next_cursor,
+        })
+    }
 }
 
 pub trait HookProvider: Send + Sync {
