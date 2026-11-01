@@ -168,7 +168,10 @@ impl VfsProvider for AccountFs {
     fn operations(&self) -> &'static [FsOperation] {
         &[FsOperation::Stat, FsOperation::Read, FsOperation::Write]
     }
-    fn discover(&self, ctx: &dyn fiex_provider_contracts::ProviderInvocation) -> Result<Vec<FsOperation>, RpcError> {
+    fn discover(
+        &self,
+        ctx: &dyn fiex_provider_contracts::ProviderInvocation,
+    ) -> Result<Vec<FsOperation>, RpcError> {
         Ok(if ctx.params()["connection"]["writable"] == true {
             vec![
                 FsOperation::Stat,

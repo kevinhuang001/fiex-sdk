@@ -39,12 +39,14 @@ pub use contracts::{
     ResourceMetadata, ResourceRef,
 };
 
+pub use fiex_provider_contracts::{
+    ProviderError as RpcError, ProviderInvocation, ProviderRequestContext,
+};
 pub use files::{FileReader, FileWriter, Files};
 pub use http::{HttpClient, Request, Response, StreamingBody};
 pub use ipc::{Entry, ProcessResult};
 pub use oauth::{AuthorizationCode, OAuth, OAuthRequest};
 pub use provider_contracts::{ProviderEndpoint, ProviderRequest};
-pub use fiex_provider_contracts::{ProviderError as RpcError, ProviderInvocation, ProviderRequestContext};
 pub use provider_matching::{LocationMatch, ProviderMatchRule};
 pub use providers::{
     ConnectionContextMenuProvider, ConnectionProvider, ConnectionValidation, ContextMenuProvider,

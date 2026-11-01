@@ -33,5 +33,10 @@ pub(super) fn discover(
     ctx: &dyn ProviderInvocation,
 ) -> Result<Vec<FsOperation>, RpcError> {
     let reported = provider.discover(ctx)?;
-    Ok(provider.operations().iter().copied().filter(|op| reported.contains(op)).collect())
+    Ok(provider
+        .operations()
+        .iter()
+        .copied()
+        .filter(|op| reported.contains(op))
+        .collect())
 }
