@@ -50,8 +50,8 @@ pub use provider_contracts::ProviderRequest;
 pub use provider_matching::{LocationMatch, ProviderMatchRule};
 pub use providers::{
     ConnectionContextMenuProvider, ConnectionProvider, ConnectionValidation, ContextMenuProvider,
-    DecorationProvider, HookProvider, HookResult, InfoProvider, PreviewProvider, Providers, SearchProvider,
-    SearchResults, ToolbarProvider,
+    DecorationProvider, HookProvider, HookResult, InfoProvider, PreviewProvider, Providers,
+    SearchProvider, SearchResults, ToolbarProvider,
 };
 pub use secrets::{SecretError, Secrets};
 pub use storage::Storage;
