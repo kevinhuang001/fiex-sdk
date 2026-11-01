@@ -5,8 +5,29 @@ use crate::{
     PreflightDecision, ProviderError, ProviderInvocation, SearchCapabilities,
     SearchMode, SearchResults, TransferPreflight,
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
+
+#[cfg(test)]
+mod tests {
+    use super::HookResult;
+
+    #[test]
+    fn hook_result_requires_handled_and_rejects_legacy_fields() {
+        assert_eq!(
+            serde_json::from_value::<HookResult>(serde_json::json!({"handled": true})).unwrap(),
+            HookResult { handled: true }
+        );
+        assert!(serde_json::from_value::<HookResult>(serde_json::json!({})).is_err());
+        assert!(
+            serde_json::from_value::<HookResult>(serde_json::json!({
+                "handled": true,
+                "preview": false
+            }))
+            .is_err()
+        );
+    }
+}
 
 pub trait VfsProvider: Send + Sync {
     fn supports_preflight(&self) -> bool {
@@ -124,7 +145,14 @@ pub trait SearchProvider: Send + Sync {
 }
 
 pub trait HookProvider: Send + Sync {
-    fn invoke(&self, ctx: &dyn ProviderInvocation) -> Result<Value, ProviderError>;
+    fn invoke(&self, ctx: &dyn ProviderInvocation) -> Result<HookResult, ProviderError>;
+}
+
+/// Typed response for a first-supported hook invocation.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct HookResult {
+    pub handled: bool,
 }
 
 pub trait ToolbarProvider: Send + Sync {
