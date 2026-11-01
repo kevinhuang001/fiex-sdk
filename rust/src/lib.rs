@@ -35,8 +35,8 @@ pub mod tcp;
 pub use aria2::{Aria2, Aria2Request, Aria2Response};
 pub use context::{ProviderInvocationExt, RequestContext, TaskContext};
 pub use contracts::{
-    EventContext, InfoRow, InfoSection, PackageView, PreviewView, ResourceContext,
-    ResourceMetadata, ResourceRef,
+    DecorationBadge, DecorationContribution, DecorationField, DecorationStyle, EventContext,
+    InfoRow, InfoSection, PackageView, PreviewView, ResourceContext, ResourceMetadata, ResourceRef,
 };
 
 pub use fiex_provider_contracts::{
