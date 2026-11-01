@@ -67,7 +67,8 @@ invalid data instead of collapsing them into `None`. Terminal interfaces belong 
 their session state and expose custom RPC through the UI bridge; the host only
 brokers generic network and permission services.
 
-Optional typed event providers live in `contracts`: `InfoProvider`,
+Optional typed event providers are defined once in the runtime-independent
+`fiex-provider-contracts` crate under `rust/contracts`: `InfoProvider`,
 `PreviewProvider`, `DecorationProvider`, `ContextMenuProvider`,
 `ConnectionContextMenuProvider`,
 `SearchProvider`, `HookProvider`, `ToolbarProvider` and `ConnectionProvider`
@@ -83,12 +84,21 @@ sdk::Providers::new()
     .serve_with("org.example.plugin", |ctx| custom(ctx))
 ```
 
+Every shared provider method receives `&dyn ProviderInvocation`, not the SDK
+runtime's `RequestContext`. The invocation carries a safe request projection;
+the SDK implements it for plugin calls and keeps authorized Host services in a
+process-local handle. Import `ProviderInvocationExt` in a plugin module to use
+the existing convenience methods such as `ctx.files()`, `ctx.http()`,
+`ctx.storage()` and `ctx.secrets()`. Those local service handles never cross
+the Core/Plugin JSON-RPC boundary.
+
 ## File-system providers
 
 Implement the methods you really support and declare the operation ceiling explicitly:
 
 ```rust,ignore
 use fiex_plugin_sdk as sdk;
+use sdk::ProviderInvocationExt;
 use sdk::filesystem::{VfsProvider, FsEntry, FsListing, FsRead, FsWrite};
 
 impl VfsProvider for MyDrive {

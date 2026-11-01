@@ -3,7 +3,7 @@ use crate::{InfoRow, InfoSection};
 
 struct ExampleInfo;
 impl InfoProvider for ExampleInfo {
-    fn resolve(&self, _ctx: &RequestContext) -> Result<Vec<InfoSection>, RpcError> {
+    fn resolve(&self, _ctx: &dyn fiex_provider_contracts::ProviderInvocation) -> Result<Vec<InfoSection>, RpcError> {
         Ok(vec![InfoSection {
             source: String::new(),
             provider: String::new(),
@@ -127,7 +127,7 @@ fn duplicate_named_vfs_does_not_replace_existing_stream_registry() {
 
 struct ExampleInfoSearch;
 impl SearchProvider for ExampleInfoSearch {
-    fn query(&self, _ctx: &RequestContext) -> Result<SearchResults, RpcError> {
+    fn query(&self, _ctx: &dyn fiex_provider_contracts::ProviderInvocation) -> Result<SearchResults, RpcError> {
         Ok(SearchResults::default())
     }
 }

@@ -121,7 +121,7 @@ fn transfer_preflight_is_metadata_only_and_does_not_grant_write() {
         }
         fn preflight(
             &self,
-            _ctx: &RequestContext,
+            _ctx: &dyn fiex_provider_contracts::ProviderInvocation,
             review: &TransferPreflight,
         ) -> Result<PreflightDecision, RpcError> {
             Ok(PreflightDecision {
@@ -168,7 +168,7 @@ impl VfsProvider for AccountFs {
     fn operations(&self) -> &'static [FsOperation] {
         &[FsOperation::Stat, FsOperation::Read, FsOperation::Write]
     }
-    fn discover(&self, ctx: &RequestContext) -> Result<Vec<FsOperation>, RpcError> {
+    fn discover(&self, ctx: &dyn fiex_provider_contracts::ProviderInvocation) -> Result<Vec<FsOperation>, RpcError> {
         Ok(if ctx.params()["connection"]["writable"] == true {
             vec![
                 FsOperation::Stat,

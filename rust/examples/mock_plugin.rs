@@ -115,7 +115,7 @@ fn dispatch(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
 /// path; results are relative to that root and verified by the Core.
 struct MockSearch;
 impl sdk::SearchProvider for MockSearch {
-    fn query(&self, _ctx: &sdk::RequestContext) -> Result<sdk::SearchResults, RpcError> {
+    fn query(&self, _ctx: &dyn sdk::ProviderInvocation) -> Result<sdk::SearchResults, RpcError> {
         Ok(sdk::SearchResults {
             entries: vec![json!({
                 "path":"fiex-mock-search.txt",

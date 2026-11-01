@@ -1,8 +1,8 @@
 # Provider eligibility: one FS/VFS-aware matching contract
 
 The authoritative match DTO and evaluator are in
-`rust/src/provider_matching.rs` (`ProviderMatchRule` and `LocationMatch`).
-Core uses this exact SDK definition; feature handlers do not invent separate
+`rust/contracts/src/matching.rs` (`ProviderMatchRule` and `LocationMatch`).
+Core and SDK import these exact types; feature handlers do not invent separate
 rules based on local paths, URI schemes, or specific plugin brands.
 
 A plugin author declares eligibility in `manifest.json`, not in its Rust
@@ -103,6 +103,8 @@ At execute time Core revalidates menu ownership, the session, and the live
 resources. Native and plugin descriptors have the same eligibility semantics;
 only their execution transport differs.
 
-This contract is an incremental part of the unified provider refactor. Moving
-all standard Provider traits to a runtime-independent crate, and removing the
-remaining parallel event-dispatch internals, requires separate code migrations.
+This match contract and the standard provider traits now share the
+runtime-independent `fiex-provider-contracts` crate. Core's remaining
+feature-specific event dispatch and native registration paths still need to
+converge on these shared traits; the SDK dispatcher remains the plugin-side
+entry point.

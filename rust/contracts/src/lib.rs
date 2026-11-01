@@ -90,6 +90,18 @@ impl<'de> Deserialize<'de> for FsOperation {
 
 mod endpoint;
 pub use endpoint::{event, Dispatch, Event, ProviderEndpoint, ProviderRequest};
+mod error;
+pub use error::ProviderError;
+mod invocation;
+pub use invocation::{ProviderInvocation, ProviderRequestContext};
+mod fs_request;
+pub use fs_request::{FsProduct, FsRead, FsRequest, FsWrite};
+mod providers;
+pub use providers::{
+    ConnectionContextMenuProvider, ConnectionProvider, ConnectionValidation,
+    ContextMenuProvider, DecorationProvider, HookProvider, InfoProvider,
+    PreviewProvider, SearchProvider, ToolbarProvider, VfsProvider,
+};
 mod instances;
 pub use instances::ProviderInstances;
 mod pagination;
