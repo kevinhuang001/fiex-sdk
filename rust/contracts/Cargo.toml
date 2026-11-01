@@ -1,0 +1,11 @@
+[package]
+name = "fiex-provider-contracts"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.90"
+license = "GPL-3.0-or-later"
+description = "Runtime-independent Fiex provider descriptors and eligibility rules"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

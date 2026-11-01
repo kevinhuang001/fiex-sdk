@@ -20,7 +20,9 @@
     },
     "commands": {
       "enabled": true,
-      "allow": ["git"]
+      "allow": [
+        "git"
+      ]
     },
     "folders": {
       "read": {
@@ -60,7 +62,19 @@
   "extensions": {
     "search": {
       "icon": "magnifying-glass",
-      "scope": "global"
+      "modes": [
+        "name"
+      ],
+      "match": {
+        "storage": {
+          "providerIds": [
+            "core:local-fs"
+          ]
+        },
+        "kinds": [
+          "directory"
+        ]
+      }
     }
   }
 }

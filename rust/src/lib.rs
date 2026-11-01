@@ -10,7 +10,6 @@
 //! Never use stdout for logging; stderr is available for diagnostics.
 extern crate self as fiex_plugin_sdk;
 
-use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::io::{self, BufRead, Write};
 
@@ -24,6 +23,8 @@ pub mod http;
 pub mod i18n;
 pub mod ipc;
 pub mod oauth;
+pub mod provider_contracts;
+pub mod provider_matching;
 mod providers;
 mod runtime;
 pub mod secrets;
@@ -32,16 +33,21 @@ pub mod tasks;
 pub mod tcp;
 
 pub use aria2::{Aria2, Aria2Request, Aria2Response};
-pub use context::{RequestContext, TaskContext};
+pub use context::{ProviderInvocationExt, RequestContext, TaskContext};
 pub use contracts::{
     EventContext, InfoRow, InfoSection, PackageView, PreviewView, ResourceContext,
     ResourceMetadata, ResourceRef,
 };
 
+pub use fiex_provider_contracts::{
+    ProviderError as RpcError, ProviderInvocation, ProviderRequestContext,
+};
 pub use files::{FileReader, FileWriter, Files};
 pub use http::{HttpClient, Request, Response, StreamingBody};
 pub use ipc::{Entry, ProcessResult};
 pub use oauth::{AuthorizationCode, OAuth, OAuthRequest};
+pub use provider_contracts::ProviderRequest;
+pub use provider_matching::{LocationMatch, ProviderMatchRule};
 pub use providers::{
     ConnectionContextMenuProvider, ConnectionProvider, ConnectionValidation, ContextMenuProvider,
     DecorationProvider, HookProvider, InfoProvider, PreviewProvider, Providers, SearchProvider,
@@ -55,56 +61,6 @@ pub use tcp::{TcpClient, TcpReadHalf, TcpStream, TcpWriteHalf};
 pub const PROTOCOL_VERSION: &str = "6.0";
 pub const MAX_FRAME: usize = 4 * 1024 * 1024;
 const MAX_HEADER: usize = 8192;
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RpcError {
-    pub code: i64,
-    pub message: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub data: Option<Value>,
-}
-
-impl RpcError {
-    pub fn method_not_found(method: &str) -> Self {
-        Self {
-            code: -32601,
-            message: format!("Unsupported method: {method}"),
-            data: None,
-        }
-    }
-
-    pub fn invalid_params(message: impl Into<String>) -> Self {
-        Self {
-            code: -32602,
-            message: message.into(),
-            data: None,
-        }
-    }
-
-    pub fn internal(message: impl Into<String>) -> Self {
-        Self {
-            code: -32603,
-            message: message.into(),
-            data: None,
-        }
-    }
-
-    pub fn cancelled() -> Self {
-        Self {
-            code: -32800,
-            message: "task cancelled".into(),
-            data: None,
-        }
-    }
-}
-
-impl std::fmt::Display for RpcError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}: {}", self.code, self.message)
-    }
-}
-
-impl std::error::Error for RpcError {}
 
 /// Reads one complete frame. EOF is returned only between frames.
 pub fn read_frame(reader: &mut impl BufRead) -> io::Result<Option<Value>> {

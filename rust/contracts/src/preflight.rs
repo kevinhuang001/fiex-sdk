@@ -1,4 +1,7 @@
-//! Metadata-only policy hook. An allow decision never grants an operation.
+//! Transport-independent VFS preflight contract for Core and plugin providers.
+//!
+//! A positive decision never grants an operation; the Core ResourceBroker
+//! continues to enforce the caller's scope and effective storage capabilities.
 use serde::{Deserialize, Serialize};
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
