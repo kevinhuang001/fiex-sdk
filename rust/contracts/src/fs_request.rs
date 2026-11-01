@@ -1,39 +1,44 @@
 //! Logical VFS request and non-serializable stream products shared by Core
 //! native providers and the SDK's existing stream server.
-use crate::{FsEntry, FsListing, FsOperation, ProviderError, ProviderInvocation, SearchMode};
-use serde_json::Value;
+use crate::{FsEntry, FsListing, FsOperation, ProviderError, ProviderInput, ProviderInvocation, SearchMode, VfsRequest};
 use std::io::{Read, Write};
 
 #[derive(Clone)]
 pub struct FsRequest<'a> {
     ctx: &'a dyn ProviderInvocation,
     op: FsOperation,
-    params: Value,
+    request: VfsRequest,
 }
 
 impl<'a> FsRequest<'a> {
-    pub fn new(ctx: &'a dyn ProviderInvocation, op: FsOperation) -> Self {
-        Self {
-            params: ctx.params().clone(),
+    pub fn new(ctx: &'a dyn ProviderInvocation, op: FsOperation) -> Result<Self, ProviderError> {
+        let request = match ctx.input()? {
+            ProviderInput::Vfs(request) => request.clone(),
+            _ => return Err(ProviderError::invalid_params("missing typed VFS request")),
+        };
+        Ok(Self {
             ctx,
             op,
-        }
+            request,
+        })
     }
 
     pub fn op(&self) -> FsOperation {
         self.op
     }
 
+    /// Serialize the typed request only at the VFS transport boundary.
+    pub fn to_params(&self) -> Result<serde_json::Value, ProviderError> {
+        serde_json::to_value(&self.request)
+            .map_err(|error| ProviderError::internal(error.to_string()))
+    }
+
     pub fn ctx(&self) -> &'a dyn ProviderInvocation {
         self.ctx
     }
 
-    pub fn params(&self) -> &Value {
-        &self.params
-    }
-
     pub fn node_id(&self) -> Option<&str> {
-        self.params.get("nodeId").and_then(Value::as_str)
+        self.request.node_id.as_deref()
     }
 
     pub fn node_id_or_root(&self) -> &str {
@@ -41,7 +46,7 @@ impl<'a> FsRequest<'a> {
     }
 
     pub fn parent_id(&self) -> Option<&str> {
-        self.params.get("parentId").and_then(Value::as_str)
+        self.request.parent_id.as_deref()
     }
 
     pub fn parent_id_or_root(&self) -> &str {
@@ -49,84 +54,70 @@ impl<'a> FsRequest<'a> {
     }
 
     pub fn name(&self) -> Option<&str> {
-        self.params.get("name").and_then(Value::as_str)
+        self.request.name.as_deref()
     }
 
     pub fn if_revision(&self) -> Option<&str> {
-        self.params.get("ifRevision").and_then(Value::as_str)
+        self.request.if_revision.as_deref()
     }
 
     pub fn size(&self) -> Option<u64> {
-        self.params.get("size").and_then(Value::as_u64)
+        self.request.size
     }
 
     pub fn hidden(&self) -> bool {
-        self.params
-            .get("hidden")
-            .and_then(Value::as_bool)
-            .unwrap_or(false)
+        self.request.hidden
     }
 
     pub fn ignores(&self) -> Vec<String> {
-        self.params
-            .get("ignores")
-            .and_then(Value::as_array)
-            .map(|values| {
-                values
-                    .iter()
-                    .filter_map(Value::as_str)
-                    .map(str::to_owned)
-                    .collect()
-            })
-            .unwrap_or_default()
+        self.request.ignores.clone()
     }
 
     pub fn cursor(&self) -> Option<&str> {
-        self.params.get("cursor").and_then(Value::as_str)
+        self.request.cursor.as_deref()
     }
 
     pub fn limit(&self) -> usize {
-        self.params
-            .get("limit")
-            .and_then(Value::as_u64)
-            .unwrap_or(500)
-            .clamp(1, 5_000) as usize
+        self.request.bounded_limit(5_000)
     }
 
     pub fn query(&self) -> Option<&str> {
-        self.params.get("query").and_then(Value::as_str)
+        self.request.query.as_deref()
     }
 
     pub fn search_mode(&self) -> Result<SearchMode, ProviderError> {
-        serde_json::from_value(
-            self.params
-                .get("mode")
-                .cloned()
-                .ok_or_else(|| ProviderError::invalid_params("search mode is required"))?,
-        )
-        .map_err(|_| ProviderError::invalid_params("search mode must be name or content"))
+        self.request.mode.ok_or_else(|| ProviderError::invalid_params("search mode is required"))
     }
 
     pub fn mount_id(&self) -> Option<&str> {
-        self.params.get("mountId").and_then(Value::as_str)
+        self.request.mount_id.as_deref()
     }
 
-    pub fn connection(&self) -> Option<&Value> {
-        self.params.get("connection")
+    pub fn connection(&self) -> Option<&crate::ConnectionSettings> {
+        self.request.connection.as_ref()
+    }
+
+    pub fn connection_value(&self) -> Result<Option<serde_json::Value>, ProviderError> {
+        self.request
+            .connection_value()
+            .map_err(ProviderError::invalid_params)
     }
 
     pub fn contribution_id(&self) -> Option<&str> {
-        self.params.get("contributionId").and_then(Value::as_str)
+        self.request.contribution_id.as_deref()
     }
 
-    pub fn view_context(&self) -> Option<&Value> {
-        self.params.get("viewContext")
+    pub fn view_context(&self) -> Option<&std::collections::BTreeMap<String, serde_json::Value>> {
+        self.request.view_context.as_ref()
     }
 }
 
 pub struct FsRead {
     pub reader: Box<dyn Read + Send>,
     pub size: Option<u64>,
+    pub read_at: Option<
+        Box<dyn FnMut(u64, usize) -> Result<(Vec<u8>, bool), ProviderError> + Send>,
+    >,
 }
 
 impl FsRead {
@@ -134,6 +125,21 @@ impl FsRead {
         Self {
             reader: Box::new(reader),
             size,
+            read_at: None,
+        }
+    }
+
+    /// Create a stream with provider-native bounded random reads. Providers
+    /// that only expose sequential reads should use [`FsRead::new`].
+    pub fn with_read_at(
+        reader: impl Read + Send + 'static,
+        size: Option<u64>,
+        read_at: impl FnMut(u64, usize) -> Result<(Vec<u8>, bool), ProviderError> + Send + 'static,
+    ) -> Self {
+        Self {
+            reader: Box::new(reader),
+            size,
+            read_at: Some(Box::new(read_at)),
         }
     }
 

@@ -84,7 +84,7 @@ impl Drop for FileReader {
         if !self.context.closed() {
             let _: Result<serde_json::Value, RpcError> = self
                 .context
-                .call("fs.closeRead", json!({"handle": self.handle}));
+                .call("host.fs.closeRead", json!({"handle": self.handle}));
         }
     }
 }

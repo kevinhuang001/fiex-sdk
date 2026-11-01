@@ -117,21 +117,19 @@ struct MockSearch;
 impl sdk::SearchProvider for MockSearch {
     fn query(&self, _ctx: &dyn sdk::ProviderInvocation) -> Result<sdk::SearchResults, RpcError> {
         Ok(sdk::SearchResults {
-            entries: vec![json!({
-                "path":"fiex-mock-search.txt",
-                "name":"fiex-mock-search.txt",
-                "isDir":false,
-                "isSymlink":false,
-                "size":12,
-                "modified":1,
-                "created":1,
-                "extension":"txt",
-                "mime":"text/plain",
-                "readonly":false,
-                "linkTarget":null,
-                "tags":[],
-                "sync":null
-            })],
+            entries: vec![sdk::SearchEntry {
+                path: "fiex-mock-search.txt".into(),
+                name: "fiex-mock-search.txt".into(),
+                is_dir: false,
+                is_symlink: false,
+                size: 12,
+                modified: 1,
+                created: 1,
+                extension: "txt".into(),
+                mime: "text/plain".into(),
+                readonly: false,
+                ..Default::default()
+            }],
             truncated: false,
             next_cursor: None,
         })

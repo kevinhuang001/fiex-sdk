@@ -8,15 +8,15 @@ adds a method, and delete the row when a method is removed.
 
 | Core method                                                          | SDK surface                                                                     | Status                                                                     |
 | -------------------------------------------------------------------- | ------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| `fs.openRead`, `readOpen`, `readChunk`, `closeRead`                  | `Files::open_read` + `FileReader`                                               | Covered                                                                    |
-| `fs.beginWrite`, `writeChunk`, `writeBuffer`, `commit`, `abort`      | `Files::begin_write` + `FileWriter`                                             | Covered                                                                    |
-| `fs.list`, `stat`, `statBatch`, `child`, `mkdir`, `remove`, `rename` | `Files` methods                                                                 | Covered                                                                    |
-| `fs.read`, `create`, `write`                                         | none                                                                            | Removed in protocol 4. SDK uses the streaming methods.                     |
-| `fs.readOpen` shared buffers                                         | internal `runtime::transfer`                                                    | Not public; no plugin should manage buffers directly.                      |
+| `host.fs.openRead`, `readOpen`, `readChunk`, `closeRead`             | `Files::open_read` + `FileReader`                                               | Covered                                                                    |
+| `host.fs.beginWrite`, `writeChunk`, `writeBuffer`, `commit`, `abort` | `Files::begin_write` + `FileWriter`                                             | Covered                                                                    |
+| `host.fs.list`, `stat`, `statBatch`, `child`, `mkdir`, `remove`, `rename` | `Files` methods                                                                 | Covered                                                                    |
+| `fs.read`, `create`, `write`                                         | none                                                                            | Removed; the SDK uses the streaming methods.                     |
+| `host.fs.readOpen` shared buffers                                    | internal `runtime::transfer`                                                    | Not public; no plugin should manage buffers directly.                      |
 | `host.net.http.open/read/close`                                      | `HttpClient` / `Response`                                                       | Covered                                                                    |
-| `host.net.http`                                                      | none                                                                            | Removed in protocol 4; superseded by the streaming HTTP methods.           |
+| `host.net.http`                                                      | none                                                                            | Removed; superseded by the streaming HTTP methods.           |
 | `host.net.tcp.open/readBytes/writeBytes/shutdown/close`              | `TcpClient`, `TcpStream`, `TcpReadHalf`, `TcpWriteHalf`, optional Tokio adapter | Covered                                                                    |
-| `host.net.tcp.read/write`                                            | none                                                                            | Removed in protocol 4; superseded by `readBytes`/`writeBytes`.             |
+| `host.net.tcp.read/write`                                            | none                                                                            | Removed; superseded by `readBytes`/`writeBytes`.             |
 | `host.storage.*`                                                     | `Storage` (`get`, `set`, `delete`, `keys`, `compare_and_set`, `update`)         | Covered                                                                    |
 | `host.secret.*`                                                      | `Secrets` (`get`, `set`, `delete`) with typed `SecretError`                     | Covered                                                                    |
 | `host.terminal.ready/output/input/size/closed/end`                   | `ctx.terminal(session_id)`                                                      | Covered; SSH plugin migrated                                               |
@@ -43,7 +43,7 @@ adds a method, and delete the row when a method is removed.
 | `vfs.beginWrite/writeStream/commit/abort` | `VfsProvider::write` + `FsWrite`                              | Covered: providers return a standard `Write`; the commit callback publishes.       |
 | `vfs.mkdir/rename/remove`                 | `VfsProvider::{mkdir,rename,remove}`                          | Covered.                                                                           |
 | `fs.writeFile`                            | none                                                          | Removed in protocol 6; the streaming write path replaces the upload snapshot pull. |
-| Protocol-4 standalone view methods        | none                                                          | Replaced by the unified protocol-5 `vfs.*` methods and stream sessions.            |
+| Protocol-4 standalone view methods        | none                                                          | Replaced by the unified protocol-6 `vfs.*` methods and stream sessions.            |
 | `plugin.initialize` capabilities          | `Providers::capabilities` / `serve_declaring`                 | Added: `{"vfs":{"operations":[..]}}`, derived from the impl block.                 |
 
 `Providers` is optional; existing plugins continue to use `sdk::serve` with a
@@ -70,7 +70,7 @@ plugin's custom handler.
 
 ## Removed in protocol 4
 
-1. UI `fiex.vfs.*` was removed; no host bridge accepted it.
+1. UI `fiex.vfs.*` was removed; no host bridge accepts it.
 2. `fs.read/create/write` were removed; the SDK only emits streaming
    `openRead/readOpen/readChunk/closeRead` and `beginWrite/writeChunk/commit`.
 3. `host.net.http` (non-streaming) was removed; the SDK emits
@@ -80,7 +80,7 @@ plugin's custom handler.
 5. `host.exec` was removed; the SDK emits `host.process.run`.
 6. `host.preview.create` was removed; no caller remained.
 7. The protocol-4 standalone-view contract was removed. Connections and views
-   now share the protocol-5 `vfs.*` contract, with contribution identity and streaming reads.
+   now share the protocol-6 `vfs.*` contract, with contribution identity and streaming reads.
 8. `fs.writeFile` was removed; all writes use
    `vfs.beginWrite/writeStream/commit/abort`.
 
@@ -89,6 +89,6 @@ plugin's custom handler.
 ## Canonical VFS namespace
 
 The current native file-provider methods and initialization capabilities use
-`vfs.*` and `vfs: {operations, discovery}`. The former protocol-5 `fs.*` spellings
-are not aliases. Update Core, SDK and providers together. Host filesystem
-services remain `fs.*`; browser panel file services are unchanged.
+`vfs.*` and `vfs: {operations, discovery}`. The former protocol-5 `fs.*` provider spellings are not aliases. VFS providers use
+`vfs.*`; Core resource services use `host.fs.*`. Update Core, SDK and providers
+together.

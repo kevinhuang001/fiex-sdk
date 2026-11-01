@@ -59,7 +59,7 @@ impl ContextInner {
     }
 
     pub(crate) fn call(&self, method: &str, params: Value) -> Result<Value, RpcError> {
-        if !(method.starts_with("host.") || method.starts_with("fs.")) {
+        if !method.starts_with("host.") {
             return Err(RpcError::invalid_params("expected a host method"));
         }
         if self.link.closed() {
@@ -217,6 +217,7 @@ fn decode_output(mut result: ProcessResult) -> Result<ProcessResult, RpcError> {
 pub struct RequestContext {
     inner: ContextInner,
     request: ProviderRequestContext,
+    params: Value,
     locale: crate::i18n::Locale,
 }
 
@@ -230,10 +231,11 @@ impl RequestContext {
     }
     pub(crate) fn new(inner: ContextInner, method: String, params: Value) -> Self {
         let locale = crate::i18n::current_locale();
-        let request = ProviderRequestContext::from_params(method, params, locale.as_str());
+        let request = ProviderRequestContext::from_params(method, &params, locale.as_str());
         Self {
             inner,
             request,
+            params,
             locale,
         }
     }
@@ -244,6 +246,7 @@ impl RequestContext {
         Self {
             inner,
             request: self.request.clone(),
+            params: self.params.clone(),
             locale: self.locale,
         }
     }
@@ -262,7 +265,7 @@ impl RequestContext {
     }
 
     pub fn params(&self) -> &Value {
-        &self.request.params
+        &self.params
     }
 
     /// Resources affected by this system event. A custom plugin RPC method

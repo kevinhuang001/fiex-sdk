@@ -280,7 +280,7 @@ impl FsServer {
                 Value::Null
             }
             _ => {
-                let request = FsRequest::new(ctx, op);
+                let request = FsRequest::new(ctx, op)?;
                 let available = require(provider, ctx, op)?;
                 if op == FsOperation::Search
                     && !provider

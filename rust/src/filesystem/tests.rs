@@ -172,7 +172,17 @@ impl VfsProvider for AccountFs {
         &self,
         ctx: &dyn fiex_provider_contracts::ProviderInvocation,
     ) -> Result<Vec<FsOperation>, RpcError> {
-        Ok(if ctx.params()["connection"]["writable"] == true {
+        let writable = match ctx.input()? {
+            fiex_provider_contracts::ProviderInput::Vfs(request) => request
+                .connection
+                .as_ref()
+                .and_then(|values| values.get("writable"))
+                .is_some_and(|value| {
+                    value == &fiex_provider_contracts::ConnectionFieldValue::Boolean(true)
+                }),
+            _ => false,
+        };
+        Ok(if writable {
             vec![
                 FsOperation::Stat,
                 FsOperation::Read,

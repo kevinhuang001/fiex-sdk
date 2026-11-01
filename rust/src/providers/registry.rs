@@ -4,7 +4,6 @@ use crate::RpcError;
 use fiex_provider_contracts::{
     ProviderDescriptor, ProviderInstances, ProviderKind, ProviderMatchRule,
 };
-use serde_json::Value;
 use std::sync::Arc;
 
 pub(super) struct ProviderSet<T: ?Sized + Send + Sync> {
@@ -34,11 +33,8 @@ impl<T: ?Sized + Send + Sync> ProviderSet<T> {
         self.entries.instances()
     }
 
-    pub fn select(&self, params: &Value) -> Result<Option<&T>, RpcError> {
-        if let Some(value) = params.get("providerId") {
-            let id = value
-                .as_str()
-                .ok_or_else(|| RpcError::invalid_params("providerId must be a string"))?;
+    pub fn select(&self, provider_id: Option<&str>) -> Result<Option<&T>, RpcError> {
+        if let Some(id) = provider_id {
             return self
                 .entries
                 .get(id)

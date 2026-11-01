@@ -38,7 +38,7 @@ impl Files {
     pub fn open_read(&self, reference: &ResourceRef) -> io::Result<FileReader> {
         let value = self
             .context
-            .call("fs.openRead", json!({"ref":reference}))
+            .call("host.fs.openRead", json!({"ref":reference}))
             .map_err(rpc_to_io)?;
         Ok(FileReader::new(
             self.context.clone(),
@@ -56,14 +56,17 @@ impl Files {
     pub fn child(&self, parent: &ResourceRef, name: &str) -> io::Result<ResourceRef> {
         let value = self
             .context
-            .call("fs.child", json!({"ref":parent,"name":name}))
+            .call("host.fs.child", json!({"ref":parent,"name":name}))
             .map_err(rpc_to_io)?;
         serde_json::from_value(value["ref"].clone()).map_err(io::Error::other)
     }
     pub fn begin_write(&self, reference: &ResourceRef, create: bool) -> io::Result<FileWriter> {
         let handle = self
             .context
-            .call("fs.beginWrite", json!({"ref":reference,"create":create}))
+            .call(
+                "host.fs.beginWrite",
+                json!({"ref":reference,"create":create}),
+            )
             .map_err(rpc_to_io)?
             .as_str()
             .map(str::to_owned)
@@ -85,7 +88,7 @@ impl Files {
     pub fn list(&self, reference: &ResourceRef) -> io::Result<Vec<ResourceContext>> {
         serde_json::from_value(
             self.context
-                .call("fs.list", json!({"ref":reference}))
+                .call("host.fs.list", json!({"ref":reference}))
                 .map_err(rpc_to_io)?,
         )
         .map_err(io::Error::other)
@@ -94,7 +97,7 @@ impl Files {
     pub fn metadata(&self, reference: &ResourceRef) -> io::Result<ResourceMetadata> {
         serde_json::from_value(
             self.context
-                .call("fs.stat", json!({"ref":reference}))
+                .call("host.fs.stat", json!({"ref":reference}))
                 .map_err(rpc_to_io)?,
         )
         .map_err(io::Error::other)
@@ -105,7 +108,7 @@ impl Files {
     ) -> io::Result<Vec<io::Result<ResourceMetadata>>> {
         let value = self
             .context
-            .call("fs.statBatch", json!({"refs":references}))
+            .call("host.fs.statBatch", json!({"refs":references}))
             .map_err(rpc_to_io)?;
         let results = value["results"]
             .as_array()
@@ -127,20 +130,20 @@ impl Files {
     }
     pub fn create_dir(&self, reference: &ResourceRef) -> io::Result<()> {
         self.context
-            .call("fs.mkdir", json!({"ref":reference}))
+            .call("host.fs.mkdir", json!({"ref":reference}))
             .map_err(rpc_to_io)?;
         Ok(())
     }
     pub fn remove(&self, reference: &ResourceRef) -> io::Result<()> {
         self.context
-            .call("fs.remove", json!({"ref":reference}))
+            .call("host.fs.remove", json!({"ref":reference}))
             .map_err(rpc_to_io)?;
         Ok(())
     }
     pub fn rename(&self, reference: &ResourceRef, destination: &ResourceRef) -> io::Result<()> {
         self.context
             .call(
-                "fs.rename",
+                "host.fs.rename",
                 json!({"ref":reference,"destination":destination}),
             )
             .map_err(rpc_to_io)?;

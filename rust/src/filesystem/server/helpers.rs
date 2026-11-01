@@ -21,7 +21,7 @@ pub(super) fn invoke_stream(
     let derived = session
         .as_ref()
         .map(|stream| ctx.derive(stream.context().clone()));
-    let request = FsRequest::new(derived.as_ref().unwrap_or(ctx), op);
+    let request = FsRequest::new(derived.as_ref().unwrap_or(ctx), op)?;
     let product = invoke(provider, &request)?;
     Ok((product, session))
 }

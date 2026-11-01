@@ -13,8 +13,9 @@ operation. Errors fail closed, and an empty set permits no file operations.
 
 Core sends `vfs.discover` with the same mount, connection/view identity and target
 parameters as the operation. The reply is `{operations: ["list", "stat", ...]}`.
-This is a negotiated protocol-5 extension: Core retains the static ceiling for
-older providers that do not advertise `discovery: true`.
+Protocol 6 requires every provider that declares VFS operations to advertise
+`discovery: true`. Core rejects VFS declarations that omit it; there is no static
+capability fallback.
 
 ## Search modes
 

@@ -170,12 +170,12 @@ impl HostLink for Mock {
                 state.secret = None;
                 Ok(json!({"status":"ok"}))
             }
-            "fs.openRead" => Ok(json!({"handle":"read", "size":state.bytes.len()})),
-            "fs.closeRead" => {
+            "host.fs.openRead" => Ok(json!({"handle":"read", "size":state.bytes.len()})),
+            "host.fs.closeRead" => {
                 state.read_closed = true;
                 Ok(Value::Null)
             }
-            "fs.readOpen" => {
+            "host.fs.readOpen" => {
                 let start =
                     (params["offset"].as_u64().unwrap_or(0) as usize).min(state.bytes.len());
                 let end = start
@@ -213,8 +213,8 @@ impl HostLink for Mock {
                 state.shared = None;
                 Ok(Value::Null)
             }
-            "fs.beginWrite" => Ok(json!("write")),
-            "fs.writeChunk" => {
+            "host.fs.beginWrite" => Ok(json!("write")),
+            "host.fs.writeChunk" => {
                 if state.fail_write {
                     state.write_attempts += 1;
                     return Err(RpcError::internal("connection lost"));
@@ -225,7 +225,7 @@ impl HostLink for Mock {
                 write_staged(&mut state, &bytes);
                 Ok(Value::Null)
             }
-            "fs.writeBuffer" => {
+            "host.fs.writeBuffer" => {
                 if state.fail_shared_write {
                     state.shared_write_attempts += 1;
                     return Err(RpcError::internal("connection lost"));
@@ -242,27 +242,27 @@ impl HostLink for Mock {
                 write_staged(&mut state, &bytes);
                 Ok(Value::Null)
             }
-            "fs.seekWrite" => {
+            "host.fs.seekWrite" => {
                 state.position = params["offset"].as_i64().unwrap_or(0) as usize;
                 Ok(json!(state.position))
             }
-            "fs.commit" => {
+            "host.fs.commit" => {
                 state.bytes = state.staged.clone();
                 state.committed = true;
                 Ok(Value::Null)
             }
-            "fs.abort" => {
+            "host.fs.abort" => {
                 state.aborted = true;
                 Ok(Value::Null)
             }
-            "fs.stat" => Ok(json!({
+            "host.fs.stat" => Ok(json!({
                 "path":"file","name":"file","isDir":false,"size":state.bytes.len(),
                 "modified":0,"extension":"txt","mime":"text/plain","readonly":false,"symlink":false
             })),
-            "fs.list" => Ok(json!([])),
-            "fs.mkdir" => Ok(Value::Null),
-            "fs.remove" => Ok(Value::Null),
-            "fs.rename" => Ok(Value::Null),
+            "host.fs.list" => Ok(json!([])),
+            "host.fs.mkdir" => Ok(Value::Null),
+            "host.fs.remove" => Ok(Value::Null),
+            "host.fs.rename" => Ok(Value::Null),
             "host.net.http.open" => {
                 state.http_position = 0;
                 state.http_open_params.push(params.clone());
@@ -569,12 +569,12 @@ fn small_reads_and_writes_are_batched_and_seek_uses_cached_bytes() {
         writer.commit().unwrap();
     }
     assert_eq!(
-        mock.count("fs.readOpen"),
+        mock.count("host.fs.readOpen"),
         1,
         "small reads must not incur one IPC each"
     );
     assert_eq!(
-        mock.count("fs.writeChunk"),
+        mock.count("host.fs.writeChunk"),
         1,
         "small writes must coalesce until commit"
     );
@@ -631,7 +631,7 @@ fn large_write_reuses_shared_buffer_and_commits_once() {
     assert!(state.committed);
     assert!(state.shared.is_none());
     drop(state);
-    assert_eq!(mock.count("fs.commit"), 1);
+    assert_eq!(mock.count("host.fs.commit"), 1);
 }
 
 #[test]
