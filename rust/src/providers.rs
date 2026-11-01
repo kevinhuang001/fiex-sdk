@@ -13,10 +13,9 @@ use serde_json::{json, Value};
 mod contracts;
 use contracts::unsupported;
 pub use contracts::{
-    ConnectionContextMenuProvider, ConnectionProvider, ConnectionValidation,
-    ContextMenuProvider, DecorationProvider, HookProvider,
-    InfoProvider, MenuItem, PreviewProvider, SearchEntry, SearchProvider, SearchResults, SearchTag,
-    ToolbarProvider, ToolbarResult,
+    ConnectionContextMenuProvider, ConnectionProvider, ConnectionValidation, ContextMenuProvider,
+    DecorationProvider, HookProvider, InfoProvider, MenuItem, PreviewProvider, SearchEntry,
+    SearchProvider, SearchResults, SearchTag, ToolbarProvider, ToolbarResult,
 };
 
 mod dispatch;

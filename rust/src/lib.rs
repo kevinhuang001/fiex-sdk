@@ -40,11 +40,11 @@ pub use contracts::{
     ContextMenuExecuteRequest, ContextMenuResolveRequest, CoreMenuAction, CoreMenuActionKind,
     DecorationBadge, DecorationContribution, DecorationField, DecorationStyle, EventContext,
     HookRequest, InfoRow, InfoSection, MenuActivity, MenuActivityKind, MenuExecuteResult,
-    MenuHandledFlag, MenuHandledKind, MenuHandledKindTag, MenuItemKind,
-    MenuPlacement, NativeMenuAction, NativeMenuActionKind, PackageView, PluginPanelAction,
-    PluginPanelActionKind, PluginPanelSize, PreviewView, ProviderInput, RemoteMenuAction,
-    RemoteMenuActionKind, ResourceContext, ResourceEventRequest, ResourceMetadata, ResourceRef,
-    SearchQueryRequest, ToolbarRequest, VfsRequest,
+    MenuHandledFlag, MenuHandledKind, MenuHandledKindTag, MenuItemKind, MenuPlacement,
+    NativeMenuAction, NativeMenuActionKind, PackageView, PluginPanelAction, PluginPanelActionKind,
+    PluginPanelSize, PreviewView, ProviderInput, RemoteMenuAction, RemoteMenuActionKind,
+    ResourceContext, ResourceEventRequest, ResourceMetadata, ResourceRef, SearchQueryRequest,
+    ToolbarRequest, VfsRequest,
 };
 
 pub use fiex_provider_contracts::{
