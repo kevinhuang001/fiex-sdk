@@ -4,9 +4,9 @@ use crate::{RequestContext, RpcError};
 
 pub use fiex_provider_contracts::{
     ConnectionContextMenuProvider, ConnectionProvider, ConnectionValidation, ContextMenuProvider,
-    DecorationBadge, DecorationContribution, DecorationField, DecorationProvider,
-    DecorationStyle, HookProvider, HookResult, InfoProvider, PreviewProvider, SearchProvider,
-    SearchResults, ToolbarProvider, ToolbarResult,
+    DecorationBadge, DecorationContribution, DecorationField, DecorationProvider, DecorationStyle,
+    HookProvider, HookResult, InfoProvider, PreviewProvider, SearchProvider, SearchResults,
+    ToolbarProvider, ToolbarResult,
 };
 
 pub(super) fn unsupported(ctx: &RequestContext) -> RpcError {
