@@ -1,14 +1,5 @@
-//! Provider failures shared by native Core implementations and SDK plugins.
-use serde::{Deserialize, Serialize};
-use serde_json::Value;
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct ProviderError {
-    pub code: i64,
-    pub message: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub data: Option<Value>,
-}
+//! Provider error behavior shared by native Core implementations and SDK plugins.
+use crate::dto::ProviderError;
 
 impl ProviderError {
     pub fn method_not_found(method: &str) -> Self {

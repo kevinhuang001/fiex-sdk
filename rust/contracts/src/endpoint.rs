@@ -2,9 +2,6 @@
 //!
 //! Shared by Core-native handlers, Core IPC proxies, and resident SDK
 //! implementations. No HostLink, runtime, Tauri or filesystem paths live here.
-use serde::{Deserialize, Serialize};
-use serde_json::Value;
-
 /// One dispatch strategy per event. It is independent of whether the provider
 /// is executed in Core or via the SDK's framed JSON-RPC dispatcher.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -59,17 +56,6 @@ pub fn event(method: &str) -> Option<Event> {
         extension,
         dispatch,
     })
-}
-
-/// A transport-neutral request. No direct host path, authentication token,
-/// plugin ID, or user-derived ownership claim is included here: those values
-/// belong to the authorized Core invocation scope, not provider input.
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct ProviderRequest {
-    pub method: String,
-    #[serde(default)]
-    pub params: Value,
 }
 
 #[cfg(test)]

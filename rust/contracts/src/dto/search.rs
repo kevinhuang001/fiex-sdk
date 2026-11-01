@@ -54,7 +54,7 @@ impl SearchResults {
         if self.entries.len() > limit {
             return Err("search provider exceeded requested page limit".into());
         }
-        crate::pagination::validate_cursor(self.next_cursor.as_deref())
+        crate::dto::pagination::validate_cursor(self.next_cursor.as_deref())
             .map_err(|_| "invalid search pagination cursor".to_string())
     }
 }

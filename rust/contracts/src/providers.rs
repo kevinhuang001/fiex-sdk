@@ -6,7 +6,6 @@ use crate::{
     PreflightDecision, ProviderError, ProviderInvocation, SearchCapabilities,
     SearchEntry, SearchMode, SearchResults, TransferPreflight,
 };
-use serde::{Deserialize, Serialize};
 
 pub trait VfsProvider: Send + Sync {
     fn supports_preflight(&self) -> bool {
@@ -155,52 +154,12 @@ pub trait SearchProvider: Send + Sync {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct HookResult {
-    pub handled: bool,
-}
-
 pub trait HookProvider: Send + Sync {
     fn invoke(&self, ctx: &dyn ProviderInvocation) -> Result<HookResult, ProviderError>;
 }
 
-/// Toolbar invocations have no consumer-defined return payload.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct ToolbarResult {}
-
 pub trait ToolbarProvider: Send + Sync {
     fn invoke(&self, ctx: &dyn ProviderInvocation) -> Result<ToolbarResult, ProviderError>;
-}
-
-#[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct ConnectionValidation {
-    pub valid: bool,
-    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
-    pub credentials: std::collections::BTreeMap<String, String>,
-}
-
-impl ConnectionValidation {
-    pub fn valid() -> Self {
-        Self {
-            valid: true,
-            credentials: Default::default(),
-        }
-    }
-
-    pub fn invalid() -> Self {
-        Self {
-            valid: false,
-            credentials: Default::default(),
-        }
-    }
-
-    pub fn credential(mut self, name: impl Into<String>, value: impl Into<String>) -> Self {
-        self.credentials.insert(name.into(), value.into());
-        self
-    }
 }
 
 pub trait ConnectionProvider: Send + Sync {
