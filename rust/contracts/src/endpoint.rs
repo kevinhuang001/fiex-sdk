@@ -72,32 +72,9 @@ pub struct ProviderRequest {
     pub params: Value,
 }
 
-/// One contract that a Core-native handler and an IPC plugin proxy can both
-/// implement. Implementations must never broaden the pre-authorized scope.
-/// Feature-specific typed providers may sit behind this common boundary.
-pub trait ProviderEndpoint: Send + Sync {
-    fn invoke(&self, request: &ProviderRequest) -> Result<Value, String>;
-}
-
-/// Registered, shared endpoint instances use the same runtime-neutral
-/// dispatch contract as stack-allocated implementations.
-impl<T: ProviderEndpoint + ?Sized> ProviderEndpoint for std::sync::Arc<T> {
-    fn invoke(&self, request: &ProviderRequest) -> Result<Value, String> {
-        (**self).invoke(request)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_json::json;
-
-    struct Echo;
-    impl ProviderEndpoint for Echo {
-        fn invoke(&self, request: &ProviderRequest) -> Result<Value, String> {
-            Ok(json!({"method":request.method,"params":request.params}))
-        }
-    }
 
     #[test]
     fn public_event_table_covers_all_provider_families() {
@@ -131,16 +108,4 @@ mod tests {
         assert!(event("custom.example").is_none());
     }
 
-    #[test]
-    fn both_transports_share_one_endpoint_signature() {
-        let endpoint: &dyn ProviderEndpoint = &Echo;
-        let call = ProviderRequest {
-            method: "info.resolve".into(),
-            params: json!({"resource":"opaque"}),
-        };
-        assert_eq!(
-            endpoint.invoke(&call).unwrap(),
-            json!({"method":"info.resolve","params":{"resource":"opaque"}})
-        );
-    }
 }

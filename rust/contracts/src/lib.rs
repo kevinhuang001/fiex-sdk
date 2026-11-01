@@ -89,7 +89,7 @@ impl<'de> Deserialize<'de> for FsOperation {
 
 
 mod endpoint;
-pub use endpoint::{event, Dispatch, Event, ProviderEndpoint, ProviderRequest};
+pub use endpoint::{event, Dispatch, Event, ProviderRequest};
 mod error;
 pub use error::ProviderError;
 mod invocation;
