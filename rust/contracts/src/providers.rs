@@ -10,7 +10,7 @@ use serde_json::Value;
 
 #[cfg(test)]
 mod tests {
-    use super::HookResult;
+    use super::{ConnectionValidation, HookResult};
 
     #[test]
     fn hook_result_requires_handled_and_rejects_legacy_fields() {
@@ -26,6 +26,22 @@ mod tests {
             }))
             .is_err()
         );
+    }
+
+    #[test]
+    fn connection_validation_is_strict_and_preserves_credentials() {
+        let value = ConnectionValidation::valid().credential("refreshToken", "secret");
+        let serialized = serde_json::to_value(&value).unwrap();
+        assert_eq!(
+            serde_json::from_value::<ConnectionValidation>(serialized).unwrap(),
+            value
+        );
+        assert!(serde_json::from_value::<ConnectionValidation>(serde_json::json!({})).is_err());
+        assert!(serde_json::from_value::<ConnectionValidation>(serde_json::json!({
+            "valid": true,
+            "legacy": true
+        }))
+        .is_err());
     }
 }
 
@@ -159,11 +175,11 @@ pub trait ToolbarProvider: Send + Sync {
     fn invoke(&self, ctx: &dyn ProviderInvocation) -> Result<Value, ProviderError>;
 }
 
-#[derive(Clone, Debug, Default, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ConnectionValidation {
     pub valid: bool,
-    #[serde(skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
     pub credentials: std::collections::BTreeMap<String, String>,
 }
 
@@ -175,18 +191,24 @@ impl ConnectionValidation {
         }
     }
 
+    pub fn invalid() -> Self {
+        Self {
+            valid: false,
+            credentials: Default::default(),
+        }
+    }
+
     pub fn credential(mut self, name: impl Into<String>, value: impl Into<String>) -> Self {
         self.credentials.insert(name.into(), value.into());
         self
     }
-
-    pub fn into_value(self) -> Value {
-        serde_json::json!(self)
-    }
 }
 
 pub trait ConnectionProvider: Send + Sync {
-    fn validate(&self, ctx: &dyn ProviderInvocation) -> Result<Value, ProviderError> {
+    fn validate(
+        &self,
+        ctx: &dyn ProviderInvocation,
+    ) -> Result<ConnectionValidation, ProviderError> {
         Err(ProviderError::method_not_found(ctx.method()))
     }
 

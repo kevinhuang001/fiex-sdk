@@ -76,6 +76,9 @@ Optional typed event providers are defined once in the runtime-independent
 connections and standalone views alike. Register only what the plugin
 implements; custom RPC still goes through the fallback:
 
+`ConnectionProvider::validate` returns the shared `ConnectionValidation` DTO;
+the SDK serializes it only at the JSON-RPC boundary.
+
 ```rust,ignore
 sdk::Providers::new()
     .info(MyInfo)
