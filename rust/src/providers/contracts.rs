@@ -3,8 +3,8 @@
 use crate::{RequestContext, RpcError};
 
 pub use fiex_provider_contracts::{
-    ConnectionContextMenuProvider, ConnectionOpenResult, ConnectionProvider, ConnectionValidation,
-    ContextMenuProvider, DecorationContribution, DecorationProvider, HookProvider, HookResult,
+    ConnectionContextMenuProvider, ConnectionProvider, ConnectionValidation,
+    ContextMenuProvider, DecorationProvider, HookProvider,
     InfoProvider, MenuItem, PreviewProvider, SearchEntry, SearchProvider, SearchResults, SearchTag,
     ToolbarProvider, ToolbarResult,
 };
