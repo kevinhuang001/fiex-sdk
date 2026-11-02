@@ -1,4 +1,6 @@
-# Fiex Rust SDK 0.3.0 — protocol 6
+# Fiex SDK 0.3.4 — protocol 6
+
+- Preserve array and custom parameter shapes for non-standard RPC methods while keeping typed validation for standard provider events.
 
 Feature providers use typed, ResourceRef-only `Files` calls over `host.fs.*`. Storage
 providers implement `VfsProvider`, advertise `FsOperation` and narrow operations
