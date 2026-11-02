@@ -165,3 +165,86 @@ fn rejects_invalid_resource_types_and_empty_selectors() {
         );
     }
 }
+
+#[test]
+fn exclusions_match_any_selected_resource_and_and_across_dimensions() {
+    let rule: ProviderMatchRule = serde_json::from_value(json!({
+        "exclude": {
+            "view": {"providerIds": ["core:applications", "core:trash"]},
+            "requiredOps": ["read"]
+        }
+    }))
+    .unwrap();
+    let local = target("file", None, None);
+    let applications = target(
+        "file",
+        Some(location(
+            crate::ResourceType::Vfs,
+            "core:applications",
+            "core:applications",
+        )),
+        None,
+    );
+    assert!(rule.matches_targets(std::slice::from_ref(&local), 1));
+    assert!(!rule.matches_targets(&[local.clone(), applications.clone()], 2));
+
+    let mut unreadable = applications;
+    unreadable.capabilities.operations.clear();
+    assert!(rule.matches_targets(&[local, unreadable], 2));
+}
+
+#[test]
+fn exclusions_use_the_directory_for_blank_selection() {
+    let excluded: ProviderMatchRule = serde_json::from_value(json!({
+        "selection": "zero",
+        "requiredOps": ["write"],
+        "exclude": {"view": {"providerIds": ["core:applications"]}}
+    }))
+    .unwrap();
+    let included: ProviderMatchRule = serde_json::from_value(json!({
+        "selection": "zero",
+        "requiredOps": ["mkdir"]
+    }))
+    .unwrap();
+    let view = location(
+        crate::ResourceType::Vfs,
+        "core:applications",
+        "core:applications",
+    );
+    let mut directory = target("directory", Some(view), None);
+    directory.capabilities.operations = vec![FsOperation::Write, FsOperation::Mkdir];
+    assert!(!ProviderMatcher::matches(
+        &excluded,
+        &[],
+        Some(&directory),
+        0
+    ));
+    assert!(ProviderMatcher::matches(
+        &included,
+        &[],
+        Some(&directory),
+        0
+    ));
+    assert!(!ProviderMatcher::matches(
+        &included,
+        &[],
+        Some(&directory),
+        1
+    ));
+}
+
+#[test]
+fn invalid_exclusions_are_rejected_including_empty_objects() {
+    for value in [
+        json!({"exclude": {}}),
+        json!({"exclude": {"view": {"providerIds": []}}}),
+        json!({"exclude": {"selection": "zero"}}),
+        json!({"exclude": {"exclude": {"view": {"providerIds": ["core:trash"]}}}}),
+        json!({"exclude": {"requiredOps": ["not-an-operation"]}}),
+    ] {
+        assert!(
+            ProviderMatchRule::validate(Some(&value), true).is_err(),
+            "{value}"
+        );
+    }
+}

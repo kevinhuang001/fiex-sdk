@@ -55,7 +55,7 @@ pub use http::{HttpClient, Request, Response, StreamingBody};
 pub use ipc::{Entry, ProcessResult};
 pub use oauth::{AuthorizationCode, OAuth, OAuthRequest};
 pub use provider_contracts::ProviderRequest;
-pub use provider_matching::{LocationMatch, ProviderMatchRule};
+pub use provider_matching::{LocationMatch, ProviderMatchExclude, ProviderMatchRule};
 pub use providers::{
     ConnectionContextMenuProvider, ConnectionProvider, ConnectionValidation, ContextMenuProvider,
     DecorationProvider, HookProvider, InfoProvider, MenuItem, PreviewProvider, Providers,
