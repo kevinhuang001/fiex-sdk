@@ -136,7 +136,7 @@ mod tests {
         assert_eq!(image.path.as_deref(), Some("/brokered/image.png"));
         assert!(serde_json::from_value::<PreviewView>(serde_json::json!({
             "kind": "html",
-            "view": {"source": "external", "entry": "https://example.test"}
+            "unexpected": true
         }))
         .is_err());
     }
