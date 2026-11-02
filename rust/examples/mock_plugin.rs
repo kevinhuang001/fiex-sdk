@@ -127,7 +127,6 @@ impl sdk::SearchProvider for MockSearch {
                 created: 1,
                 extension: "txt".into(),
                 mime: "text/plain".into(),
-                readonly: false,
                 ..Default::default()
             }],
             truncated: false,
