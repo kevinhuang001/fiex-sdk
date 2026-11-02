@@ -66,7 +66,7 @@ fn typed_matcher_checks_content_kind_and_effective_capabilities() {
     }))
     .unwrap();
     let file = target("file", None, None);
-    assert!(rule.matches_targets(&[file.clone()], 1));
+    assert!(rule.matches_targets(std::slice::from_ref(&file), 1));
     let mut directory = file.clone();
     directory.metadata.as_mut().unwrap().kind = "directory".into();
     assert!(!rule.matches_targets(&[directory], 1));
