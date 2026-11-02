@@ -179,7 +179,7 @@ Preview returns `contracts::PreviewView` (for example,
 
 ## Core-owned VFS views and connection eligibility
 
-A standalone virtual tree declares `extensions.vfs: [{"id":"history","title":"Git history","readOnly":true}]`.
+A standalone virtual tree declares its supported file operations through the VFS view's `allowedOps` contract. Read-only behavior is expressed by omitting mutation operations.
 A connection factory declares `extensions.connections` and additionally declares `extensions.vfs` when it exposes files; providers must not declare a scheme or construct mount identifiers.
 UI extensions never confer provider eligibility. `scheme`, `schemes`, `uriPrefix`, `mountId`, and `mountPath` are forbidden in these extensions.
 

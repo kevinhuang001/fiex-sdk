@@ -544,7 +544,7 @@ SDK 当前公开的关键接口：
 
 ## Core-owned VFS views and connection eligibility
 
-A standalone virtual tree declares `extensions.vfs: [{"id":"history","title":"Git history","readOnly":true}]`.
+A standalone virtual tree declares its supported file operations through the VFS view's `allowedOps` contract. Read-only behavior is expressed by omitting mutation operations.
 A connection factory declares `extensions.connections`; file browsing also requires `extensions.vfs`. Core assigns the mount ID and URI.
 UI extensions never confer provider eligibility. `scheme`, `schemes`, `uriPrefix`, `mountId`, and `mountPath` are forbidden in these extensions.
 

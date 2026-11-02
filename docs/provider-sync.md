@@ -16,7 +16,7 @@ Revisions must change when remote content changes. Check `ifRevision` before wri
 
 ## Core-owned VFS views and connection eligibility
 
-A standalone virtual tree declares `extensions.vfs: {"title":"Git history","readOnly":true}`.
+A standalone virtual tree declares `extensions.vfs: {"title":"Git history"}`. Its VFS provider declares the operations it supports, and individual entries may narrow those operations with `allowedOps`.
 A connection factory declares `extensions.connections`; a connection that navigates to files must additionally declare `extensions.vfs`. Core owns the mount ID and URI for each connection.
 UI extensions never confer provider eligibility. `scheme`, `schemes`, `uriPrefix`, `mountId`, and `mountPath` are forbidden in these extensions.
 

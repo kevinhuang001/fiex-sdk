@@ -23,7 +23,6 @@ pub struct SearchEntry {
     pub created: u64,
     pub extension: String,
     pub mime: String,
-    pub readonly: bool,
     pub link_target: Option<String>,
     #[serde(default)]
     pub allowed_ops: Vec<String>,

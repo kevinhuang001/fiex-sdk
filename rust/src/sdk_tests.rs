@@ -257,7 +257,7 @@ impl HostLink for Mock {
             }
             "host.fs.stat" => Ok(json!({
                 "path":"file","name":"file","isDir":false,"size":state.bytes.len(),
-                "modified":0,"extension":"txt","mime":"text/plain","readonly":false,"symlink":false
+                "modified":0,"extension":"txt","mime":"text/plain","symlink":false
             })),
             "host.fs.list" => Ok(json!([])),
             "host.fs.mkdir" => Ok(Value::Null),

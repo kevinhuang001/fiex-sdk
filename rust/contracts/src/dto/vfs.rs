@@ -70,8 +70,6 @@ pub struct FsEntry {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub revision: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub readonly: Option<bool>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub link_target: Option<String>,
     /// Operations this particular node allows, narrower than the provider.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -110,11 +108,6 @@ impl FsEntry {
         self
     }
 
-    pub fn readonly(mut self) -> Self {
-        self.readonly = Some(true);
-        self
-    }
-
     pub fn allowing(mut self, ops: impl IntoIterator<Item = FsOperation>) -> Self {
         self.allowed_ops = Some(ops.into_iter().collect());
         self
@@ -130,14 +123,6 @@ impl FsEntry {
         self.allowed_ops
             .as_ref()
             .is_none_or(|operations| operations.contains(&operation))
-    }
-
-    pub fn is_readonly(&self) -> bool {
-        self.readonly.unwrap_or(false)
-            || !(self.allows(FsOperation::Write)
-                || self.allows(FsOperation::Mkdir)
-                || self.allows(FsOperation::Rename)
-                || self.allows(FsOperation::Remove))
     }
 }
 
