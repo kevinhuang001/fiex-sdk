@@ -26,6 +26,14 @@ fn preflight_handlers(&self) -> Result<PreflightHandlers, RpcError> {
         }
         Ok(PreflightDecision::allow())
     })?;
+    handlers.on_trash(|ctx, _phase, args| {
+        check_trash_policy(ctx, &args.node_ids)?;
+        Ok(PreflightDecision::allow())
+    })?;
+    handlers.on_remove(|ctx, _phase, args| {
+        check_permanent_remove_policy(ctx, &args.node_ids)?;
+        Ok(PreflightDecision::allow())
+    })?;
     handlers.on_import(|ctx, _phase, args| {
         check_import_quota(ctx, &args.source)?;
         Ok(PreflightDecision::allow())
@@ -41,9 +49,9 @@ same operation twice is rejected.
 
 ## Operations and phases
 
-`PreflightRequest` is a tagged operation with a typed `args` object. Its seven
-operation names are `createFile`, `createFolder`, `rename`, `remove`, `import`,
-`export`, and `move`. Create file and create folder are separate checks.
+`PreflightRequest` is a tagged operation with a typed `args` object. Its eight
+operation names are `createFile`, `createFolder`, `rename`, `trash`, `remove`,
+`import`, `export`, and `move`. Trash and permanent Remove are separate checks.
 Rename carries `nodeId` and optional `newName`; it has no destination field.
 Import carries only portable source metadata, never another provider's node ID,
 host path, or credentials.

@@ -135,6 +135,27 @@ fn shared_matcher_uses_trusted_directory_for_zero_selection() {
 }
 
 #[test]
+fn selection_cardinality_rules_cover_all_five_values() {
+    for (selection, expected) in [
+        ("any", [true, true, true]),
+        ("zero", [true, false, false]),
+        ("single", [false, true, false]),
+        ("multi", [false, false, true]),
+        ("nonzero", [false, true, true]),
+    ] {
+        let rule: ProviderMatchRule =
+            serde_json::from_value(json!({"selection": selection})).unwrap();
+        assert_eq!(
+            [0, 1, 2].map(|count| rule.matches_selection(count)),
+            expected,
+            "selection={selection}"
+        );
+        assert!(rule.validate_consistency().is_ok());
+    }
+    assert!(ProviderMatchRule::validate(Some(&json!({"selection":"many"})), true).is_err());
+}
+
+#[test]
 fn optional_location_fields_serialize_without_null_selector_values() {
     let rule = ProviderMatchRule {
         view: Some(LocationMatch {

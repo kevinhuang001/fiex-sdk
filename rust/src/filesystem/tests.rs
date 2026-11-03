@@ -174,6 +174,48 @@ fn unimplemented_operations_are_refused_before_the_provider() {
     assert_eq!(error.data.unwrap()["operation"], "remove");
 }
 
+#[test]
+fn trash_and_remove_dispatch_to_distinct_provider_methods() {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    struct Deletions {
+        trashed: Arc<AtomicUsize>,
+        removed: Arc<AtomicUsize>,
+    }
+    impl VfsProvider for Deletions {
+        fn operations(&self) -> &'static [crate::filesystem::FsOperation] {
+            &[
+                crate::filesystem::FsOperation::Trash,
+                crate::filesystem::FsOperation::Remove,
+            ]
+        }
+        fn trash(&self, _: &FsRequest<'_>) -> Result<(), RpcError> {
+            self.trashed.fetch_add(1, Ordering::SeqCst);
+            Ok(())
+        }
+        fn remove(&self, _: &FsRequest<'_>) -> Result<(), RpcError> {
+            self.removed.fetch_add(1, Ordering::SeqCst);
+            Ok(())
+        }
+    }
+
+    let trashed = Arc::new(AtomicUsize::new(0));
+    let removed = Arc::new(AtomicUsize::new(0));
+    let provider = Deletions {
+        trashed: trashed.clone(),
+        removed: removed.clone(),
+    };
+    let server = FsServer::new();
+    server
+        .serve(&provider, &request("vfs.trash", json!({"nodeId":"n"})))
+        .unwrap();
+    server
+        .serve(&provider, &request("vfs.remove", json!({"nodeId":"n"})))
+        .unwrap();
+    assert_eq!(trashed.load(Ordering::SeqCst), 1);
+    assert_eq!(removed.load(Ordering::SeqCst), 1);
+}
+
 struct AccountFs;
 impl VfsProvider for AccountFs {
     fn operations(&self) -> &'static [FsOperation] {

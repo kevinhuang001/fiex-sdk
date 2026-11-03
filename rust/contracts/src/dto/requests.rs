@@ -43,6 +43,7 @@ impl ProviderInput {
                 | "vfs.beginWrite"
                 | "vfs.mkdir"
                 | "vfs.rename"
+                | "vfs.trash"
                 | "vfs.remove"
                 | "vfs.search"
                 | "connection.validate"
@@ -88,7 +89,7 @@ impl ProviderInput {
             }
             "search.query" => parse!(SearchQueryRequest, Search),
             "vfs.discover" | "vfs.list" | "vfs.stat" | "vfs.openRead" | "vfs.beginWrite"
-            | "vfs.mkdir" | "vfs.rename" | "vfs.remove" | "vfs.search" => {
+            | "vfs.mkdir" | "vfs.rename" | "vfs.trash" | "vfs.remove" | "vfs.search" => {
                 parse!(VfsRequest, Vfs)
             }
             "connection.validate" | "connection.open" | "connection.create" => {
@@ -263,5 +264,13 @@ mod tests {
             ProviderInput::Unspecified
         );
         assert!(ProviderInput::decode("search.query", &json!(["item"])).is_err());
+    }
+
+    #[test]
+    fn trash_is_a_typed_vfs_request_method() {
+        assert!(matches!(
+            ProviderInput::decode("vfs.trash", &json!({"nodeId":"n"})).unwrap(),
+            ProviderInput::Vfs(_)
+        ));
     }
 }

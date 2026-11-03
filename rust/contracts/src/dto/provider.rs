@@ -9,18 +9,20 @@ pub enum FsOperation {
     Write,
     Mkdir,
     Rename,
+    Trash,
     Remove,
     Search,
 }
 
 impl FsOperation {
-    pub const ALL: [FsOperation; 8] = [
+    pub const ALL: [FsOperation; 9] = [
         FsOperation::List,
         FsOperation::Stat,
         FsOperation::Read,
         FsOperation::Write,
         FsOperation::Mkdir,
         FsOperation::Rename,
+        FsOperation::Trash,
         FsOperation::Remove,
         FsOperation::Search,
     ];
@@ -33,6 +35,7 @@ impl FsOperation {
             FsOperation::Write => "write",
             FsOperation::Mkdir => "mkdir",
             FsOperation::Rename => "rename",
+            FsOperation::Trash => "trash",
             FsOperation::Remove => "remove",
             FsOperation::Search => "search",
         }
@@ -65,6 +68,7 @@ impl FsOperation {
             ],
             FsOperation::Mkdir => &["vfs.mkdir"],
             FsOperation::Rename => &["vfs.rename"],
+            FsOperation::Trash => &["vfs.trash"],
             FsOperation::Remove => &["vfs.remove"],
             FsOperation::Search => &["vfs.search"],
         }

@@ -10,6 +10,7 @@ pub enum PreflightOp {
     CreateFile,
     CreateFolder,
     Rename,
+    Trash,
     Remove,
     Import,
     Export,
@@ -17,10 +18,11 @@ pub enum PreflightOp {
 }
 
 impl PreflightOp {
-    pub const ALL: [Self; 7] = [
+    pub const ALL: [Self; 8] = [
         Self::CreateFile,
         Self::CreateFolder,
         Self::Rename,
+        Self::Trash,
         Self::Remove,
         Self::Import,
         Self::Export,
@@ -32,6 +34,7 @@ impl PreflightOp {
             Self::CreateFile => "createFile",
             Self::CreateFolder => "createFolder",
             Self::Rename => "rename",
+            Self::Trash => "trash",
             Self::Remove => "remove",
             Self::Import => "import",
             Self::Export => "export",
@@ -58,13 +61,6 @@ pub enum PreflightPhase {
 pub enum TransferKind {
     Copy,
     Move,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum RemoveMode {
-    Trash,
-    Permanent,
 }
 
 /// Portable facts about a transfer source. Unknown facts stay unknown; a
@@ -113,10 +109,15 @@ pub struct RenamePreflight {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct TrashPreflight {
+    pub node_ids: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct RemovePreflight {
     pub node_ids: Vec<String>,
-    pub mode: RemoveMode,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -153,6 +154,7 @@ pub enum PreflightOperation {
     CreateFile(CreateFilePreflight),
     CreateFolder(CreateFolderPreflight),
     Rename(RenamePreflight),
+    Trash(TrashPreflight),
     Remove(RemovePreflight),
     Import(ImportPreflight),
     Export(ExportPreflight),
@@ -165,6 +167,7 @@ impl PreflightOperation {
             Self::CreateFile(_) => PreflightOp::CreateFile,
             Self::CreateFolder(_) => PreflightOp::CreateFolder,
             Self::Rename(_) => PreflightOp::Rename,
+            Self::Trash(_) => PreflightOp::Trash,
             Self::Remove(_) => PreflightOp::Remove,
             Self::Import(_) => PreflightOp::Import,
             Self::Export(_) => PreflightOp::Export,
@@ -181,6 +184,20 @@ pub struct PreflightRequest {
     pub phase: PreflightPhase,
     #[serde(flatten)]
     pub operation: PreflightOperation,
+}
+
+fn validate_node_ids(node_ids: &[String]) -> Result<(), &'static str> {
+    if node_ids.is_empty() || node_ids.iter().any(String::is_empty) {
+        return Err("trash/remove requires one or more node IDs");
+    }
+    if node_ids
+        .iter()
+        .enumerate()
+        .any(|(index, node_id)| node_ids[..index].contains(node_id))
+    {
+        return Err("trash/remove node IDs must be unique");
+    }
+    Ok(())
 }
 
 impl PreflightRequest {
@@ -207,18 +224,12 @@ impl PreflightRequest {
                 args.target_name.as_deref(),
                 vec![&args.node_id, &args.target_parent_id],
             ),
+            PreflightOperation::Trash(args) => {
+                validate_node_ids(&args.node_ids)?;
+                (None, args.node_ids.iter().map(String::as_str).collect())
+            }
             PreflightOperation::Remove(args) => {
-                if args.node_ids.is_empty() || args.node_ids.iter().any(String::is_empty) {
-                    return Err("remove requires one or more node IDs");
-                }
-                if args
-                    .node_ids
-                    .iter()
-                    .enumerate()
-                    .any(|(index, node_id)| args.node_ids[..index].contains(node_id))
-                {
-                    return Err("remove node IDs must be unique");
-                }
+                validate_node_ids(&args.node_ids)?;
                 (None, args.node_ids.iter().map(String::as_str).collect())
             }
             PreflightOperation::Export(args) => (None, vec![&args.node_id]),
@@ -321,9 +332,14 @@ mod tests {
             ),
             PreflightRequest::new(
                 PreflightPhase::Execute,
+                PreflightOperation::Trash(TrashPreflight {
+                    node_ids: vec!["node".into()],
+                }),
+            ),
+            PreflightRequest::new(
+                PreflightPhase::Execute,
                 PreflightOperation::Remove(RemovePreflight {
                     node_ids: vec!["node".into()],
-                    mode: RemoveMode::Permanent,
                 }),
             ),
             PreflightRequest::new(
@@ -354,7 +370,7 @@ mod tests {
     }
 
     #[test]
-    fn all_seven_operations_round_trip_with_tagged_camel_case_wire_format() {
+    fn all_eight_operations_round_trip_with_tagged_camel_case_wire_format() {
         for (request, expected_op) in requests().into_iter().zip(PreflightOp::ALL) {
             assert_eq!(request.op(), expected_op);
             let value = serde_json::to_value(&request).unwrap();
@@ -408,5 +424,11 @@ mod tests {
             "phase":"execute", "operation":"copy", "args":{}
         }));
         assert!(unknown_op.is_err());
+
+        let legacy_remove: Result<PreflightRequest, _> = serde_json::from_value(json!({
+            "phase":"execute", "operation":"remove",
+            "args":{"nodeIds":["n"], "mode":"trash"}
+        }));
+        assert!(legacy_remove.is_err());
     }
 }

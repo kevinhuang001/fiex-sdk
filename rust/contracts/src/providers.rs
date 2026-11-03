@@ -6,7 +6,7 @@ use crate::{
     HookResult, ImportPreflight, InfoSection, MenuExecuteResult, MenuItem, MovePreflight,
     PreflightDecision, PreflightOp, PreflightOperation, PreflightPhase, PreflightRequest,
     PreviewView, ProviderError, ProviderInvocation, RemovePreflight, RenamePreflight,
-    SearchCapabilities, SearchEntry, SearchMode, SearchResults, ToolbarResult,
+    SearchCapabilities, SearchEntry, SearchMode, SearchResults, ToolbarResult, TrashPreflight,
 };
 use std::{collections::BTreeMap, sync::Arc};
 
@@ -122,6 +122,28 @@ impl PreflightHandlers {
             PreflightOp::Remove,
             Arc::new(move |ctx, request| match &request.operation {
                 PreflightOperation::Remove(args) => handler(ctx, request.phase, args),
+                _ => Err(ProviderError::invalid_params(
+                    "preflight operation mismatch",
+                )),
+            }),
+        )
+    }
+
+    pub fn on_trash<F>(&mut self, handler: F) -> Result<(), ProviderError>
+    where
+        F: Fn(
+                &dyn ProviderInvocation,
+                PreflightPhase,
+                &TrashPreflight,
+            ) -> Result<PreflightDecision, ProviderError>
+            + Send
+            + Sync
+            + 'static,
+    {
+        self.insert(
+            PreflightOp::Trash,
+            Arc::new(move |ctx, request| match &request.operation {
+                PreflightOperation::Trash(args) => handler(ctx, request.phase, args),
                 _ => Err(ProviderError::invalid_params(
                     "preflight operation mismatch",
                 )),
@@ -277,6 +299,10 @@ pub trait VfsProvider: Send + Sync {
         Err(unsupported(request.op()))
     }
 
+    fn trash(&self, request: &FsRequest<'_>) -> Result<(), ProviderError> {
+        Err(unsupported(request.op()))
+    }
+
     fn search(&self, request: &FsRequest<'_>) -> Result<FsListing, ProviderError> {
         Err(unsupported(request.op()))
     }
@@ -397,5 +423,22 @@ mod preflight_registry_tests {
         assert!(handlers
             .on_rename(|_, _, _| Ok(PreflightDecision::allow()))
             .is_err());
+    }
+
+    #[test]
+    fn trash_and_remove_preflight_handlers_are_independent() {
+        let mut handlers = PreflightHandlers::new();
+        handlers
+            .on_trash(|_, _, _| Ok(PreflightDecision::deny("trash policy")))
+            .unwrap();
+        assert!(handlers.supports(PreflightOp::Trash));
+        assert!(!handlers.supports(PreflightOp::Remove));
+        handlers
+            .on_remove(|_, _, _| Ok(PreflightDecision::allow()))
+            .unwrap();
+        assert_eq!(
+            handlers.operations(),
+            vec![PreflightOp::Trash, PreflightOp::Remove]
+        );
     }
 }

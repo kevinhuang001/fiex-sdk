@@ -60,6 +60,7 @@ impl ProviderMatchRule {
             "zero" => count == 0,
             "single" => count == 1,
             "multi" => count >= 2,
+            "nonzero" => count >= 1,
             _ => false,
         }
     }
@@ -154,9 +155,9 @@ impl ProviderMatchRule {
         if let Some(selection) = object.get("selection") {
             let choice = selection
                 .as_str()
-                .ok_or("match.selection must be any, zero, single or multi")?;
-            if !matches!(choice, "any" | "zero" | "single" | "multi") {
-                return Err("match.selection must be any, zero, single or multi".into());
+                .ok_or("match.selection must be any, zero, single, multi or nonzero")?;
+            if !matches!(choice, "any" | "zero" | "single" | "multi" | "nonzero") {
+                return Err("match.selection must be any, zero, single, multi or nonzero".into());
             }
         }
         if let Some(exclude) = object.get("exclude") {

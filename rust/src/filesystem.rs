@@ -3,7 +3,7 @@
 pub use fiex_provider_contracts::{
     CreateFilePreflight, CreateFolderPreflight, ExportPreflight, ImportPreflight, MovePreflight,
     PreflightDecision, PreflightHandlers, PreflightOp, PreflightOperation, PreflightPhase,
-    PreflightRequest, RemoveMode, RemovePreflight, RenamePreflight, TransferKind,
+    PreflightRequest, RemovePreflight, RenamePreflight, TransferKind, TrashPreflight,
 };
 pub const MAX_CHUNK: usize = 4 * 1024 * 1024;
 pub use fiex_provider_contracts::FsOperation;
