@@ -21,8 +21,8 @@ mod fs_request;
 pub use fs_request::{FsProduct, FsRead, FsReadAt, FsRequest, FsWrite};
 mod providers;
 pub use providers::{
-    ConnectionContextMenuProvider, ConnectionProvider, ContextMenuProvider,
-    DecorationProvider, HookProvider, InfoProvider, PreviewProvider, SearchProvider,
+    ConnectionContextMenuProvider, ConnectionProvider, ContextMenuProvider, DecorationProvider,
+    HookProvider, InfoProvider, PreflightHandlers, PreviewProvider, SearchProvider,
     ToolbarProvider, VfsProvider,
 };
 mod instances;

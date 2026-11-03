@@ -39,7 +39,9 @@ impl FsOperation {
     }
 
     pub fn parse(value: &str) -> Option<Self> {
-        Self::ALL.into_iter().find(|operation| operation.as_str() == value)
+        Self::ALL
+            .into_iter()
+            .find(|operation| operation.as_str() == value)
     }
 
     /// Resolve a storage-provider wire method to the shared logical operation.
@@ -116,9 +118,10 @@ impl ProviderDescriptor {
     pub fn validate(&self) -> Result<(), String> {
         if self.id.is_empty()
             || self.id.len() > 128
-            || !self.id.chars().all(|ch| {
-                ch.is_ascii_alphanumeric() || matches!(ch, '.' | '_' | '-' | ':')
-            })
+            || !self
+                .id
+                .chars()
+                .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '.' | '_' | '-' | ':'))
         {
             return Err("invalid provider ID".into());
         }

@@ -232,7 +232,6 @@ pub struct PluginPanelSize {
     pub height: u32,
 }
 
-
 impl MenuItem {
     pub fn action(id: impl Into<String>, title: impl Into<String>) -> Self {
         Self {

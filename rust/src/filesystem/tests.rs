@@ -104,40 +104,51 @@ fn capabilities_follow_the_explicit_declaration() {
     let readonly = ReadOnly;
     assert_eq!(readonly.operations(), &[FsOperation::List]);
     assert_eq!(
-        FsServer::capability(&readonly),
-        json!({"vfs": {"discovery":true,"preflight":false,"operations": ["list"]}})
+        FsServer::capability(&readonly).unwrap(),
+        json!({"vfs": {"discovery":true,"preflightOps":[],"operations": ["list"]}})
     );
 }
 
 #[test]
-fn transfer_preflight_is_metadata_only_and_does_not_grant_write() {
+fn operation_registry_dispatches_only_registered_preflight_and_does_not_grant_write() {
     struct Reviewed;
     impl VfsProvider for Reviewed {
         fn operations(&self) -> &'static [FsOperation] {
             &[FsOperation::List]
         }
-        fn supports_preflight(&self) -> bool {
-            true
-        }
-        fn preflight(
-            &self,
-            _ctx: &dyn fiex_provider_contracts::ProviderInvocation,
-            review: &TransferPreflight,
-        ) -> Result<PreflightDecision, RpcError> {
-            Ok(PreflightDecision {
-                allowed: review.metadata.size.is_none_or(|size| size <= 10),
-                reason: Some("size policy".into()),
-            })
+        fn preflight_handlers(&self) -> Result<PreflightHandlers, RpcError> {
+            let mut handlers = PreflightHandlers::new();
+            handlers.on_import(|_, _, review| {
+                Ok(if review.source.size.is_none_or(|size| size <= 10) {
+                    PreflightDecision::allow()
+                } else {
+                    PreflightDecision::deny("size policy")
+                })
+            })?;
+            Ok(handlers)
         }
     }
     let server = FsServer::new();
-    let params = json!({"nodeId":"root","direction":"import","action":"copy","name":"x","sameMount":false,
-        "metadata":{"name":"x","kind":"file","size":11,"modified":null,"extension":null,"mime":null,"executableShortcut":null,"system":false}});
+    let params = json!({"phase":"execute","operation":"import","args":{
+        "parentId":"root","name":"x","transferKind":"copy",
+        "source":{"name":"x","kind":"file","size":11,"modified":null,"extension":null,"mime":null,"executableShortcut":null,"system":null}}});
     let reply = server
         .serve(&Reviewed, &request("vfs.preflight", params.clone()))
         .unwrap()
         .unwrap();
     assert_eq!(reply["allowed"], false);
+    let capability = FsServer::capability(&Reviewed).unwrap();
+    assert_eq!(capability["vfs"]["preflightOps"], json!(["import"]));
+    let unregistered = server
+        .serve(
+            &Reviewed,
+            &request(
+                "vfs.preflight",
+                json!({"phase":"execute","operation":"rename","args":{"nodeId":"n","newName":"b"}}),
+            ),
+        )
+        .unwrap_err();
+    assert_eq!(unregistered.code, -32601);
     assert!(server
         .serve(
             &Reviewed,

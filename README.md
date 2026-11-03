@@ -127,9 +127,12 @@ impl VfsProvider for MyDrive {
 The required `operations()` method explicitly declares the implementation ceiling.
 Override `discover(ctx)` to narrow it to the server permissions of the current
 connection and resource. The SDK owns ordinary dispatch without procedural macros.
-`plugin.initialize` reports `vfs: {operations: [...], discovery: true}`; Core and SDK
-reject operations outside the reported intersection. Nodes may narrow the set
-further with `FsEntry::allowing([..])`. See [the discovery contract](docs/fs-provider-discovery.md).
+`plugin.initialize` reports `vfs: {operations: [...], discovery: true,
+preflightOps: [...], providers: [...]}`. The SDK derives `preflightOps` from
+registered handlers; Core and SDK reject operations outside the reported
+intersection. Nodes may narrow the file-operation set further with
+`FsEntry::allowing([..])`. See [the discovery contract](docs/fs-provider-discovery.md)
+and [operation preflight](docs/transfer-preflight.md).
 
 The SDK owns stream ids, chunk offsets, `closeRead`, sequential write offsets
 and `commit`/`abort`; providers only return standard `Read`/`Write` values.

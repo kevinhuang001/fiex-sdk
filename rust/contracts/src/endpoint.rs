@@ -93,5 +93,4 @@ mod tests {
         assert!(event("fs.read").is_none());
         assert!(event("custom.example").is_none());
     }
-
 }

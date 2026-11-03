@@ -86,18 +86,25 @@ impl FsServer {
     }
 
     /// Capability declaration returned from `plugin.initialize`.
-    pub fn capability(provider: &dyn VfsProvider) -> Value {
-        json!({
+    pub fn capability(provider: &dyn VfsProvider) -> Result<Value, RpcError> {
+        let handlers = provider
+            .preflight_handlers()
+            .map_err(|error| RpcError::internal(error.to_string()))?;
+        Ok(json!({
             "vfs": {
                 "discovery": true,
-                "preflight": provider.supports_preflight(),
+                "preflightOps": handlers
+                    .operations()
+                    .into_iter()
+                    .map(|operation| operation.as_str())
+                    .collect::<Vec<_>>(),
                 "operations": provider
                     .operations()
                     .iter()
                     .map(|op| op.as_str())
                     .collect::<Vec<_>>(),
             }
-        })
+        }))
     }
 
     /// Dispatch one `vfs.*` method. Returns `None` for methods outside `vfs.*`
@@ -107,13 +114,27 @@ impl FsServer {
         provider: &dyn VfsProvider,
         ctx: &RequestContext,
     ) -> Result<Option<Value>, RpcError> {
+        let handlers = provider
+            .preflight_handlers()
+            .map_err(|error| RpcError::internal(error.to_string()))?;
+        self.serve_with_preflight(provider, &handlers, ctx)
+    }
+
+    /// Dispatch with the registry captured at provider registration time.
+    pub fn serve_with_preflight(
+        &self,
+        provider: &dyn VfsProvider,
+        preflight_handlers: &PreflightHandlers,
+        ctx: &RequestContext,
+    ) -> Result<Option<Value>, RpcError> {
         if ctx.method() == "vfs.preflight" {
-            if !provider.supports_preflight() {
+            let request: PreflightRequest = serde_json::from_value(ctx.params().clone())
+                .map_err(|error| RpcError::invalid_params(error.to_string()))?;
+            if !preflight_handlers.supports(request.op()) {
                 return Err(RpcError::method_not_found("vfs.preflight"));
             }
-            let request: TransferPreflight = serde_json::from_value(ctx.params().clone())
-                .map_err(|error| RpcError::invalid_params(error.to_string()))?;
-            return serde_json::to_value(provider.preflight(ctx, &request)?)
+            request.validate().map_err(RpcError::invalid_params)?;
+            return serde_json::to_value(preflight_handlers.dispatch(ctx, &request)?)
                 .map(Some)
                 .map_err(|error| RpcError::internal(error.to_string()));
         }

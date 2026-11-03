@@ -1,6 +1,9 @@
 //! Logical VFS request and non-serializable stream products shared by Core
 //! native providers and the SDK's existing stream server.
-use crate::{FsEntry, FsListing, FsOperation, ProviderError, ProviderInput, ProviderInvocation, SearchMode, VfsRequest};
+use crate::{
+    FsEntry, FsListing, FsOperation, ProviderError, ProviderInput, ProviderInvocation, SearchMode,
+    VfsRequest,
+};
 use std::io::{Read, Write};
 
 #[derive(Clone)]
@@ -16,11 +19,7 @@ impl<'a> FsRequest<'a> {
             ProviderInput::Vfs(request) => request.clone(),
             _ => return Err(ProviderError::invalid_params("missing typed VFS request")),
         };
-        Ok(Self {
-            ctx,
-            op,
-            request,
-        })
+        Ok(Self { ctx, op, request })
     }
 
     pub fn op(&self) -> FsOperation {
@@ -86,7 +85,9 @@ impl<'a> FsRequest<'a> {
     }
 
     pub fn search_mode(&self) -> Result<SearchMode, ProviderError> {
-        self.request.mode.ok_or_else(|| ProviderError::invalid_params("search mode is required"))
+        self.request
+            .mode
+            .ok_or_else(|| ProviderError::invalid_params("search mode is required"))
     }
 
     pub fn mount_id(&self) -> Option<&str> {
@@ -113,8 +114,7 @@ impl<'a> FsRequest<'a> {
 }
 
 /// A bounded provider-owned random-read callback for a VFS stream.
-pub type FsReadAt =
-    Box<dyn FnMut(u64, usize) -> Result<(Vec<u8>, bool), ProviderError> + Send>;
+pub type FsReadAt = Box<dyn FnMut(u64, usize) -> Result<(Vec<u8>, bool), ProviderError> + Send>;
 
 pub struct FsRead {
     pub reader: Box<dyn Read + Send>,

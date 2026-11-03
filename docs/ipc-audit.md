@@ -44,7 +44,7 @@ adds a method, and delete the row when a method is removed.
 | `vfs.mkdir/rename/remove`                 | `VfsProvider::{mkdir,rename,remove}`                          | Covered.                                                                           |
 | `fs.writeFile`                            | none                                                          | Removed in protocol 6; the streaming write path replaces the upload snapshot pull. |
 | Protocol-4 standalone view methods        | none                                                          | Replaced by the unified protocol-6 `vfs.*` methods and stream sessions.            |
-| `plugin.initialize` capabilities          | `Providers::capabilities` / `serve_declaring`                 | Added: `{"vfs":{"operations":[..]}}`, derived from the impl block.                 |
+| `plugin.initialize` capabilities          | `Providers::capabilities` / `serve_declaring`                 | Includes operations, discovery, per-instance preflightOps and provider declarations derived from registered handlers. |
 
 `Providers` is optional; existing plugins continue to use `sdk::serve` with a
 method match. `Providers::serve_with` delegates any unregistered method to the
@@ -89,6 +89,6 @@ plugin's custom handler.
 ## Canonical VFS namespace
 
 The current native file-provider methods and initialization capabilities use
-`vfs.*` and `vfs: {operations, discovery}`. The former protocol-5 `fs.*` provider spellings are not aliases. VFS providers use
+`vfs.*` and `vfs: {operations, discovery, preflightOps, providers}`. The former protocol-5 `fs.*` provider spellings are not aliases. VFS providers use
 `vfs.*`; Core resource services use `host.fs.*`. Update Core, SDK and providers
 together.
