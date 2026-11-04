@@ -171,6 +171,9 @@ impl HostLink for Mock {
                 Ok(json!({"status":"ok"}))
             }
             "host.fs.openRead" => Ok(json!({"handle":"read", "size":state.bytes.len()})),
+            "host.fs.resolveMapped" => Ok(json!({"ref": {
+                "mountId":"mapped-mount", "nodeId":"mapped-node"
+            }})),
             "host.fs.closeRead" => {
                 state.read_closed = true;
                 Ok(Value::Null)
@@ -404,6 +407,26 @@ fn friendly_files_stream_binary_data_seek_and_commit() {
     assert!(state.committed);
     assert!(!state.aborted);
     assert_eq!(state.bytes, b"newst");
+}
+
+#[test]
+fn mapped_file_resolution_uses_the_scoped_host_operation() {
+    let mock = Arc::new(Mock::new());
+    let reference = context(mock.clone())
+        .files()
+        .resolve_mapped(
+            "plugin://provider/source",
+            crate::filesystem::FsOperation::Read,
+        )
+        .unwrap();
+    assert_eq!(reference.mount_id, "mapped-mount");
+    assert_eq!(reference.node_id, "mapped-node");
+    let state = mock.state();
+    assert_eq!(state.calls, vec!["host.fs.resolveMapped"]);
+    assert!(state
+        .authorizations
+        .iter()
+        .all(|authorization| !authorization.is_null()));
 }
 
 #[test]

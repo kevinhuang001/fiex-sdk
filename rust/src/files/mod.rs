@@ -4,6 +4,7 @@ mod reader;
 mod writer;
 use crate::{
     context::{rpc_to_io, ContextInner},
+    filesystem::FsOperation,
     ResourceContext, ResourceMetadata, ResourceRef,
 };
 pub use reader::FileReader;
@@ -18,6 +19,19 @@ pub struct Files {
 impl Files {
     pub(crate) fn new(context: ContextInner) -> Self {
         Self { context }
+    }
+    /// Resolve a persisted provider mapping for this operation. Core checks
+    /// the current trusted user action and returns a ResourceRef narrowed to
+    /// the requested operation; locator text is never treated as a grant.
+    pub fn resolve_mapped(&self, locator: &str, operation: FsOperation) -> io::Result<ResourceRef> {
+        let value = self
+            .context
+            .call(
+                "host.fs.resolveMapped",
+                json!({"locator":locator,"operation":operation.as_str()}),
+            )
+            .map_err(rpc_to_io)?;
+        serde_json::from_value(value["ref"].clone()).map_err(io::Error::other)
     }
     pub fn read(&self, reference: &ResourceRef) -> io::Result<Vec<u8>> {
         let mut bytes = Vec::new();
