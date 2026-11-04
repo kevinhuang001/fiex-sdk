@@ -103,6 +103,9 @@ The blank-canvas context menu is a zero-item selection, so use
 `"selection":"zero"`; Core checks the location and operations of the
 containing **directory**, not a fabricated selected file.
 
+Use `"selection":"nonzero"` for actions that need at least one selected
+resource, including actions that can handle either one or several resources.
+
 ## Execution and security
 
 The match is performed before network IPC. An unmatched plugin receives no

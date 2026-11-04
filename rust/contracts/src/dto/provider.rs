@@ -9,18 +9,20 @@ pub enum FsOperation {
     Write,
     Mkdir,
     Rename,
+    Trash,
     Remove,
     Search,
 }
 
 impl FsOperation {
-    pub const ALL: [FsOperation; 8] = [
+    pub const ALL: [FsOperation; 9] = [
         FsOperation::List,
         FsOperation::Stat,
         FsOperation::Read,
         FsOperation::Write,
         FsOperation::Mkdir,
         FsOperation::Rename,
+        FsOperation::Trash,
         FsOperation::Remove,
         FsOperation::Search,
     ];
@@ -33,13 +35,16 @@ impl FsOperation {
             FsOperation::Write => "write",
             FsOperation::Mkdir => "mkdir",
             FsOperation::Rename => "rename",
+            FsOperation::Trash => "trash",
             FsOperation::Remove => "remove",
             FsOperation::Search => "search",
         }
     }
 
     pub fn parse(value: &str) -> Option<Self> {
-        Self::ALL.into_iter().find(|operation| operation.as_str() == value)
+        Self::ALL
+            .into_iter()
+            .find(|operation| operation.as_str() == value)
     }
 
     /// Resolve a storage-provider wire method to the shared logical operation.
@@ -63,6 +68,7 @@ impl FsOperation {
             ],
             FsOperation::Mkdir => &["vfs.mkdir"],
             FsOperation::Rename => &["vfs.rename"],
+            FsOperation::Trash => &["vfs.trash"],
             FsOperation::Remove => &["vfs.remove"],
             FsOperation::Search => &["vfs.search"],
         }
@@ -116,9 +122,10 @@ impl ProviderDescriptor {
     pub fn validate(&self) -> Result<(), String> {
         if self.id.is_empty()
             || self.id.len() > 128
-            || !self.id.chars().all(|ch| {
-                ch.is_ascii_alphanumeric() || matches!(ch, '.' | '_' | '-' | ':')
-            })
+            || !self
+                .id
+                .chars()
+                .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '.' | '_' | '-' | ':'))
         {
             return Err("invalid provider ID".into());
         }

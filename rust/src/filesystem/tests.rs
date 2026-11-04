@@ -104,40 +104,51 @@ fn capabilities_follow_the_explicit_declaration() {
     let readonly = ReadOnly;
     assert_eq!(readonly.operations(), &[FsOperation::List]);
     assert_eq!(
-        FsServer::capability(&readonly),
-        json!({"vfs": {"discovery":true,"preflight":false,"operations": ["list"]}})
+        FsServer::capability(&readonly).unwrap(),
+        json!({"vfs": {"discovery":true,"preflightOps":[],"operations": ["list"]}})
     );
 }
 
 #[test]
-fn transfer_preflight_is_metadata_only_and_does_not_grant_write() {
+fn operation_registry_dispatches_only_registered_preflight_and_does_not_grant_write() {
     struct Reviewed;
     impl VfsProvider for Reviewed {
         fn operations(&self) -> &'static [FsOperation] {
             &[FsOperation::List]
         }
-        fn supports_preflight(&self) -> bool {
-            true
-        }
-        fn preflight(
-            &self,
-            _ctx: &dyn fiex_provider_contracts::ProviderInvocation,
-            review: &TransferPreflight,
-        ) -> Result<PreflightDecision, RpcError> {
-            Ok(PreflightDecision {
-                allowed: review.metadata.size.is_none_or(|size| size <= 10),
-                reason: Some("size policy".into()),
-            })
+        fn preflight_handlers(&self) -> Result<PreflightHandlers, RpcError> {
+            let mut handlers = PreflightHandlers::new();
+            handlers.on_import(|_, _, review| {
+                Ok(if review.source.size.is_none_or(|size| size <= 10) {
+                    PreflightDecision::allow()
+                } else {
+                    PreflightDecision::deny("size policy")
+                })
+            })?;
+            Ok(handlers)
         }
     }
     let server = FsServer::new();
-    let params = json!({"nodeId":"root","direction":"import","action":"copy","name":"x","sameMount":false,
-        "metadata":{"name":"x","kind":"file","size":11,"modified":null,"extension":null,"mime":null,"executableShortcut":null,"system":false}});
+    let params = json!({"phase":"execute","operation":"import","args":{
+        "parentId":"root","name":"x","transferKind":"copy",
+        "source":{"name":"x","kind":"file","size":11,"modified":null,"extension":null,"mime":null,"executableShortcut":null,"system":null}}});
     let reply = server
         .serve(&Reviewed, &request("vfs.preflight", params.clone()))
         .unwrap()
         .unwrap();
     assert_eq!(reply["allowed"], false);
+    let capability = FsServer::capability(&Reviewed).unwrap();
+    assert_eq!(capability["vfs"]["preflightOps"], json!(["import"]));
+    let unregistered = server
+        .serve(
+            &Reviewed,
+            &request(
+                "vfs.preflight",
+                json!({"phase":"execute","operation":"rename","args":{"nodeId":"n","newName":"b"}}),
+            ),
+        )
+        .unwrap_err();
+    assert_eq!(unregistered.code, -32601);
     assert!(server
         .serve(
             &Reviewed,
@@ -161,6 +172,48 @@ fn unimplemented_operations_are_refused_before_the_provider() {
         .unwrap_err();
     assert_eq!(error.code, -32601);
     assert_eq!(error.data.unwrap()["operation"], "remove");
+}
+
+#[test]
+fn trash_and_remove_dispatch_to_distinct_provider_methods() {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    struct Deletions {
+        trashed: Arc<AtomicUsize>,
+        removed: Arc<AtomicUsize>,
+    }
+    impl VfsProvider for Deletions {
+        fn operations(&self) -> &'static [crate::filesystem::FsOperation] {
+            &[
+                crate::filesystem::FsOperation::Trash,
+                crate::filesystem::FsOperation::Remove,
+            ]
+        }
+        fn trash(&self, _: &FsRequest<'_>) -> Result<(), RpcError> {
+            self.trashed.fetch_add(1, Ordering::SeqCst);
+            Ok(())
+        }
+        fn remove(&self, _: &FsRequest<'_>) -> Result<(), RpcError> {
+            self.removed.fetch_add(1, Ordering::SeqCst);
+            Ok(())
+        }
+    }
+
+    let trashed = Arc::new(AtomicUsize::new(0));
+    let removed = Arc::new(AtomicUsize::new(0));
+    let provider = Deletions {
+        trashed: trashed.clone(),
+        removed: removed.clone(),
+    };
+    let server = FsServer::new();
+    server
+        .serve(&provider, &request("vfs.trash", json!({"nodeId":"n"})))
+        .unwrap();
+    server
+        .serve(&provider, &request("vfs.remove", json!({"nodeId":"n"})))
+        .unwrap();
+    assert_eq!(trashed.load(Ordering::SeqCst), 1);
+    assert_eq!(removed.load(Ordering::SeqCst), 1);
 }
 
 struct AccountFs;

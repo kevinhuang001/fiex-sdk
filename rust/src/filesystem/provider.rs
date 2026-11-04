@@ -21,6 +21,10 @@ pub(super) fn invoke(
         FsOperation::Write => FsProduct::Write(provider.write(request)?),
         FsOperation::Mkdir => FsProduct::Entry(provider.mkdir(request)?),
         FsOperation::Rename => FsProduct::Entry(provider.rename(request)?),
+        FsOperation::Trash => {
+            provider.trash(request)?;
+            FsProduct::Done
+        }
         FsOperation::Remove => {
             provider.remove(request)?;
             FsProduct::Done

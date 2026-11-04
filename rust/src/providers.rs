@@ -5,7 +5,7 @@
 //! fallback handler. Provider implementations stay optional and composable;
 //! nothing forces a plugin to implement events it does not own.
 use crate::{
-    filesystem::{FsServer, VfsProvider},
+    filesystem::{FsServer, PreflightHandlers, VfsProvider},
     RequestContext, RpcError,
 };
 use serde_json::{json, Value};
@@ -28,6 +28,7 @@ use registry::ProviderSet;
 struct FsProvider {
     dispatch: Box<dyn VfsProvider>,
     server: FsServer,
+    preflight_handlers: PreflightHandlers,
 }
 pub struct Providers {
     diagnostics: bool,
@@ -243,9 +244,18 @@ impl Providers {
     where
         P: VfsProvider + 'static,
     {
+        let preflight_handlers = match provider.preflight_handlers() {
+            Ok(handlers) => handlers,
+            Err(error) => {
+                self.registration_errors
+                    .push(format!("filesystem preflight: {error}"));
+                PreflightHandlers::new()
+            }
+        };
         let instance = FsProvider {
             dispatch: Box::new(provider),
             server: FsServer::new(),
+            preflight_handlers,
         };
         if let Err(error) = self.filesystem.register(id.into(), Box::new(instance)) {
             self.registration_errors
@@ -265,7 +275,7 @@ impl Providers {
     /// Every selected provider is checked again by its own discover() result.
     pub fn capabilities(&self) -> Value {
         let mut operations = std::collections::BTreeSet::new();
-        let mut preflight = false;
+        let mut preflight_ops = std::collections::BTreeSet::new();
         let mut providers = Vec::new();
         for (id, fs) in self.filesystem.instances() {
             let methods = fs
@@ -274,12 +284,18 @@ impl Providers {
                 .iter()
                 .map(|op| op.as_str())
                 .collect::<Vec<_>>();
-            preflight |= fs.dispatch.supports_preflight();
+            let provider_preflight_ops = fs
+                .preflight_handlers
+                .operations()
+                .into_iter()
+                .map(|op| op.as_str())
+                .collect::<Vec<_>>();
+            preflight_ops.extend(provider_preflight_ops.iter().copied());
             operations.extend(methods.iter().copied());
             providers.push(json!({
                 "id": id,
                 "operations": methods,
-                "preflight": fs.dispatch.supports_preflight(),
+                "preflightOps": provider_preflight_ops,
             }));
         }
         if providers.is_empty() {
@@ -287,7 +303,7 @@ impl Providers {
         } else {
             json!({"vfs":{
                 "discovery":true,
-                "preflight":preflight,
+                "preflightOps":preflight_ops,
                 "operations":operations,
                 "providers":providers,
             }})

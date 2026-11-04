@@ -1,26 +1,248 @@
 //! Canonical typed provider traits. SDK runtime and Core native handlers
 //! implement these same interfaces; transport adapters stay outside this crate.
 use crate::{
-    ConnectionOpenResult, ConnectionValidation, DecorationContribution, FsEntry, FsListing,
-    FsOperation, FsRequest, HookResult, InfoSection, MenuExecuteResult, MenuItem, PreviewView,
-    PreflightDecision, ProviderError, ProviderInvocation, SearchCapabilities, SearchEntry,
-    SearchMode, SearchResults, ToolbarResult, TransferPreflight,
+    ConnectionOpenResult, ConnectionValidation, CreateFilePreflight, CreateFolderPreflight,
+    DecorationContribution, ExportPreflight, FsEntry, FsListing, FsOperation, FsRequest,
+    HookResult, ImportPreflight, InfoSection, MenuExecuteResult, MenuItem, MovePreflight,
+    PreflightDecision, PreflightOp, PreflightOperation, PreflightPhase, PreflightRequest,
+    PreviewView, ProviderError, ProviderInvocation, RemovePreflight, RenamePreflight,
+    SearchCapabilities, SearchEntry, SearchMode, SearchResults, ToolbarResult, TrashPreflight,
 };
+use std::{collections::BTreeMap, sync::Arc};
 
-pub trait VfsProvider: Send + Sync {
-    fn supports_preflight(&self) -> bool {
-        false
+type PreflightHandler = dyn Fn(&dyn ProviderInvocation, &PreflightRequest) -> Result<PreflightDecision, ProviderError>
+    + Send
+    + Sync;
+
+/// One source of truth for a provider's operation-specific policy handlers.
+/// The SDK derives the negotiated `preflightOps` set from this registry.
+#[derive(Clone, Default)]
+pub struct PreflightHandlers {
+    handlers: BTreeMap<PreflightOp, Arc<PreflightHandler>>,
+}
+
+impl PreflightHandlers {
+    pub fn new() -> Self {
+        Self::default()
     }
 
-    fn preflight(
+    fn insert(
+        &mut self,
+        op: PreflightOp,
+        handler: Arc<PreflightHandler>,
+    ) -> Result<(), ProviderError> {
+        if self.handlers.contains_key(&op) {
+            return Err(ProviderError::invalid_params(format!(
+                "duplicate preflight handler: {}",
+                op.as_str()
+            )));
+        }
+        self.handlers.insert(op, handler);
+        Ok(())
+    }
+
+    pub fn on_create_file<F>(&mut self, handler: F) -> Result<(), ProviderError>
+    where
+        F: Fn(
+                &dyn ProviderInvocation,
+                PreflightPhase,
+                &CreateFilePreflight,
+            ) -> Result<PreflightDecision, ProviderError>
+            + Send
+            + Sync
+            + 'static,
+    {
+        self.insert(
+            PreflightOp::CreateFile,
+            Arc::new(move |ctx, request| match &request.operation {
+                PreflightOperation::CreateFile(args) => handler(ctx, request.phase, args),
+                _ => Err(ProviderError::invalid_params(
+                    "preflight operation mismatch",
+                )),
+            }),
+        )
+    }
+
+    pub fn on_create_folder<F>(&mut self, handler: F) -> Result<(), ProviderError>
+    where
+        F: Fn(
+                &dyn ProviderInvocation,
+                PreflightPhase,
+                &CreateFolderPreflight,
+            ) -> Result<PreflightDecision, ProviderError>
+            + Send
+            + Sync
+            + 'static,
+    {
+        self.insert(
+            PreflightOp::CreateFolder,
+            Arc::new(move |ctx, request| match &request.operation {
+                PreflightOperation::CreateFolder(args) => handler(ctx, request.phase, args),
+                _ => Err(ProviderError::invalid_params(
+                    "preflight operation mismatch",
+                )),
+            }),
+        )
+    }
+
+    pub fn on_rename<F>(&mut self, handler: F) -> Result<(), ProviderError>
+    where
+        F: Fn(
+                &dyn ProviderInvocation,
+                PreflightPhase,
+                &RenamePreflight,
+            ) -> Result<PreflightDecision, ProviderError>
+            + Send
+            + Sync
+            + 'static,
+    {
+        self.insert(
+            PreflightOp::Rename,
+            Arc::new(move |ctx, request| match &request.operation {
+                PreflightOperation::Rename(args) => handler(ctx, request.phase, args),
+                _ => Err(ProviderError::invalid_params(
+                    "preflight operation mismatch",
+                )),
+            }),
+        )
+    }
+
+    pub fn on_remove<F>(&mut self, handler: F) -> Result<(), ProviderError>
+    where
+        F: Fn(
+                &dyn ProviderInvocation,
+                PreflightPhase,
+                &RemovePreflight,
+            ) -> Result<PreflightDecision, ProviderError>
+            + Send
+            + Sync
+            + 'static,
+    {
+        self.insert(
+            PreflightOp::Remove,
+            Arc::new(move |ctx, request| match &request.operation {
+                PreflightOperation::Remove(args) => handler(ctx, request.phase, args),
+                _ => Err(ProviderError::invalid_params(
+                    "preflight operation mismatch",
+                )),
+            }),
+        )
+    }
+
+    pub fn on_trash<F>(&mut self, handler: F) -> Result<(), ProviderError>
+    where
+        F: Fn(
+                &dyn ProviderInvocation,
+                PreflightPhase,
+                &TrashPreflight,
+            ) -> Result<PreflightDecision, ProviderError>
+            + Send
+            + Sync
+            + 'static,
+    {
+        self.insert(
+            PreflightOp::Trash,
+            Arc::new(move |ctx, request| match &request.operation {
+                PreflightOperation::Trash(args) => handler(ctx, request.phase, args),
+                _ => Err(ProviderError::invalid_params(
+                    "preflight operation mismatch",
+                )),
+            }),
+        )
+    }
+
+    pub fn on_import<F>(&mut self, handler: F) -> Result<(), ProviderError>
+    where
+        F: Fn(
+                &dyn ProviderInvocation,
+                PreflightPhase,
+                &ImportPreflight,
+            ) -> Result<PreflightDecision, ProviderError>
+            + Send
+            + Sync
+            + 'static,
+    {
+        self.insert(
+            PreflightOp::Import,
+            Arc::new(move |ctx, request| match &request.operation {
+                PreflightOperation::Import(args) => handler(ctx, request.phase, args),
+                _ => Err(ProviderError::invalid_params(
+                    "preflight operation mismatch",
+                )),
+            }),
+        )
+    }
+
+    pub fn on_export<F>(&mut self, handler: F) -> Result<(), ProviderError>
+    where
+        F: Fn(
+                &dyn ProviderInvocation,
+                PreflightPhase,
+                &ExportPreflight,
+            ) -> Result<PreflightDecision, ProviderError>
+            + Send
+            + Sync
+            + 'static,
+    {
+        self.insert(
+            PreflightOp::Export,
+            Arc::new(move |ctx, request| match &request.operation {
+                PreflightOperation::Export(args) => handler(ctx, request.phase, args),
+                _ => Err(ProviderError::invalid_params(
+                    "preflight operation mismatch",
+                )),
+            }),
+        )
+    }
+
+    pub fn on_move<F>(&mut self, handler: F) -> Result<(), ProviderError>
+    where
+        F: Fn(
+                &dyn ProviderInvocation,
+                PreflightPhase,
+                &MovePreflight,
+            ) -> Result<PreflightDecision, ProviderError>
+            + Send
+            + Sync
+            + 'static,
+    {
+        self.insert(
+            PreflightOp::Move,
+            Arc::new(move |ctx, request| match &request.operation {
+                PreflightOperation::Move(args) => handler(ctx, request.phase, args),
+                _ => Err(ProviderError::invalid_params(
+                    "preflight operation mismatch",
+                )),
+            }),
+        )
+    }
+
+    pub fn supports(&self, op: PreflightOp) -> bool {
+        self.handlers.contains_key(&op)
+    }
+
+    pub fn operations(&self) -> Vec<PreflightOp> {
+        self.handlers.keys().copied().collect()
+    }
+
+    pub fn dispatch(
         &self,
-        _ctx: &dyn ProviderInvocation,
-        _request: &TransferPreflight,
+        ctx: &dyn ProviderInvocation,
+        request: &PreflightRequest,
     ) -> Result<PreflightDecision, ProviderError> {
-        Ok(PreflightDecision {
-            allowed: true,
-            reason: None,
-        })
+        let handler = self.handlers.get(&request.op()).ok_or_else(|| {
+            ProviderError::method_not_found(&format!("vfs.preflight.{}", request.op().as_str()))
+        })?;
+        handler(ctx, request)
+    }
+}
+
+pub trait VfsProvider: Send + Sync {
+    /// Register only the dynamic policy checks this provider owns. The SDK
+    /// calls this once when the provider is registered and derives support
+    /// declarations from the returned handlers.
+    fn preflight_handlers(&self) -> Result<PreflightHandlers, ProviderError> {
+        Ok(PreflightHandlers::new())
     }
 
     fn operations(&self) -> &'static [FsOperation];
@@ -29,10 +251,7 @@ pub trait VfsProvider: Send + Sync {
         SearchCapabilities::default()
     }
 
-    fn discover(
-        &self,
-        _ctx: &dyn ProviderInvocation,
-    ) -> Result<Vec<FsOperation>, ProviderError> {
+    fn discover(&self, _ctx: &dyn ProviderInvocation) -> Result<Vec<FsOperation>, ProviderError> {
         Ok(self.operations().to_vec())
     }
 
@@ -77,6 +296,10 @@ pub trait VfsProvider: Send + Sync {
     }
 
     fn remove(&self, request: &FsRequest<'_>) -> Result<(), ProviderError> {
+        Err(unsupported(request.op()))
+    }
+
+    fn trash(&self, request: &FsRequest<'_>) -> Result<(), ProviderError> {
         Err(unsupported(request.op()))
     }
 
@@ -163,7 +386,10 @@ pub trait ToolbarProvider: Send + Sync {
 }
 
 pub trait ConnectionProvider: Send + Sync {
-    fn validate(&self, ctx: &dyn ProviderInvocation) -> Result<ConnectionValidation, ProviderError> {
+    fn validate(
+        &self,
+        ctx: &dyn ProviderInvocation,
+    ) -> Result<ConnectionValidation, ProviderError> {
         Err(ProviderError::method_not_found(ctx.method()))
     }
 
@@ -180,4 +406,39 @@ fn unsupported(op: FsOperation) -> ProviderError {
     let mut error = ProviderError::method_not_found(op.methods()[0]);
     error.message = format!("Unsupported fs operation: {}", op.as_str());
     error
+}
+
+#[cfg(test)]
+mod preflight_registry_tests {
+    use super::*;
+
+    #[test]
+    fn registered_operations_are_derived_and_duplicates_are_rejected() {
+        let mut handlers = PreflightHandlers::new();
+        handlers
+            .on_rename(|_, _, _| Ok(PreflightDecision::allow()))
+            .unwrap();
+        assert_eq!(handlers.operations(), vec![PreflightOp::Rename]);
+        assert!(!handlers.supports(PreflightOp::Remove));
+        assert!(handlers
+            .on_rename(|_, _, _| Ok(PreflightDecision::allow()))
+            .is_err());
+    }
+
+    #[test]
+    fn trash_and_remove_preflight_handlers_are_independent() {
+        let mut handlers = PreflightHandlers::new();
+        handlers
+            .on_trash(|_, _, _| Ok(PreflightDecision::deny("trash policy")))
+            .unwrap();
+        assert!(handlers.supports(PreflightOp::Trash));
+        assert!(!handlers.supports(PreflightOp::Remove));
+        handlers
+            .on_remove(|_, _, _| Ok(PreflightDecision::allow()))
+            .unwrap();
+        assert_eq!(
+            handlers.operations(),
+            vec![PreflightOp::Trash, PreflightOp::Remove]
+        );
+    }
 }

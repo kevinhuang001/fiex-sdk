@@ -45,4 +45,28 @@ pub struct ProviderMatchRule {
     pub required_ops: Vec<FsOperation>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub selection: Option<String>,
+    /// Exclude a provider when any selected resource (or the blank-canvas
+    /// directory context) satisfies every declared exclusion dimension.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub exclude: Option<ProviderMatchExclude>,
+}
+
+/// Negative match dimensions share the same trusted inputs as inclusion
+/// rules. Lists are OR within a dimension; declared dimensions are ANDed.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ProviderMatchExclude {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub view: Option<LocationMatch>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub storage: Option<LocationMatch>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub extensions: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub mime_types: Vec<String>,
+    /// File/Directory/Connection kind; not FS/VFS resource location type.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub kinds: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub required_ops: Vec<FsOperation>,
 }

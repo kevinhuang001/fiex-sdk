@@ -97,7 +97,10 @@ impl<T: ?Sized + Send + Sync> ProviderInstances<T> {
 
     pub fn only(&self) -> Option<&T> {
         if self.entries.len() == 1 {
-            self.entries.values().next().map(|value| value.implementation.as_ref())
+            self.entries
+                .values()
+                .next()
+                .map(|value| value.implementation.as_ref())
         } else {
             None
         }
@@ -132,25 +135,40 @@ mod tests {
     fn shared_registry_rejects_invalid_kind_and_duplicates_without_replacement() {
         let mut registry: ProviderInstances<dyn Handler> =
             ProviderInstances::new(ProviderKind::Info);
-        assert!(registry.register(
-            descriptor("wrong", ProviderKind::Preview), Arc::new(Native(1))
-        ).is_err());
+        assert!(registry
+            .register(
+                descriptor("wrong", ProviderKind::Preview),
+                Arc::new(Native(1))
+            )
+            .is_err());
         assert!(registry.is_empty());
         registry
-            .register(descriptor("native", ProviderKind::Info), Arc::new(Native(7)))
+            .register(
+                descriptor("native", ProviderKind::Info),
+                Arc::new(Native(7)),
+            )
             .unwrap();
-        assert!(registry.register(
-            descriptor("native", ProviderKind::Info), Arc::new(Native(9))
-        ).is_err());
-        assert!(registry.register(
-            descriptor("invalid/id", ProviderKind::Info), Arc::new(Native(9))
-        ).is_err());
+        assert!(registry
+            .register(
+                descriptor("native", ProviderKind::Info),
+                Arc::new(Native(9))
+            )
+            .is_err());
+        assert!(registry
+            .register(
+                descriptor("invalid/id", ProviderKind::Info),
+                Arc::new(Native(9))
+            )
+            .is_err());
         assert_eq!(registry.len(), 1);
         assert_eq!(registry.get("native").unwrap().id(), 7);
         let handle = registry.get_arc("native").unwrap();
         assert_eq!(handle.id(), 7);
         assert_eq!(registry.only().unwrap().id(), 7);
-        assert_eq!(registry.descriptor("native").unwrap().kind, ProviderKind::Info);
+        assert_eq!(
+            registry.descriptor("native").unwrap().kind,
+            ProviderKind::Info
+        );
         registry
             .register(descriptor("ipc", ProviderKind::Info), Arc::new(Native(8)))
             .unwrap();

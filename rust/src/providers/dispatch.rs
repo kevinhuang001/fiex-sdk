@@ -9,7 +9,11 @@ impl Providers {
                 .filesystem
                 .select(input.provider_id())?
                 .ok_or_else(|| unsupported(ctx))?;
-            return fs.server.serve(fs.dispatch.as_ref(), ctx);
+            return fs.server.serve_with_preflight(
+                fs.dispatch.as_ref(),
+                &fs.preflight_handlers,
+                ctx,
+            );
         }
         let value = match ctx.method() {
             "info.resolve" => {

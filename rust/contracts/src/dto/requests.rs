@@ -43,6 +43,7 @@ impl ProviderInput {
                 | "vfs.beginWrite"
                 | "vfs.mkdir"
                 | "vfs.rename"
+                | "vfs.trash"
                 | "vfs.remove"
                 | "vfs.search"
                 | "connection.validate"
@@ -57,7 +58,13 @@ impl ProviderInput {
             .as_object()
             .cloned()
             .ok_or_else(|| "provider event parameters must be an object".to_string())?;
-        for key in ["targets", "directory", "selectionCount", "sessionId", "locale"] {
+        for key in [
+            "targets",
+            "directory",
+            "selectionCount",
+            "sessionId",
+            "locale",
+        ] {
             object.remove(key);
         }
         let projected = Value::Object(object);
@@ -81,8 +88,8 @@ impl ProviderInput {
                 parse!(ConnectionMenuExecuteRequest, ConnectionMenuExecute)
             }
             "search.query" => parse!(SearchQueryRequest, Search),
-            "vfs.discover" | "vfs.list" | "vfs.stat" | "vfs.openRead" | "vfs.beginWrite" |
-            "vfs.mkdir" | "vfs.rename" | "vfs.remove" | "vfs.search" => {
+            "vfs.discover" | "vfs.list" | "vfs.stat" | "vfs.openRead" | "vfs.beginWrite"
+            | "vfs.mkdir" | "vfs.rename" | "vfs.trash" | "vfs.remove" | "vfs.search" => {
                 parse!(VfsRequest, Vfs)
             }
             "connection.validate" | "connection.open" | "connection.create" => {
@@ -189,38 +196,61 @@ impl ProviderInput {
     }
 
     pub fn vfs_request(&self) -> Option<&VfsRequest> {
-        match self { Self::Vfs(request) => Some(request), _ => None }
+        match self {
+            Self::Vfs(request) => Some(request),
+            _ => None,
+        }
     }
 
     pub fn connection_request(&self) -> Option<&ConnectionRequest> {
-        match self { Self::Connection(request) => Some(request), _ => None }
+        match self {
+            Self::Connection(request) => Some(request),
+            _ => None,
+        }
     }
 
     pub fn context_menu_resolve(&self) -> Option<&ContextMenuResolveRequest> {
-        match self { Self::ContextMenuResolve(request) => Some(request), _ => None }
+        match self {
+            Self::ContextMenuResolve(request) => Some(request),
+            _ => None,
+        }
     }
 
     pub fn context_menu_execute(&self) -> Option<&ContextMenuExecuteRequest> {
-        match self { Self::ContextMenuExecute(request) => Some(request), _ => None }
+        match self {
+            Self::ContextMenuExecute(request) => Some(request),
+            _ => None,
+        }
     }
 
     pub fn connection_menu_resolve(&self) -> Option<&ConnectionMenuResolveRequest> {
-        match self { Self::ConnectionMenuResolve(request) => Some(request), _ => None }
+        match self {
+            Self::ConnectionMenuResolve(request) => Some(request),
+            _ => None,
+        }
     }
 
     pub fn connection_menu_execute(&self) -> Option<&ConnectionMenuExecuteRequest> {
-        match self { Self::ConnectionMenuExecute(request) => Some(request), _ => None }
+        match self {
+            Self::ConnectionMenuExecute(request) => Some(request),
+            _ => None,
+        }
     }
 
     pub fn search_request(&self) -> Option<&SearchQueryRequest> {
-        match self { Self::Search(request) => Some(request), _ => None }
+        match self {
+            Self::Search(request) => Some(request),
+            _ => None,
+        }
     }
 
     pub fn hook_request(&self) -> Option<&HookRequest> {
-        match self { Self::Hook(request) => Some(request), _ => None }
+        match self {
+            Self::Hook(request) => Some(request),
+            _ => None,
+        }
     }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -234,5 +264,13 @@ mod tests {
             ProviderInput::Unspecified
         );
         assert!(ProviderInput::decode("search.query", &json!(["item"])).is_err());
+    }
+
+    #[test]
+    fn trash_is_a_typed_vfs_request_method() {
+        assert!(matches!(
+            ProviderInput::decode("vfs.trash", &json!({"nodeId":"n"})).unwrap(),
+            ProviderInput::Vfs(_)
+        ));
     }
 }

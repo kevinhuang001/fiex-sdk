@@ -10,14 +10,28 @@ use std::any::Any;
 /// and is never serialized by the contract crate.
 pub trait ProviderInvocation: Send + Sync {
     fn request(&self) -> &ProviderRequestContext;
-    fn local_service_handle(&self) -> Option<&dyn Any> { None }
+    fn local_service_handle(&self) -> Option<&dyn Any> {
+        None
+    }
 
-    fn method(&self) -> &str { &self.request().method }
-    fn input(&self) -> Result<&ProviderInput, ProviderError> { self.request().input() }
-    fn targets(&self) -> &[ResourceContext] { &self.request().targets }
-    fn target(&self) -> Option<&ResourceContext> { self.request().target() }
-    fn directory(&self) -> Option<&ResourceContext> { self.request().directory.as_ref() }
-    fn selection_count(&self) -> usize { self.request().selection_count() }
+    fn method(&self) -> &str {
+        &self.request().method
+    }
+    fn input(&self) -> Result<&ProviderInput, ProviderError> {
+        self.request().input()
+    }
+    fn targets(&self) -> &[ResourceContext] {
+        &self.request().targets
+    }
+    fn target(&self) -> Option<&ResourceContext> {
+        self.request().target()
+    }
+    fn directory(&self) -> Option<&ResourceContext> {
+        self.request().directory.as_ref()
+    }
+    fn selection_count(&self) -> usize {
+        self.request().selection_count()
+    }
     fn view_location(&self) -> Option<&ResourceLocation> {
         self.target()
             .or_else(|| self.directory())
@@ -33,7 +47,9 @@ pub trait ProviderInvocation: Send + Sync {
             .or_else(|| self.directory())
             .map(|resource| &resource.capabilities)
     }
-    fn locale_tag(&self) -> &str { &self.request().locale }
+    fn locale_tag(&self) -> &str {
+        &self.request().locale
+    }
 }
 
 #[cfg(test)]
@@ -68,12 +84,21 @@ mod tests {
         );
         assert_eq!(context.selection_count(), 0);
         let directory = context.directory.as_ref().unwrap();
-        assert_eq!(directory.view.as_ref().unwrap().resource_type, ResourceType::Vfs);
-        assert_eq!(directory.view.as_ref().unwrap().provider_id, "core:applications");
+        assert_eq!(
+            directory.view.as_ref().unwrap().resource_type,
+            ResourceType::Vfs
+        );
+        assert_eq!(
+            directory.view.as_ref().unwrap().provider_id,
+            "core:applications"
+        );
         assert!(directory.capabilities.allows(crate::FsOperation::Mkdir));
-        assert_eq!(directory.reference, ResourceRef {
-            mount_id: "applications".into(),
-            node_id: "root".into(),
-        });
+        assert_eq!(
+            directory.reference,
+            ResourceRef {
+                mount_id: "applications".into(),
+                node_id: "root".into(),
+            }
+        );
     }
 }

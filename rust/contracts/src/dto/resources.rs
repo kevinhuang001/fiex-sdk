@@ -178,6 +178,4 @@ mod tests {
         assert_eq!(wire["capabilities"]["operations"][0], "read");
         assert!(wire.get("path").is_none());
     }
-
-
 }

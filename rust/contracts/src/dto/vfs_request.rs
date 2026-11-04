@@ -45,7 +45,10 @@ pub struct VfsRequest {
 
 impl VfsRequest {
     pub fn connection_value(&self) -> Result<Option<Value>, String> {
-        self.connection.as_ref().map(ConnectionSettings::to_value).transpose()
+        self.connection
+            .as_ref()
+            .map(ConnectionSettings::to_value)
+            .transpose()
     }
 }
 
