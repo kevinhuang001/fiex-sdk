@@ -16,13 +16,16 @@ impl Providers {
             );
         }
         let value = match ctx.method() {
-            "info.resolve" => {
-                let sections = self
+            "info.compute" => {
+                let provider = self
                     .info
                     .select(input.provider_id())?
-                    .ok_or_else(|| unsupported(ctx))?
-                    .resolve(ctx)?;
-                json!({"sections":sections})
+                    .ok_or_else(|| unsupported(ctx))?;
+                let fiex_provider_contracts::ProviderInput::InfoCompute(request) = input else {
+                    return Err(RpcError::invalid_params("missing info compute request"));
+                };
+                let fields = provider.compute(ctx, &request.fields)?;
+                json!({"fields":fields})
             }
             "preview.open" => {
                 let view = self

@@ -1,235 +1,31 @@
-# Fiex Plugin SDK
+YªçŠx-®éÜj×¢ëiºÚ+Š§j[h‘éÜ¢éíã­õN‹Z–‹­¦ëeŠw¬ÔŒ¥•àA±Õ¥¸M,()%¹‘•Á•¹‘•¹ĞM-Ì™½È‘•Ù•±½Á¥¹œÁ±Õ¥¹Ì™½Èm¥•át¡¡ÑÑÁÌè¼½¥Ñ¡Õˆ¹½´½­•Ù¥¹¡Õ…¹œÀÀÄ½™¥•à¤¸((ŒŒƒÂ~NXMÑ…ÉĞ¡•É”€¼ƒ’î;¢şg¦3–ò–,((¨«²³’âš²‡–ò–>DIÕÍĞƒš>K’îÛ¾ò|¨¨ƒ’î;¢şg’î÷–nûšZ–ò?š¶—¦ª“šVg¢/–ò–/¾ò3’â7¦r¢š–#B¢Œ)M=8µIA¾òh(+Šz‡¾â<€¨©mIÕÍĞƒš>K’îØM/¾òk’î;¦nÛ–ò–/¾ò#’â·šZšZÃš&/šVg¢/¾ò%t¡ÉÕÍĞ½I5¹µ¤¨¨()Q¡”¡¥¹•Í”İ…±­Ñ¡É½Õ Ñ…­•Ìå½Ô™É½´…¸•µÁÑäIÕÍĞÁÉ½©•ĞÑ¼„İ½É­¥¹œ¹…Ñ¥Ù”Á±Õ¥¸°É•…°µÁÉ½•ÍÌÑ•ÍÑÌ°„µ…¹¥™•ÍĞ¹©Í½¹€°É½ÍÌµÁ±…Ñ™½É´€¹™¥•áÁ±Õ¥¹€Á…­…¥¹œ…¹¥Ñ!ÕˆI•±•…Í”¥¹ÍÑ…±±…Ñ¥½¸¸((ŒŒŒ]¡¥ M,Í¡½Õ±$ÕÍ”ü€¼ƒ¢¾—¦'–N«’â¨M/¾ò|()ğƒn»–öT€€€€€€€€€€€€€€€€€€€€€ğƒR£¦P€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€ğ)ğ€´´´´´´´´´´´´´´´´´´´´´´´´´ğ€´´´´´´´´´´´´´´´´´´´´´´´´´´´´´´´´´´´´´´´´´´´´´´´´´´´´´´´´´´´´´´´´´´´´´´´´´´´´´´´´´´´´´´´´´´´´´´´´´´´´´´´´ğ)ğmÉÕÍĞ½t¡ÉÕÍĞ½I5¹µ¤ğ9…Ñ¥Ù”ƒš>K’îØ€¼9…Ñ¥Ù”ÁÉ½•ÍÌM/¾òiIÕÍĞƒ–F÷’î“šZ’îÛÎïî¦¦7–f£–ºÿ’âïš&cº‡–¶c–
+£’â;–·š6»¾ò3¦R ÍÑ‘¥¼)M=8µIA€È¸Àğ)ğmÕ¤½t¡Õ¤½ÍÉŒ½¥¹‘•à¹ÑÌ¤€ğU$M/¾òk–r£šÊgºÄ¥™É…µ”ƒ’â·–ò–>Gš>K’îÛ¦v‹švÿ¾ò3¦k¢ş5•ÍÍ…•¡…¹¹•°ƒ’â;–ºÿ’âï¦k’ş„€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€ğ()e½Ô…¸‰Õ¥±„¹…Ñ¥Ù”µ½¹±äÁ±Õ¥¸°„U$Á…¹•°°½ÈÕÍ”‰½Ñ ¸¹…Ñ¥Ù”Á±Õ¥¸ÉÕ¹Ì…Ì„Í•Á…É…Ñ”•á•ÕÑ…‰±”…¹µÕÍĞ¹½ĞİÉ¥Ñ”±½ÌÑ¼ÍÑ‘½ÕĞ€¡ÕÍ”ÍÑ‘•ÉÈ¥¹ÍÑ•…¤¸((ŒŒEÕ¥¬M,¡•­Ì€¼ƒšš~”M,()Í (ŒIÕÍĞM,)…É¼™µĞ€´µµ…¹¥™•ÍĞµÁ…Ñ ÉÕÍĞ½…É¼¹Ñ½µ°€´µ¡•¬)…É¼Ñ•ÍĞ€´µµ…¹¥™•ÍĞµÁ…Ñ ÉÕÍĞ½…É¼¹Ñ½µ°)…É¼‰Õ¥±€´µµ…¹¥™•ÍĞµÁ…Ñ ÉÕÍĞ½…É¼¹Ñ½µ°€´µ•á…µÁ±”µ½­}Á±Õ¥¸((ŒQ•ÍĞÑ¡”…ÑÕ…°µ½¬Á±Õ¥¸ÁÉ½•ÍÌ€¡AåÑ¡½¸€ÌÉ•ÅÕ¥É•¤)ÁåÑ¡½¸ÉÕÍĞ½•á…µÁ±•Ì½¡•­}Á±Õ¥¸¹Áä€´µ‰¥¹…ÉäÉÕÍĞ½Ñ…É•Ğ½‘•‰Õœ½•á…µÁ±•Ì½µ½­}Á±Õ¥¸€´µÁ±Õ¥¸µ¥½Éœ¹™¥•à¹µ½¬€´µµ•Ñ¡½µ½¬¹•¡¼((Œ	É½İÍ•ÈµÍ¥‘”U$M,)¹Á´€´µÁÉ•™¥àÕ¤¥¹ÍÑ…±°)¹Á´€´µÁÉ•™¥àÕ¤ÉÕ¸‰Õ¥±)¹Á´€´µÁÉ•™¥àÕ¤Ñ•ÍĞ)€()Q¡”IÕÍĞM,ÕÉÉ•¹Ñ±äÉ•ÅÕ¥É•Ì€¨©IÕÍĞ€Ä¸äÀ¬¨¨…¹ÍÁ•…­Ì€¨©ÁÉ½Ñ½½°€Ü¸À¨¨¸M•”mAÉ½Ñ½½°€Ü¸Át¡‘½Ì½ÁÉ½Ñ½½°´Ü¹µ¤…¹Ñ¡”m‰•¥¹¹•ÈÑÕÑ½É¥…±t¡ÉÕÍĞ½I5¹µ¤™½ÈÑ¡”ÕÉÉ•¹Ğ½¹ÑÉ…Ğ¸((ŒŒI•…°Á±Õ¥¸•á…µÁ±•Ì€¼ƒrš¶jš>K’îÛ¦†çn¸()M•”m™¥•àµ½™™¥¥…°µÁ±Õ¥¹Ít¡¡ÑÑÁÌè¼½¥Ñ¡Õˆ¹½´½­•Ù¥¹¡Õ…¹œÀÀÄ½™¥•àµ½™™¥¥…°µÁ±Õ¥¹Ì¤™½È•á…µÁ±•Ì½˜¡•­ÍÕ´°É¡¥Ù”°¥Ğ°M5°…¹]•‰XÁ±Õ¥¹Ì°¥¹±Õ‘¥¹œ¥Ñ!ÕˆÑ¥½¹ÌÁ…­…¥¹œ¸()Q¡”A%Ì…É”€¨©•áÁ•É¥µ•¹Ñ…°¨¨…¹µ…ä•Ù½±Ù”İ¥Ñ Ñ¡”¥•à½É”‘•Ù•±½Áµ•¹Ğ‰É…¹ ¸¥•à‘½•Ì¹½Ğ‰Õ¹‘±”…¹ä½™™¥¥…°Á±Õ¥¹Ì½È•á•µÁĞ½™™¥¥…°Á±Õ¥¹Ì™É½´Á•Éµ¥ÍÍ¥½¸…ÁÁÉ½Ù…°¸9…Ñ¥Ù”Á±Õ¥¹ÌÉÕ¸¥¹Í¥‘”½É”Ì=LÍ…¹‘‰½à€¡1…¹‘±½¬½Í•½µÀ½¸1¥¹Õà°M•…Ñ‰•±Ğ½¸µ…=L°ÁÁ½¹Ñ…¥¹•È…¹„)½ˆ=‰©•Ğ½¸]¥¹‘½İÌ¤ì…ÁÁÉ½Ù••áÑ•É¹…°½µµ…¹‘ÌÉÕ¸½ÕÑÍ¥‘”¥Ğ…ÌÑ¡”ÕÉÉ•¹ĞÕÍ•È¸=¹±ä¥¹ÍÑ…±°Á±Õ¥¹Ìå½ÔÑÉÕÍĞ¸()A¥¸Ñ¡”M,İ¥Ñ „¥ĞÍÕ‰µ½‘Õ±”İ¡•¸‘•Ù•±½Á¥¹œ„Á±Õ¥¸Í¼Ñ¡…Ğå½ÕÈM,Ù•ÉÍ¥½¸µ…Ñ¡•ÌÑ¡”Ù•ÉÍ¥½¸Ñ•ÍÑ•İ¥Ñ å½ÕÈ¡½ÍĞ…¹Á±Õ¥¸ÁÉ½©•Ğ¸((ŒŒAÉ½Ñ½½°€Ü¸ÀèÑåÁ•Í•ÉÙ¥•Ì…¹%¹™¼™¥•±‘Ì()AÉ½Ñ½½°€Ü¸ÀÉ•Ñ…¥¹ÌÑ¡”I•Í½ÕÉ•I•˜…¹Õ¹¥™¥•Ù™Ì¸©€‰½Õ¹‘…É¥•Ì¥¹ÑÉ½‘Õ•¥¸ÁÉ½Ñ½½°€Ø°…¹É•Á±…•Ì•…•È%¹™¼É•ÍÕ±ÑÌİ¥Ñ ‘•±…É…Ñ¥Ù”™¥•±‘ÌÁ±ÕÌ•á…Ğ°½¸µ‘•µ…¹½µÁÕÑ…Ñ¥½¸¸%ĞÉ•µ½Ù•Ì¡½ÍĞ)Á…Ñ¡Ì™É½´Ñ¡”ÁÕ‰±¥ŒÁ±Õ¥¸A$¸I•Í½ÕÉ•I•™€¥Ì…¸)½Á…ÅÕ”íµ½Õ¹Ñ%°¹½‘•%‘õ€¥‘•¹Ñ¥Ñäì½É”É•Í½±Ù•Ì¥Ğ½¹±ä¥¹Í¥‘”Ñ¡”½Á•É…Ñ¥½¸)Í½Á”¸Ñà¹Ñ…É•ÑÌ ¥€½¹Ñ…¥¹ÌÑ¡”Í•±•Ñ•É•Í½ÕÉ•Ì…¹Ñ¡•¥È½ÁÑ¥½¹…°)Á•Éµ¥ÍÍ¥½¸µÁÉ½©•Ñ•µ•Ñ…‘…Ñ„¸9•Ù•È½¹ÍÑÉÕĞ„É•˜½È‘•É¥Ù”½¹”™É½´„Á…Ñ ¸()ÉÕÍĞ±¥¹½É”)±•ĞÑ…É•Ğ€ôÑà¹Ñ…É•Ğ ¤¹½­}½É}•±Í”¡ñğIÁÉÉ½Èèé¥¹Ù…±¥‘}Á…É…µÌ ‰µ¥ÍÍ¥¹œÑ…É•Ğˆ¤¤üì)±•ĞÑ•áĞ€ôÑà¹™¥±•Ì ¤¹É•…‘}Ñ½}ÍÑÉ¥¹œ ™Ñ…É•Ğ¹É•™•É•¹”¤üì)€()Ñà¹™¥±•Ì ¤¹¡¥± ™‘¥É•Ñ½Éä¹É•™•É•¹”°€‰½ÕÑÁÕĞ¹é¥Àˆ¥€É•Í•ÉÙ•Ì„¹•Ü¥‘•¹Ñ¥Ñä)‰•±½Ü…¸…ÕÑ¡½É¥é•‘¥É•Ñ½Éä¸Ñà¹ÍÑ½É…” ¥€¥Ì„ÑåÁ•°Á±Õ¥¸µÁÉ¥Ù…Ñ”ÍÑ½É”)İ¥Ñ ½µÁ…É”µ…¹µÍ•Ğ€¡•Ñ€°Í•Ñ€°‘•±•Ñ•€°­•åÍ€°ÕÁ‘…Ñ•€¤¸Ñà¹Í•É•ÑÌ ¥€)ÕÍ•ÌÑ¡”½É”µÍ•±•Ñ•É•‘•¹Ñ¥…°‰…­•¹€¡±½…°‰ä‘•™…Õ±Ğ°½ÁÑ¥½¹…°=L­•åÉ¥¹œ¤…¹‘¥ÍÑ¥¹Õ¥Í¡•Ì•¹¥•‘€°U¹…Ù…¥±…‰±•€°µ¥ÍÍ¥¹œ…¹)¥¹Ù…±¥‘…Ñ„¥¹ÍÑ•…½˜½±±…ÁÍ¥¹œÑ¡•´¥¹Ñ¼9½¹•€¸Q•Éµ¥¹…°¥¹Ñ•É™…•Ì‰•±½¹œÑ¼A±Õ¥¹Y¥•ÜÁ…­…•Ì¸A±Õ¥¹Ì½İ¸)Ñ¡•¥ÈÍ•ÍÍ¥½¸ÍÑ…Ñ”…¹•áÁ½Í”ÕÍÑ½´IAÑ¡É½Õ Ñ¡”U$‰É¥‘”ìÑ¡”¡½ÍĞ½¹±ä)‰É½­•ÉÌ•¹•É¥Œ¹•Ñİ½É¬…¹Á•Éµ¥ÍÍ¥½¸Í•ÉÙ¥•Ì¸()=ÁÑ¥½¹…°ÑåÁ••Ù•¹ĞÁÉ½Ù¥‘•ÉÌ…É”‘•™¥¹•½¹”¥¸Ñ¡”ÉÕ¹Ñ¥µ”µ¥¹‘•Á•¹‘•¹Ğ)™¥•àµÁÉ½Ù¥‘•Èµ½¹ÑÉ…ÑÍ€É…Ñ”Õ¹‘•ÈÉÕÍĞ½½¹ÑÉ…ÑÍ€è%¹™½AÉ½Ù¥‘•É€°)AÉ•Ù¥•İAÉ½Ù¥‘•É€°•½É…Ñ¥½¹AÉ½Ù¥‘•É€°½¹Ñ•áÑ5•¹ÕAÉ½Ù¥‘•É€°)½¹¹•Ñ¥½¹½¹Ñ•áÑ5•¹ÕAÉ½Ù¥‘•É€°)M•…É¡AÉ½Ù¥‘•É€°!½½­AÉ½Ù¥‘•É€°Q½½±‰…ÉAÉ½Ù¥‘•É€…¹½¹¹•Ñ¥½¹AÉ½Ù¥‘•É€(¡±¥™•å±”½¹±ä¤¸¥±”µÍåÍÑ•´…•ÍÌ¥Ì½¹”Y™ÍAÉ½Ù¥‘•É€ÑÉ…¥Ğ™½È)½¹¹•Ñ¥½¹Ì…¹ÍÑ…¹‘…±½¹”Ù¥•İÌ…±¥­”¸I•¥ÍÑ•È½¹±äİ¡…ĞÑ¡”Á±Õ¥¸)¥µÁ±•µ•¹ÑÌìÕÍÑ½´IAÍÑ¥±°½•ÌÑ¡É½Õ Ñ¡”™…±±‰…¬è()½¹¹•Ñ¥½¹AÉ½Ù¥‘•ÈèéÙ…±¥‘…Ñ•€É•ÑÕÉ¹ÌÑ¡”Í¡…É•½¹¹•Ñ¥½¹Y…±¥‘…Ñ¥½¹€Q<ì)Ñ¡”M,Í•É¥…±¥é•Ì¥Ğ½¹±ä…ĞÑ¡”)M=8µIA‰½Õ¹‘…Éä¸()ÉÕÍĞ±¥¹½É”)Í‘¬èéAÉ½Ù¥‘•ÉÌèé¹•Ü ¤(€€€€¹¥¹™¼¡5å%¹™¼¤(€€€€¹½¹Ñ•áÑ}µ•¹Ô¡5å5•¹Ô¤(€€€€¹™¥±•ÍåÍÑ•´¡5åÉ¥Ù”èé¹•Ü ¤¤(€€€€¹Í•ÉÙ•}İ¥Ñ  ‰½Éœ¹•á…µÁ±”¹Á±Õ¥¸ˆ°ñÑáğÕÍÑ½´¡Ñà¤¤)€()Ù•ÉäÍ¡…É•ÁÉ½Ù¥‘•Èµ•Ñ¡½É••¥Ù•Ì€™‘å¸AÉ½Ù¥‘•É%¹Ù½…Ñ¥½¹€°¹½ĞÑ¡”M,)ÉÕ¹Ñ¥µ”ÌI•ÅÕ•ÍÑ½¹Ñ•áÑ€¸Q¡”¥¹Ù½…Ñ¥½¸…ÉÉ¥•Ì„Í…™”É•ÅÕ•ÍĞÁÉ½©•Ñ¥½¸ì)Ñ¡”M,¥µÁ±•µ•¹ÑÌ¥Ğ™½ÈÁ±Õ¥¸…±±Ì…¹­••ÁÌ…ÕÑ¡½É¥é•!½ÍĞÍ•ÉÙ¥•Ì¥¸„)ÁÉ½•ÍÌµ±½…°¡…¹‘±”¸%µÁ½ÉĞAÉ½Ù¥‘•É%¹Ù½…Ñ¥½¹áÑ€¥¸„Á±Õ¥¸µ½‘Õ±”Ñ¼ÕÍ”)Ñ¡”•á¥ÍÑ¥¹œ½¹Ù•¹¥•¹”µ•Ñ¡½‘ÌÍÕ …ÌÑà¹™¥±•Ì ¥€°Ñà¹¡ÑÑÀ ¥€°)Ñà¹ÍÑ½É…” ¥€…¹Ñà¹Í•É•ÑÌ ¥€¸Q¡½Í”±½…°Í•ÉÙ¥”¡…¹‘±•Ì¹•Ù•ÈÉ½ÍÌ)Ñ¡”½É”½A±Õ¥¸)M=8µIA‰½Õ¹‘…Éä¸((ŒŒ¥±”µÍåÍÑ•´ÁÉ½Ù¥‘•ÉÌ()%µÁ±•µ•¹ĞÑ¡”µ•Ñ¡½‘Ìå½ÔÉ•…±±äÍÕÁÁ½ÉĞ…¹‘•±…É”Ñ¡”½Á•É…Ñ¥½¸•¥±¥¹œ•áÁ±¥¥Ñ±äè()ÉÕÍĞ±¥¹½É”)ÕÍ”™¥•á}Á±Õ¥¹}Í‘¬…ÌÍ‘¬ì)ÕÍ”Í‘¬èéAÉ½Ù¥‘•É%¹Ù½…Ñ¥½¹áĞì)ÕÍ”Í‘¬èé™¥±•ÍåÍÑ•´èéíY™ÍAÉ½Ù¥‘•È°Í¹ÑÉä°Í1¥ÍÑ¥¹œ°ÍI•…°Í]É¥Ñ•ôì()¥µÁ°Y™ÍAÉ½Ù¥‘•È™½È5åÉ¥Ù”ì(€€€™¸½Á•É…Ñ¥½¹Ì ™Í•±˜¤€´ø€˜ÍÑ…Ñ¥ŒmÍ‘¬èé™¥±•ÍåÍÑ•´èéÍ=Á•É…Ñ¥½¹tì€™mÍ‘¬èé™¥±•ÍåÍÑ•´èéÍ=Á•É…Ñ¥½¸èé1¥ÍĞ°Í‘¬èé™¥±•ÍåÍÑ•´èéÍ=Á•É…Ñ¥½¸èéI•…°Í‘¬èé™¥±•ÍåÍÑ•´èéÍ=Á•É…Ñ¥½¸èé]É¥Ñ•tô((€€€™¸±¥ÍĞ ™Í•±˜°É•ÅÕ•ÍĞè€™Í‘¬èé™¥±•ÍåÍÑ•´èéÏ­õ¶‰Ëkºwµç[XÙ[™ÈÜİ›™]š›Ü[ˆØ›ÙTİ™X[NˆYKÛÛ[[™İX[™™›ÜØ\™È]™\HÜš]WØÚ[šØ›İYÚÜİ›™]š˜›ÙXÈÛÜ™H™YYÈH›İ[™Y˜Ú[›™[[ÈH™\]Y\İÛÈY[[ÜHİ^\È]Û™HÚ[šËˆİ™X[YY™\]Y\İÈÈ›İ™›ÛİÈ™Y\™XİÈ™XØ]\ÙHH›ÙHØ[››İ™H™\^YYˆ›ÙWÜ™XY\˜İ[™^\İÈ›ÜˆÛÜ™KX]]Üš^™Y™\Ûİ\˜ÙT™Y˜Û˜\ÚİË‚‚ˆÈÈRHÑÈÜ˜\\œÂ‚˜šY^ZPÛY[›İÈ\È\Y[\œÈ›ÜˆHÜİœšYÙN‚˜šY^˜Û\›Ø\™Üš]U^
+^
+XšY^›˜]šYØ][Û‹›Ü[Š]
+X˜šY^œ™]šY]Ëœ™XYJ
+XšY^œYÚ[‹\ÚÊ\ÚÒY
+XšY^œYÚ[‹š[›ÚÙJ‹‹ŠX˜šY^™X[ÙËŠ˜šY^\ÚÜËŠ˜šY^œ[™[Š˜šY^[YKŠ˜[™˜šY^šLN‹Š˜ˆHÛšY^™œËŠ˜[\ˆØ\È™[[İ™Yˆ›ÈÛÜ™H[™[œšYÙB™^ÜÙ\ÈÜÙHY]ÙË[™YÚ[ˆ‘”ÈXØÙ\ÜÈ™[Û™ÜÈ[ˆH˜]]™H˜XÚÙ[™‚‚ˆÈÈİ[™\™[™›ËÔ™]šY]È]™[Â‚˜[™›Ë™\ØÜšX™X[™›Ë˜ÛÛ\]X[™™]šY]Ë›Ü[˜™XÙZ]™HHØ[YB˜ÛÛ˜XİÎ‘]™[ÛÛ^Ú]H\™Ù]Ø\œ˜^KˆH”ÓÓ‹T”ÈY]Ù\ÈBœŞ\İ[H]™[Y[YšY\È›ÈÙ\\˜]H[[\™Ù]ÜˆÙ[Xİ[Û˜\Âœ™\]Z\™YˆYÚ[œÈ\ÙHİ\™Ù]Ê
+XÈ™XYHÜ\˜][Ûˆ\™Ù]È[™˜İ›Y]Y]J	\™Ù]œ™Y™\™[˜ÙJX›Üˆ\›Z\ÜÚ[Û‹\›Ú™XİYY]Y]KÚ]İ]œ\™›Ü›Z[™ÈSËˆ[™›È\ØÜšX™XXÛ\™\ÈšY[ÈÚ]İ]ÛÛ[XØÙ\ÜËÚ[B˜ÛÛ\]X™XÙZ]™\ÈH^Xİ™\]Y\İYšY[Ù^\Ëˆ\ÙHÛ“Ü[˜›Üˆ[™^[œÚ]™B˜[Y\È[™Û‘[X[™›Üˆ˜[Y\ÈÛÛ\]YY\ˆH\Ù\ˆXİ[Û‹ˆÈXØÙ\ÜÈš[B˜ÛÛ[\ÙHHØÛÜYš[HÑÎÈH\™Ù]™Yˆ[Û™H™]™\ˆÜ˜[È™XY\›Z\ÜÚ[Û‹ˆ[™›È™]\›œÈ\ØÜš\ÜœÈ[™šY[™\İ[ÎÂ”™]šY]È™]\›œÈÛÛ˜XİÎ”™]šY]ÕšY]Ø
+›Üˆ^[\K˜™]šY]ÕšY]Îš[
+ZKÜ™]šY]Ëš[ŠX
+Kˆİ\İÛHYÚ[ˆ”ÈY]ÙÈİXÚ\Â˜ÚXÚÜİ[K˜Ø[İ[]X™[XZ[ˆ]˜Z[X›HšXHHÛÛ›ÛYYÚ[ˆRHœšYÙK‚‚ˆÈÈÛÜ™K[İÛ™Y‘”ÈšY]ÜÈ[™ÛÛ›™Xİ[Ûˆ[YÚXš[]B‚Hİ[™[Û™Hš\X[™YHXÛ\™\È]Èİ\ÜYš[HÜ\˜][ÛœÈ›İYÚH‘”ÈšY]ÉÜÈ[İÙYÜØÛÛ˜Xİˆ™XY[Û›H™Z]š[Üˆ\È^™\ÜÙYHÛZ][™È]]][ÛˆÜ\˜][ÛœË‚HÛÛ›™Xİ[Ûˆ˜XİÜHXÛ\™\È^[œÚ[ÛœË˜ÛÛ›™Xİ[ÛœØ[™Y][Û˜[HXÛ\™\È^[œÚ[ÛœË™œØÚ[ˆ]^ÜÙ\Èš[\ÎÈ›İšY\œÈ]\İ›İXÛ\™HHØÚ[YHÜˆÛÛœİXİ[İ[Y[YšY\œË‚•RH^[œÚ[ÛœÈ™]™\ˆÛÛ™™\ˆ›İšY\ˆ[YÚXš[]KˆØÚ[YXØÚ[Y\Ø\šT™Yš^[İ[Y[™[İ[]\™H›Ü˜šY[ˆ[ˆ\ÙH^[œÚ[ÛœË‚‚•Ú][ˆHÙ[XİY\™\Ûİ\˜ÙH™\]Y\İØ[İ›Ü[—İ™œ×İšY]Êš\İÜH‹Ù[XİYÜ›Ûİ[[]]X›WØÛÛ^
+X‚ÛÜ™H]][XØ]\ÈH›ØÙ\ÜÈY[]KÛÛšX][ÛˆİÛ™\œÚ\[™™\Ûİ\˜ÙHØÛÜK[™™]\›œÈHšY^‹ËÛ[İ[ÏY‹Ø˜]šYØ][ÛˆT’K‚•HYÚ[ˆ]\İ›İÛÛœİXİT’\ËˆÛÜ™HÙ[™ÈÛÛšX][Û’YİšY]ĞÛÛ^Û[İ[YÛ›ÙRYÚ]HØ[YH™œËŠ˜Y]ÙÈHÛÛ›™Xİ[Ûˆ\Ù\ÎÈ™]\›ˆÜ\]YH›ÙRY\È[HY]Y]K[™™[]]™T]›ÜˆÙX\˜Úˆ›Ûİ›ÙRY\È[\K‚ÛÜ™Hš[™È™]\›™Y[šY\ÈÈ]È[İ[[™™]Z[œÈÛ›H^XÚ]HØ]™YÛX[šY]È\ØÜš\ÜœÈXÜ›ÜÜÈ™\İ\Ë‚‚ÛÛ›™Xİ[Û‹\ÜXÚYšXÈ™œËŠˆ›İšY\ˆ™\]Y\İÈ\™HÛÜ™K[Û›H[™™\]Z\™H[ˆ[œİ[YXİ]™HÛÛ›™Xİ[Ûˆ˜XİÜH›İ[™È][œİ[˜ÙK‚“Ü™[˜\H‘”È™YÚ\İ˜][ÛˆÙ\È›İÜ˜[Ş[˜Ë[‹]šXİ[Û‹ÛÛ™›XİÜˆØXÚHÛÛ›ÛˆÙ[™\šXÈš[\ËÒÕÔ™[XZ[ˆİXš™XİÈZ\ˆ^\İ[™ÈÜ\˜][Û‹Û™]ÛÜšÈÜ˜[Ë‚•\ÙH\™H\XØ][Ûˆ˜]šYØ][ÛˆT’\Ë›İÔÈ[İ[ËˆÛÛ›™Xİ[Ûˆš[\Èİ™X[HÈÛÜ™K[X[˜YÙYØXÚHš[\È™Y›Ü™H^\›˜[Ü[š[™Ë‚”İ[™[Û™HšY]ÜÈİ™X[H›İYÚHØ[YH™œË›Ü[”™XYÜ™XYİ™X[KØÛÜÙT™XYÛÛ˜XİÛÈ^ÜÈ[™™]šY]ÜÈ\™H›ÈÛ™Ù\ˆ[Z]YÈHZP‹‚ÛÜ™H]]Üš^™\È]™\HÜİØ[Ú]H™\]Y\İ]XZÙ\È][™™]›ÚÙ\È]]]Üš^˜][ÛˆÚ[ˆH™\]Y\İ™]\›œËÛÈHÑÈÙ\™\ÈXXÚİ™X[H[™\ˆ]ÈİÛˆ[\›˜[˜XÚÙÜ›İ[™\ÚÎÈH™\ÜÛœÙH›ÙY\ËÛØÚÙ]È[™š[H[™\ÈH›İšY\ˆÜ[œÈÚ[HHİ™X[H\ÈÜ™X]Yİ^H˜[Y›Üˆ™œËœ™XYİ™X[XØ™œËÜš]Tİ™X[X[™™œË˜ÛÛ[Z][™\™H™[X\ÙYÚ[ˆHİ™X[HÛÜÙ\Ë‚‚ˆÈÈÔÜ][™[‹XÛÜÙB‚˜]
+™XY\‹Üš]\ŠHHİÜ
 
-Independent SDKs for developing plugins for [Fiex](https://github.com/kevinhuang001/fiex).
+K˜ÛÛ›™Xİ
+ÜİÜ
+OËš[×ÜÜ]
 
-## ğŸ“– Start here / ä»è¿™é‡Œå¼€å§‹
+NØœ™]\›œÈÙ\\˜][HİÛ™YÜ™XY[ˆ™XY
+ÈÙ[™[™˜ÜÜš]R[ˆÜš]H
+ÈÙ[™ˆHÜİ\È[™\[™[Ô™XYİÜš]HØÚÜËœÛÈHÛÈ[™\ÈØ[ˆ™H[İ™YÈÙ\\˜]HÛÜšÙ\ˆ™XYËˆØ[˜Üš]\‹œÚ]İÛŠ
+X›ÜˆHÔ’SˆÚ[HÛÛ[Z[™ÈÈ™XYHÙ\™\ˆ™\ÜÛœÙB›İYÚ™XY\˜ˆH›ØÚÚ[™ÈTH\È[Ø^\È]˜Z[X›Kˆ[˜X›HHÜ[Û˜[ÚÚ[Ø™X]\™H›Ü‚˜İÜ
 
-**ç¬¬ä¸€æ¬¡å¼€å‘ Rust æ’ä»¶ï¼Ÿ** ä»è¿™ä»½å›¾æ–‡å¼æ­¥éª¤æ•™ç¨‹å¼€å§‹ï¼Œä¸éœ€è¦å…ˆç†è§£ JSON-RPCï¼š
+K˜ÛÛ›™XİØ\Ş[˜Ê‹‹ŠX[™İ™X[Kš[×Ø\Ş[˜Ê
+XÈHY\\ˆ™\Ù\™\Â˜ÛÛ\]Y™XYÈXÜ›ÜÜÈØ[˜Ù[][Ûˆ[™İX›Z]ÈİÛ™YÜš]\È›İYÚHØ[YB˜œ›ÚÙ\‹ˆİÜ
 
-â¡ï¸ **[Rust æ’ä»¶ SDKï¼šä»é›¶å¼€å§‹ï¼ˆä¸­æ–‡æ–°æ‰‹æ•™ç¨‹ï¼‰](rust/README.md)**
-
-The Chinese walkthrough takes you from an empty Rust project to a working native plugin, real-process tests, a `manifest.json`, cross-platform `.fiexplugin` packaging and GitHub Release installation.
-
-### Which SDK should I use? / è¯¥é€‰å“ªä¸ª SDKï¼Ÿ
-
-| ç›®å½•                      | ç”¨é€”                                                                                                     |
-| ------------------------- | -------------------------------------------------------------------------------------------------------- |
-| [`rust/`](rust/README.md) | Native æ’ä»¶ / Native process SDKï¼šRust å‘½ä»¤ã€æ–‡ä»¶ç³»ç»Ÿé€‚é…å™¨ã€å®¿ä¸»æ‰˜ç®¡å­˜å‚¨ä¸å‡­æ®ï¼Œé‡‡ç”¨ stdio JSON-RPC 2.0 |
-| [`ui/`](ui/src/index.ts)  | UI SDKï¼šåœ¨æ²™ç®± iframe ä¸­å¼€å‘æ’ä»¶é¢æ¿ï¼Œé€šè¿‡ MessageChannel ä¸å®¿ä¸»é€šä¿¡                                     |
-
-You can build a native-only plugin, a UI panel, or use both. A native plugin runs as a separate executable and must not write logs to stdout (use stderr instead).
-
-## Quick SDK checks / æ£€æŸ¥ SDK
-
-```sh
-# Rust SDK
-cargo fmt --manifest-path rust/Cargo.toml --check
-cargo test --manifest-path rust/Cargo.toml
-cargo build --manifest-path rust/Cargo.toml --example mock_plugin
-
-# Test the actual mock plugin process (Python 3 required)
-python rust/examples/check_plugin.py --binary rust/target/debug/examples/mock_plugin --plugin-id org.fiex.mock --method mock.echo
-
-# Browser-side UI SDK
-npm --prefix ui install
-npm --prefix ui run build
-npm --prefix ui test
-```
-
-The Rust SDK currently requires **Rust 1.90+** and speaks **protocol 6.0**. For full explanations of each command, see the [beginner tutorial](rust/README.md).
-
-## Real plugin examples / çœŸæ­£çš„æ’ä»¶é¡¹ç›®
-
-See [fiex-official-plugins](https://github.com/kevinhuang001/fiex-official-plugins) for examples of Checksum, Archive, Git, SMB, and WebDAV plugins, including GitHub Actions packaging.
-
-The APIs are **experimental** and may evolve with the Fiex Core development branch. Fiex does not bundle any official plugins or exempt official plugins from permission approval. Native plugins run inside Core's OS sandbox (Landlock/seccomp on Linux, Seatbelt on macOS, AppContainer and a Job Object on Windows); approved external commands run outside it as the current user. Only install plugins you trust.
-
-Pin the SDK with a Git submodule when developing a plugin so that your SDK version matches the version tested with your host and plugin project.
-
-## Protocol 6.0: refs, typed services and providers
-
-Protocol 6.0 unifies every provider file access behind `vfs.*` and removes host
-paths from the public plugin API. `ResourceRef` is an
-opaque `{mountId, nodeId}` identity; Core resolves it only inside the operation
-scope. `ctx.targets()` contains the selected resources and their optional
-permission-projected metadata. Never construct a ref or derive one from a path.
-
-```rust,ignore
-let target = ctx.target().ok_or_else(|| RpcError::invalid_params("missing target"))?;
-let text = ctx.files().read_to_string(&target.reference)?;
-```
-
-`ctx.files().child(&directory.reference, "output.zip")` reserves a new identity
-below an authorized directory. `ctx.storage()` is a typed, plugin-private store
-with compare-and-set (`get`, `set`, `delete`, `keys`, `update`). `ctx.secrets()`
-uses the Core-selected credential backend (local by default, optional OS keyring) and distinguishes `Denied`, `Unavailable`, missing and
-invalid data instead of collapsing them into `None`. Terminal interfaces belong to PluginView packages. Plugins own
-their session state and expose custom RPC through the UI bridge; the host only
-brokers generic network and permission services.
-
-Optional typed event providers are defined once in the runtime-independent
-`fiex-provider-contracts` crate under `rust/contracts`: `InfoProvider`,
-`PreviewProvider`, `DecorationProvider`, `ContextMenuProvider`,
-`ConnectionContextMenuProvider`,
-`SearchProvider`, `HookProvider`, `ToolbarProvider` and `ConnectionProvider`
-(lifecycle only). File-system access is one `VfsProvider` trait for
-connections and standalone views alike. Register only what the plugin
-implements; custom RPC still goes through the fallback:
-
-`ConnectionProvider::validate` returns the shared `ConnectionValidation` DTO;
-the SDK serializes it only at the JSON-RPC boundary.
-
-```rust,ignore
-sdk::Providers::new()
-    .info(MyInfo)
-    .context_menu(MyMenu)
-    .filesystem(MyDrive::new())
-    .serve_with("org.example.plugin", |ctx| custom(ctx))
-```
-
-Every shared provider method receives `&dyn ProviderInvocation`, not the SDK
-runtime's `RequestContext`. The invocation carries a safe request projection;
-the SDK implements it for plugin calls and keeps authorized Host services in a
-process-local handle. Import `ProviderInvocationExt` in a plugin module to use
-the existing convenience methods such as `ctx.files()`, `ctx.http()`,
-`ctx.storage()` and `ctx.secrets()`. Those local service handles never cross
-the Core/Plugin JSON-RPC boundary.
-
-## File-system providers
-
-Implement the methods you really support and declare the operation ceiling explicitly:
-
-```rust,ignore
-use fiex_plugin_sdk as sdk;
-use sdk::ProviderInvocationExt;
-use sdk::filesystem::{VfsProvider, FsEntry, FsListing, FsRead, FsWrite};
-
-impl VfsProvider for MyDrive {
-    fn operations(&self) -> &'static [sdk::filesystem::FsOperation] { &[sdk::filesystem::FsOperation::List, sdk::filesystem::FsOperation::Read, sdk::filesystem::FsOperation::Write] }
-
-    fn list(&self, request: &sdk::filesystem::FsRequest<'_>) -> Result<FsListing, sdk::RpcError> {
-        // request.node_id(), request.cursor(), request.limit()
-        Ok(FsListing::default())
-    }
-
-    fn read(&self, request: &sdk::filesystem::FsRequest<'_>) -> Result<FsRead, sdk::RpcError> {
-        Ok(FsRead::new(http_response, Some(size)))
-    }
-
-    fn write(&self, request: &sdk::filesystem::FsRequest<'_>) -> Result<FsWrite, sdk::RpcError> {
-        Ok(FsWrite::with_commit(upload_body, move || {
-            Ok(FsEntry::file("id", "name").with_revision("etag"))
-        }))
-    }
-}
-```
-
-The required `operations()` method explicitly declares the implementation ceiling.
-Override `discover(ctx)` to narrow it to the server permissions of the current
-connection and resource. The SDK owns ordinary dispatch without procedural macros.
-`plugin.initialize` reports `vfs: {operations: [...], discovery: true,
-preflightOps: [...], providers: [...]}`. The SDK derives `preflightOps` from
-registered handlers; Core and SDK reject operations outside the reported
-intersection. Nodes may narrow the file-operation set further with
-`FsEntry::allowing([..])`. See [the discovery contract](docs/fs-provider-discovery.md)
-and [operation preflight](docs/transfer-preflight.md).
-
-The SDK owns stream ids, chunk offsets, `closeRead`, sequential write offsets
-and `commit`/`abort`; providers only return standard `Read`/`Write` values.
-Protocol-specific finishing (SMB staging rename, Drive resumable completion)
-belongs in the commit callback.
-
-## Streaming HTTP request bodies
-
-Providers that upload bytes they generate themselves (WebDAV `PUT`, OpenList
-uploads) can stream a request body instead of buffering the whole file:
-
-```rust,ignore
-let mut body = ctx.http().put(url).header("If-Match", etag).body_stream(size)?;
-for chunk in chunks {
-    body.write_chunk(chunk)?;
-}
-let response = body.finish()?.error_for_status()?;
-```
-
-`body_stream` sends `host.net.http.open {bodyStream: true, contentLength}` and
-forwards every `write_chunk` through `host.net.http.body`; Core feeds a bounded
-channel into the request, so memory stays at one chunk. Streamed requests do not
-follow redirects because the body cannot be replayed. `body_reader` still
-exists for Core-authorized `ResourceRef` snapshots.
-
-## UI SDK wrappers
-
-`FiexUiClient` now has typed helpers for the host bridge:
-`fiex.clipboard.writeText(text)`, `fiex.navigation.open(path)`,
-`fiex.preview.ready()`, `fiex.plugin.task(taskId)`, `fiex.plugin.invoke(...)`,
-`fiex.dialog.*`, `fiex.tasks.*`, `fiex.panel.*`, `fiex.theme.*` and
-`fiex.i18n.*`. The old `fiex.vfs.*` helper was removed: no Core panel bridge
-exposes those methods, and plugin VFS access belongs in the native backend.
-
-## Standard Info/Preview events
-
-`info.resolve` and `preview.open` receive the same
-`contracts::EventContext` with a `targets` array. The JSON-RPC `method` is the
-system event identifier; no separate `intent`, `target`, or `selection` is
-required. Plugins use `ctx.targets()` to read the operation targets and
-`ctx.metadata(&target.reference)` for permission-projected metadata, without
-performing IO. To access file content, use the scoped file SDK; a target ref
-alone never grants read permission. Info returns `sections JSON`;
-Preview returns `contracts::PreviewView` (for example,
-`PreviewView::html("ui/preview.html")`). Custom plugin RPC methods such as
-`checksum.calculate` remain available via the controlled plugin UI bridge.
-
-## Core-owned VFS views and connection eligibility
-
-A standalone virtual tree declares its supported file operations through the VFS view's `allowedOps` contract. Read-only behavior is expressed by omitting mutation operations.
-A connection factory declares `extensions.connections` and additionally declares `extensions.vfs` when it exposes files; providers must not declare a scheme or construct mount identifiers.
-UI extensions never confer provider eligibility. `scheme`, `schemes`, `uriPrefix`, `mountId`, and `mountPath` are forbidden in these extensions.
-
-Within a selected-resource request, call `ctx.open_vfs_view("history", selected_root, immutable_context)`.
-Core authenticates the process identity, contribution ownership, and resource scope, and returns a `fiex://mount/<id>/` navigation URI.
-The plugin must not construct URIs. Core sends contributionId/viewContext/mountId/nodeId with the same `vfs.*` methods a connection uses; return opaque nodeId plus entry metadata, and relativePath for search. Root nodeId is empty.
-Core binds returned entries to its mount and retains only explicitly saved small view descriptors across restarts.
-
-Connection-specific vfs.* provider requests are Core-only and require an installed, active connection factory bound to that instance.
-Ordinary VFS registration does not grant sync, pin, eviction, conflict, or cache control. Generic files/HTTP/TCP remain subject to their existing operation/network grants.
-These are application navigation URIs, not OS mounts. Connection files stream to Core-managed cache files before external opening.
-Standalone views stream through the same `vfs.openRead/readStream/closeRead` contract, so exports and previews are no longer limited to 1 MiB.
-Core authorizes every host call with the request that makes it and revokes that authorization when the request returns, so the SDK serves each stream under its own internal background task; the HTTP response bodies, sockets and file handles a provider opens while the stream is created stay valid for `vfs.readStream`/`vfs.writeStream` and `vfs.commit`, and are released when the stream closes.
-
-## TCP split and half-close
-
-`let (reader, writer) = ctx.tcp().connect(host, port)?.into_split();`
-returns separately owned `TcpReadHalf: Read + Send` and
-`TcpWriteHalf: Write + Send`. The host has independent TCP read/write locks,
-so the two halves can be moved to separate worker threads. Call
-`writer.shutdown()` for a TCP FIN while continuing to read a server response
-through `reader`. The blocking API is always available. Enable the optional `tokio` feature for
-`ctx.tcp().connect_async(...)` and `stream.into_async()`; the adapter preserves
-completed reads across cancellation and submits owned writes through the same
-broker. `ctx.tcp().with_deadline(instant)` applies one absolute deadline to
-connect, reads and writes.
-
-## Diagnostics through SDK
-
-Enable `Providers::new().diagnostics()` to record payload-free request completion
-and inherited background task lifecycles through the authenticated Host. Typed
-providers and custom fallback methods use the same boundary. The SDK records RPC
-codes and durations, never request parameters, results, headers or raw exception
-messages. Host owns redaction, correlation, retention and rate limits.
-
-Use `ctx.log("info", "operation started")` for explicit diagnostics, and
-`ctx.report_error("archive.extract", "Extraction failed", None)` only when a
-failure cannot be returned to the initiating UI. Error-level logs do not open
-modals. Returning an RPC error and also reporting it would duplicate notification;
-normal cancellation and capability fallback should remain quiet.
-
-Panels use `client.logs.write("debug", "ready")` and
-`client.errors.report("Render failed", "safe details")`. Both call the native
-SDK's diagnostics endpoints through `client.plugin.invoke`; callers cannot attach
-plugin identity or choose a Host log destination. Diagnostic forwarding failures
-are swallowed by the panel helpers to prevent recursive error reporting.
-
-Once the control channel is closed, no SDK request context remains. A generic,
-credential-free stderr message is the emergency transport-failure fallback;
-stdout always contains only framed JSON-RPC.
+KÚ]ÙXY[™J[œİ[
+X\Y\ÈÛ™HXœÛÛ]HXY[™HÂ˜ÛÛ›™Xİ™XYÈ[™Üš]\Ë‚‚ˆÈÈXYÛ›ÜİXÜÈ›İYÚÑÂ‚‘[˜X›H›İšY\œÎ›™]Ê
+K™XYÛ›ÜİXÜÊ
+XÈ™XÛÜ™^[ØYYœ™YH™\]Y\İÛÛ\][Û‚˜[™[š\š]Y˜XÚÙÜ›İ[™\ÚÈY™XŞXÛ\È›İYÚH]][XØ]YÜİˆ\Yœ›İšY\œÈ[™İ\İÛH˜[˜XÚÈY]ÙÈ\ÙHHØ[YH›İ[™\KˆHÑÈ™XÛÜ™È”Â˜ÛÙ\È[™\˜][ÛœË™]™\ˆ™\]Y\İ\˜[Y]\œË™\İ[ËXY\œÈÜˆ˜]È^Ù\[Û‚›Y\ÜØYÙ\ËˆÜİİÛœÈ™YXİ[Û‹ÛÜœ™[][Û‹™][[Ûˆ[™˜]H[Z]Ë‚‚•\ÙHİ›ÙÊš[™›È‹›Ü\˜][Ûˆİ\YŠX›Üˆ^XÚ]XYÛ›ÜİXÜË[™˜İœ™\ÜÙ\œ›ÜŠ˜\˜Ú]™K™^˜Xİ‹‘^˜Xİ[Ûˆ˜Z[Y‹›Û™JXÛ›HÚ[ˆB™˜Z[\™HØ[››İ™H™]\›™YÈH[š]X][™ÈRKˆ\œ›Ü‹[]™[ÙÜÈÈ›İÜ[‚›[Ù[Ëˆ™]\›š[™È[ˆ”È\œ›Üˆ[™[ÛÈ™\Ü[™È]Ûİ[\XØ]H›İYšXØ][ÛÂ››Ü›X[Ø[˜Ù[][Ûˆ[™Ø\Xš[]H˜[˜XÚÈÚİ[™[XZ[ˆ]ZY]‚‚”[™[È\ÙHÛY[›ÙÜËÜš]J™XYÈ‹œ™XYHŠX[™˜ÛY[™\œ›ÜœËœ™\Ü
+”™[™\ˆ˜Z[Y‹œØY™H]Z[ÈŠXˆ›İØ[H˜]]™B”ÑÉÜÈXYÛ›ÜİXÜÈ[™Ú[È›İYÚÛY[œYÚ[‹š[›ÚÙXÈØ[\œÈØ[››İ]XÚœYÚ[ˆY[]HÜˆÚÛÜÙHHÜİÙÈ\İ[˜][Û‹ˆXYÛ›ÜİXÈ›ÜØ\™[™È˜Z[\™\Â˜\™HİØ[İÙYHH[™[[\œÈÈ™]™[™Xİ\œÚ]™H\œ›Üˆ™\Ü[™Ë‚‚“Û˜ÙHHÛÛ›ÛÚ[›™[\ÈÛÜÙY›ÈÑÈ™\]Y\İÛÛ^™[XZ[œËˆHÙ[™\šXË˜Ü™Y[X[Yœ™YHİ\œˆY\ÜØYÙH\ÈH[Y\™Ù[˜ŞH˜[œÜÜY˜Z[\™H˜[˜XÚÎÂœİİ][Ø^\ÈÛÛZ[œÈÛ›Hœ˜[YY”ÓÓ‹T”Ë‚
