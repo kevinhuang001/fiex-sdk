@@ -1,4 +1,4 @@
-# IPC coverage audit (protocol 6.0)
+# IPC coverage audit (protocol 7.0)
 
 This audit compares the Core host and UI bridge surface with the public Rust
 and UI SDKs. It is intentionally versioned with the SDK: add a row when Core
@@ -30,7 +30,8 @@ adds a method, and delete the row when a method is removed.
 
 | Event                                     | SDK surface                                                   | Status                                                                             |
 | ----------------------------------------- | ------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| `info.resolve`                            | `InfoProvider` or manual dispatch                             | Typed provider added                                                               |
+| `info.describe`                           | `InfoProvider::describe`                                      | Declares field descriptors without computing values                                |
+| `info.compute`                            | `InfoProvider::compute`                                       | Computes only the requested field keys                                            |
 | `preview.open`                            | `PreviewProvider` or manual dispatch                          | Typed provider added                                                               |
 | `decorations.resolve`                     | `DecorationProvider` or manual dispatch                       | Typed provider added                                                               |
 | `contextMenu.resolve/execute`             | `ContextMenuProvider` or manual dispatch                      | Typed provider added                                                               |

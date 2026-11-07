@@ -1,8 +1,8 @@
 //! Typed input union and codec for standard provider events.
 use crate::{
     ConnectionMenuExecuteRequest, ConnectionMenuResolveRequest, ConnectionRequest,
-    ContextMenuExecuteRequest, ContextMenuResolveRequest, HookRequest, ResourceEventRequest,
-    SearchQueryRequest, ToolbarRequest, VfsRequest,
+    ContextMenuExecuteRequest, ContextMenuResolveRequest, HookRequest, InfoComputeRequest,
+    ResourceEventRequest, SearchQueryRequest, ToolbarRequest, VfsRequest,
 };
 use serde_json::{Map, Value};
 
@@ -13,6 +13,7 @@ pub enum ProviderInput {
     #[default]
     Unspecified,
     Resource(ResourceEventRequest),
+    InfoCompute(InfoComputeRequest),
     ContextMenuResolve(ContextMenuResolveRequest),
     ContextMenuExecute(ContextMenuExecuteRequest),
     ConnectionMenuResolve(ConnectionMenuResolveRequest),
@@ -28,7 +29,8 @@ impl ProviderInput {
     pub fn decode(method: &str, params: &Value) -> Result<Self, String> {
         if !matches!(
             method,
-            "info.resolve"
+            "info.describe"
+                | "info.compute"
                 | "preview.open"
                 | "decorations.resolve"
                 | "contextMenu.resolve"
@@ -76,9 +78,10 @@ impl ProviderInput {
             };
         }
         match method {
-            "info.resolve" | "preview.open" | "decorations.resolve" => {
+            "info.describe" | "preview.open" | "decorations.resolve" => {
                 parse!(ResourceEventRequest, Resource)
             }
+            "info.compute" => parse!(InfoComputeRequest, InfoCompute),
             "contextMenu.resolve" => parse!(ContextMenuResolveRequest, ContextMenuResolve),
             "contextMenu.execute" => parse!(ContextMenuExecuteRequest, ContextMenuExecute),
             "connectionContextMenu.resolve" => {
@@ -105,6 +108,7 @@ impl ProviderInput {
         match self {
             Self::Unspecified => Ok(Value::Object(Map::new())),
             Self::Resource(value) => serde_json::to_value(value),
+            Self::InfoCompute(value) => serde_json::to_value(value),
             Self::ContextMenuResolve(value) => serde_json::to_value(value),
             Self::ContextMenuExecute(value) => serde_json::to_value(value),
             Self::ConnectionMenuResolve(value) => serde_json::to_value(value),
@@ -121,6 +125,7 @@ impl ProviderInput {
     pub fn provider_id(&self) -> Option<&str> {
         match self {
             Self::Resource(value) => value.provider_id.as_deref(),
+            Self::InfoCompute(value) => value.provider_id.as_deref(),
             Self::ContextMenuResolve(value) => value.provider_id.as_deref(),
             Self::ContextMenuExecute(value) => value.provider_id.as_deref(),
             Self::ConnectionMenuResolve(value) => value.provider_id.as_deref(),
@@ -139,6 +144,7 @@ impl ProviderInput {
     pub fn set_provider_id(&mut self, provider_id: Option<String>) -> Result<(), String> {
         let field = match self {
             Self::Resource(value) => &mut value.provider_id,
+            Self::InfoCompute(value) => &mut value.provider_id,
             Self::ContextMenuResolve(value) => &mut value.provider_id,
             Self::ContextMenuExecute(value) => &mut value.provider_id,
             Self::ConnectionMenuResolve(value) => &mut value.provider_id,

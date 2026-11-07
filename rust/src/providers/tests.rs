@@ -1,24 +1,40 @@
 use super::*;
-use crate::{InfoRow, InfoSection};
+use crate::{
+    InfoCompute, InfoFieldDescriptor, InfoFieldKey, InfoFieldResult, InfoSectionDescriptor,
+};
 
 struct ExampleInfo;
 impl InfoProvider for ExampleInfo {
-    fn resolve(
+    fn describe(
         &self,
         _ctx: &dyn fiex_provider_contracts::ProviderInvocation,
-    ) -> Result<Vec<InfoSection>, RpcError> {
-        Ok(vec![InfoSection {
-            source: String::new(),
-            provider: String::new(),
-            plugin_id: None,
+    ) -> Result<Vec<InfoSectionDescriptor>, RpcError> {
+        Ok(vec![InfoSectionDescriptor {
             id: "example".into(),
             title: "Example".into(),
-            rows: vec![InfoRow {
+            fields: vec![InfoFieldDescriptor {
+                id: "a".into(),
                 label: "A".into(),
-                value: "B".into(),
-                copyable: false,
+                compute: InfoCompute::OnDemand,
             }],
         }])
+    }
+
+    fn compute(
+        &self,
+        _ctx: &dyn fiex_provider_contracts::ProviderInvocation,
+        fields: &[InfoFieldKey],
+    ) -> Result<Vec<InfoFieldResult>, RpcError> {
+        Ok(fields
+            .iter()
+            .filter(|field| field.section_id == "example" && field.field_id == "a")
+            .map(|field| InfoFieldResult {
+                section_id: field.section_id.clone(),
+                field_id: field.field_id.clone(),
+                value: Some("B".into()),
+                unavailable: false,
+            })
+            .collect())
     }
 }
 

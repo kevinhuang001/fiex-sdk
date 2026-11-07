@@ -22,6 +22,15 @@ pub struct ResourceEventRequest {
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct InfoComputeRequest {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provider_id: Option<String>,
+    #[serde(default)]
+    pub fields: Vec<crate::InfoFieldKey>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ContextMenuResolveRequest {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub menu_session_id: Option<String>,

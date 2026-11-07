@@ -2,29 +2,46 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct InfoRow {
-    pub label: String,
-    pub value: String,
-    #[serde(default)]
-    pub copyable: bool,
+pub enum InfoCompute {
+    OnOpen,
+    OnDemand,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct InfoSection {
-    #[serde(default, skip_serializing_if = "String::is_empty")]
-    pub source: String,
-    #[serde(default, skip_serializing_if = "String::is_empty")]
-    pub provider: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub plugin_id: Option<String>,
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct InfoFieldDescriptor {
+    pub id: String,
+    pub label: String,
+    pub compute: InfoCompute,
+}
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct InfoSectionDescriptor {
     pub id: String,
     pub title: String,
     #[serde(default)]
-    pub rows: Vec<InfoRow>,
+    pub fields: Vec<InfoFieldDescriptor>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct InfoFieldKey {
+    pub section_id: String,
+    pub field_id: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct InfoFieldResult {
+    pub section_id: String,
+    pub field_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub value: Option<String>,
+    #[serde(default)]
+    pub unavailable: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

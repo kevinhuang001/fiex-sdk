@@ -1,3 +1,7 @@
+# Unreleased — protocol 7.0
+
+- Replace eager Info responses with declarative field descriptions and exact `info.compute` requests; update the SDK protocol handshake to 7.0.
+
 # Fiex SDK 0.3.4 — protocol 6
 
 - Preserve array and custom parameter shapes for non-standard RPC methods while keeping typed validation for standard provider events.
