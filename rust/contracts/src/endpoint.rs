@@ -39,7 +39,6 @@ impl Event {
 pub fn event(method: &str) -> Option<Event> {
     use Dispatch::*;
     let (extension, dispatch) = match method {
-        "info.describe" => ("info", Merge),
         "info.compute" => ("info", Owner),
         "preview.open" => ("preview", FirstSupported),
         "decorations.resolve" => ("decorations", Merge),
@@ -66,7 +65,6 @@ mod tests {
     #[test]
     fn public_event_table_covers_all_provider_families() {
         for (name, extension, dispatch) in [
-            ("info.describe", "info", Dispatch::Merge),
             ("info.compute", "info", Dispatch::Owner),
             ("preview.open", "preview", Dispatch::FirstSupported),
             ("decorations.resolve", "decorations", Dispatch::Merge),
@@ -94,5 +92,6 @@ mod tests {
         }
         assert!(event("fs.read").is_none());
         assert!(event("custom.example").is_none());
+        assert!(event("info.describe").is_none());
     }
 }

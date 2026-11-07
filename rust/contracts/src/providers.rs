@@ -3,11 +3,11 @@
 use crate::{
     ConnectionOpenResult, ConnectionValidation, CreateFilePreflight, CreateFolderPreflight,
     DecorationContribution, ExportPreflight, FsEntry, FsListing, FsOperation, FsRequest,
-    HookResult, ImportPreflight, InfoFieldKey, InfoFieldResult, InfoSectionDescriptor,
-    MenuExecuteResult, MenuItem, MovePreflight, PreflightDecision, PreflightOp, PreflightOperation,
-    PreflightPhase, PreflightRequest, PreviewView, ProviderError, ProviderInvocation,
-    RemovePreflight, RenamePreflight, SearchCapabilities, SearchEntry, SearchMode, SearchResults,
-    ToolbarResult, TrashPreflight,
+    HookResult, ImportPreflight, InfoFieldKey, InfoFieldResult, MenuExecuteResult, MenuItem,
+    MovePreflight, PreflightDecision, PreflightOp, PreflightOperation, PreflightPhase,
+    PreflightRequest, PreviewView, ProviderError, ProviderInvocation, RemovePreflight,
+    RenamePreflight, SearchCapabilities, SearchEntry, SearchMode, SearchResults, ToolbarResult,
+    TrashPreflight,
 };
 use std::{collections::BTreeMap, sync::Arc};
 
@@ -323,11 +323,6 @@ pub trait VfsProvider: Send + Sync {
 }
 
 pub trait InfoProvider: Send + Sync {
-    fn describe(
-        &self,
-        ctx: &dyn ProviderInvocation,
-    ) -> Result<Vec<InfoSectionDescriptor>, ProviderError>;
-
     fn compute(
         &self,
         ctx: &dyn ProviderInvocation,

@@ -23,10 +23,12 @@ manifests together with Core. Protocol 6's filesystem rules remain in the
 
 ## Info field sessions
 
-Protocol 7.0 replaces the eager `InfoProvider::resolve` response with two
-calls. `info.describe` declares section and field descriptors (`id`, `label`,
-and `compute: onOpen | onDemand`) without computing values. `info.compute`
-receives only the `InfoFieldKey` values selected by Core and returns text
-results for those keys. Info field caching, permissions, cancellation and
-session ownership remain Core responsibilities. Protocol 7.0 does not accept
-the former Info DTOs or RPC shape.
+Info fields are declared statically in `extensions.info.sections` in the
+plugin manifest. Each field contains only `id`, `label`, and
+`compute: onOpen | onDemand`; the Core builds the field index when the plugin
+is installed or activated. Opening Info never starts a plugin just to discover
+its fields. The SDK exposes only `InfoProvider::compute`; Core invokes
+`info.compute` for the exact field keys selected by its scheduler or by a user
+action. The plugin returns text results for those keys. Info field caching,
+permissions, cancellation and session ownership remain Core responsibilities.
+Protocol 7.0 does not accept the former Info DTOs or RPC shape.

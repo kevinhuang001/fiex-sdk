@@ -29,8 +29,7 @@ impl ProviderInput {
     pub fn decode(method: &str, params: &Value) -> Result<Self, String> {
         if !matches!(
             method,
-            "info.describe"
-                | "info.compute"
+            "info.compute"
                 | "preview.open"
                 | "decorations.resolve"
                 | "contextMenu.resolve"
@@ -78,7 +77,7 @@ impl ProviderInput {
             };
         }
         match method {
-            "info.describe" | "preview.open" | "decorations.resolve" => {
+            "preview.open" | "decorations.resolve" => {
                 parse!(ResourceEventRequest, Resource)
             }
             "info.compute" => parse!(InfoComputeRequest, InfoCompute),

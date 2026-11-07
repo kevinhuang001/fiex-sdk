@@ -1,25 +1,8 @@
 use super::*;
-use crate::{
-    InfoCompute, InfoFieldDescriptor, InfoFieldKey, InfoFieldResult, InfoSectionDescriptor,
-};
+use crate::{InfoFieldKey, InfoFieldResult};
 
 struct ExampleInfo;
 impl InfoProvider for ExampleInfo {
-    fn describe(
-        &self,
-        _ctx: &dyn fiex_provider_contracts::ProviderInvocation,
-    ) -> Result<Vec<InfoSectionDescriptor>, RpcError> {
-        Ok(vec![InfoSectionDescriptor {
-            id: "example".into(),
-            title: "Example".into(),
-            fields: vec![InfoFieldDescriptor {
-                id: "a".into(),
-                label: "A".into(),
-                compute: InfoCompute::OnDemand,
-            }],
-        }])
-    }
-
     fn compute(
         &self,
         _ctx: &dyn fiex_provider_contracts::ProviderInvocation,

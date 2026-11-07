@@ -16,14 +16,6 @@ impl Providers {
             );
         }
         let value = match ctx.method() {
-            "info.describe" => {
-                let sections = self
-                    .info
-                    .select(input.provider_id())?
-                    .ok_or_else(|| unsupported(ctx))?
-                    .describe(ctx)?;
-                json!({"sections":sections})
-            }
             "info.compute" => {
                 let provider = self
                     .info

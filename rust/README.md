@@ -262,7 +262,8 @@ fn main() {
 
 **不要用 `println!` 打印调试信息！** 插件用标准输出（`stdout`）跟 Fiex 交换协议消息。`println!` 可能破坏协议，让插件看起来像是“莫名其妙地断开”。要记录日志，请用 `eprintln!`。
 
-如果插件要实现 `info.describe`、`info.compute`、`preview.open`、`contextMenu.resolve` 等标准事件，
+Info 字段在 `manifest.json` 的 `extensions.info.sections` 中静态声明；插件只实现 `info.compute`。
+如果插件要实现 `info.compute`、`preview.open`、`contextMenu.resolve` 等标准事件，
 不要手写 `match ctx.method()`。用可选的 `sdk::Providers` 注册对应 trait，自定义
 RPC 交给 fallback：
 
