@@ -144,13 +144,12 @@ impl ProviderMatchRule {
         }
         validate_location_field("match", "view", object.get("view"))?;
         validate_location_field("match", "storage", object.get("storage"))?;
-        if let Some(kinds) = object.get("kinds").and_then(Value::as_array) {
-            if kinds
+        if let Some(kinds) = object.get("kinds").and_then(Value::as_array)
+            && kinds
                 .iter()
                 .any(|value| !matches!(value.as_str(), Some("file" | "directory" | "connection")))
-            {
-                return Err("match.kinds accepts only file, directory or connection".into());
-            }
+        {
+            return Err("match.kinds accepts only file, directory or connection".into());
         }
         if let Some(selection) = object.get("selection") {
             let choice = selection
@@ -286,13 +285,12 @@ fn validate_exclude_fields(fields: &serde_json::Map<String, Value>) -> Result<()
             }
         }
     }
-    if let Some(kinds) = fields.get("kinds").and_then(Value::as_array) {
-        if kinds
+    if let Some(kinds) = fields.get("kinds").and_then(Value::as_array)
+        && kinds
             .iter()
             .any(|value| !matches!(value.as_str(), Some("file" | "directory" | "connection")))
-        {
-            return Err("match.exclude.kinds accepts only file, directory or connection".into());
-        }
+    {
+        return Err("match.exclude.kinds accepts only file, directory or connection".into());
     }
     Ok(())
 }

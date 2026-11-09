@@ -206,16 +206,13 @@ impl Read for Aria2Response {
             }
             if bytes.is_empty() {
                 if value["eof"].as_bool() == Some(true) {
-                    if let Some(expected) = self.size {
-                        if self.read != expected {
-                            return Err(io::Error::new(
-                                io::ErrorKind::UnexpectedEof,
-                                format!(
-                                    "aria2 short download: {} of {} bytes",
-                                    self.read, expected
-                                ),
-                            ));
-                        }
+                    if let Some(expected) = self.size
+                        && self.read != expected
+                    {
+                        return Err(io::Error::new(
+                            io::ErrorKind::UnexpectedEof,
+                            format!("aria2 short download: {} of {} bytes", self.read, expected),
+                        ));
                     }
                     return Ok(0);
                 }

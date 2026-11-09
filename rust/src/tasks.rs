@@ -325,10 +325,10 @@ impl TaskManager {
     }
 
     pub(crate) fn cancel(&self, id: &str) {
-        if let Ok(state) = self.state.lock() {
-            if let Some(task) = state.tasks.get(id) {
-                task.cancel();
-            }
+        if let Ok(state) = self.state.lock()
+            && let Some(task) = state.tasks.get(id)
+        {
+            task.cancel();
         }
     }
 

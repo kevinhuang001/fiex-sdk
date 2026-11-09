@@ -26,10 +26,10 @@ pub(crate) struct ReadCache {
 
 impl ReadCache {
     pub(crate) fn release(&mut self, context: &ContextInner) {
-        if let Some((_, descriptor)) = self.shared.take() {
-            if !context.closed() {
-                let _ = context.call("host.buffer.release", json!({"id": descriptor.id}));
-            }
+        if let Some((_, descriptor)) = self.shared.take()
+            && !context.closed()
+        {
+            let _ = context.call("host.buffer.release", json!({"id": descriptor.id}));
         }
     }
 
@@ -47,8 +47,9 @@ impl ReadCache {
             .checked_sub(self.start)
             .and_then(|value| usize::try_from(value).ok());
         if cached.is_none_or(|index| index >= self.bytes.len()) {
-            if (output.len() >= CHUNK || self.misses >= 2) && self.shared.is_none() {
-                if let Ok(descriptor) = context
+            if (output.len() >= CHUNK || self.misses >= 2)
+                && self.shared.is_none()
+                && let Ok(descriptor) = context
                     .call(
                         "host.buffer.create",
                         json!({"size": SHARED_WINDOW, "writable": false}),
@@ -57,13 +58,11 @@ impl ReadCache {
                         serde_json::from_value::<ipc::BufferDescriptor>(value)
                             .map_err(|error| RpcError::internal(error.to_string()))
                     })
-                {
-                    match ipc::SharedBuffer::open(&descriptor) {
-                        Ok(mapped) => self.shared = Some((mapped, descriptor)),
-                        Err(_) => {
-                            let _ =
-                                context.call("host.buffer.release", json!({"id": descriptor.id}));
-                        }
+            {
+                match ipc::SharedBuffer::open(&descriptor) {
+                    Ok(mapped) => self.shared = Some((mapped, descriptor)),
+                    Err(_) => {
+                        let _ = context.call("host.buffer.release", json!({"id": descriptor.id}));
                     }
                 }
             }
@@ -148,8 +147,9 @@ pub(crate) fn flush_pending(
     if pending.is_empty() {
         return Ok(());
     }
-    if pending.len() >= 64 * 1024 && shared.is_none() {
-        if let Ok(descriptor) = context
+    if pending.len() >= 64 * 1024
+        && shared.is_none()
+        && let Ok(descriptor) = context
             .call(
                 "host.buffer.create",
                 json!({"size": CHUNK, "writable": true}),
@@ -158,12 +158,11 @@ pub(crate) fn flush_pending(
                 serde_json::from_value::<ipc::BufferDescriptor>(value)
                     .map_err(|error| RpcError::internal(error.to_string()))
             })
-        {
-            match ipc::SharedBuffer::open(&descriptor) {
-                Ok(mapped) => *shared = Some((mapped, descriptor)),
-                Err(_) => {
-                    let _ = context.call("host.buffer.release", json!({"id": descriptor.id}));
-                }
+    {
+        match ipc::SharedBuffer::open(&descriptor) {
+            Ok(mapped) => *shared = Some((mapped, descriptor)),
+            Err(_) => {
+                let _ = context.call("host.buffer.release", json!({"id": descriptor.id}));
             }
         }
     }
@@ -202,9 +201,9 @@ pub(crate) fn release_write_buffer(
     context: &ContextInner,
     shared: &mut Option<(ipc::SharedBuffer, ipc::BufferDescriptor)>,
 ) {
-    if let Some((_, descriptor)) = shared.take() {
-        if !context.closed() {
-            let _ = context.call("host.buffer.release", json!({"id": descriptor.id}));
-        }
+    if let Some((_, descriptor)) = shared.take()
+        && !context.closed()
+    {
+        let _ = context.call("host.buffer.release", json!({"id": descriptor.id}));
     }
 }

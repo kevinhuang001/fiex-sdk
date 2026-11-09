@@ -140,10 +140,10 @@ impl Runtime {
         }
         drop(active);
         self.dispatcher.close();
-        if let Ok(mut reader) = self.reader.lock() {
-            if let Some(handle) = reader.take() {
-                let _ = handle.join();
-            }
+        if let Ok(mut reader) = self.reader.lock()
+            && let Some(handle) = reader.take()
+        {
+            let _ = handle.join();
         }
         let error = self
             .shutdown
@@ -331,11 +331,11 @@ impl Runtime {
     }
 
     fn request_shutdown(&self, error: Option<String>) {
-        if let Ok(mut state) = self.shutdown.lock() {
-            if !state.requested {
-                state.requested = true;
-                state.error = error;
-            }
+        if let Ok(mut state) = self.shutdown.lock()
+            && !state.requested
+        {
+            state.requested = true;
+            state.error = error;
         }
         self.shutdown_changed.notify_all();
     }

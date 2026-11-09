@@ -125,10 +125,10 @@ impl Dispatcher {
                 .cloned()
                 .ok_or_else(|| RpcError::internal("host response is missing its result"))
         };
-        if let Ok(mut pending) = self.pending.lock() {
-            if let Some(sender) = pending.remove(&id) {
-                let _ = sender.send(result);
-            }
+        if let Ok(mut pending) = self.pending.lock()
+            && let Some(sender) = pending.remove(&id)
+        {
+            let _ = sender.send(result);
         }
     }
 
