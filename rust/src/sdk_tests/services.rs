@@ -1,4 +1,4 @@
-use super::mock::{Mock, context, reference};
+use super::mock::{context, reference, Mock};
 use crate::context::RequestContext;
 use serde_json::json;
 use std::{

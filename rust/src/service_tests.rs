@@ -1,5 +1,5 @@
-use super::mock::{Mock, context};
-use serde_json::{Value, json};
+use super::mock::{context, Mock};
+use serde_json::{json, Value};
 use std::{
     io::{Read, Write},
     sync::Arc,
@@ -11,11 +11,9 @@ fn storage_typed_update_is_atomic_across_concurrent_tasks_and_distinguishes_null
     let storage = crate::Storage::new(context(mock));
     storage.set("null", &Value::Null).unwrap();
     assert_eq!(storage.get::<Value>("null").unwrap(), Some(Value::Null));
-    assert!(
-        !storage
-            .compare_and_set::<Value>("null", None, Some(&json!(1)))
-            .unwrap()
-    );
+    assert!(!storage
+        .compare_and_set::<Value>("null", None, Some(&json!(1)))
+        .unwrap());
     let workers = (0..4)
         .map(|_| {
             let storage = storage.clone();

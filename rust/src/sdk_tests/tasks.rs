@@ -1,10 +1,10 @@
-use super::mock::{Mock, context, reference};
+use super::mock::{context, reference, Mock};
 use crate::{
-    RpcError,
     context::{RequestContext, TaskContext},
     tasks::TaskStatus,
+    RpcError,
 };
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 use std::{sync::Arc, time::Duration};
 
 #[test]
@@ -47,12 +47,10 @@ fn spawned_task_inherits_authorization_and_reports_completion() {
             .map(|(_, status)| status.as_str()),
         Some("completed")
     );
-    assert!(
-        state
-            .authorizations
-            .iter()
-            .any(|value| value.get("taskId").is_some())
-    );
+    assert!(state
+        .authorizations
+        .iter()
+        .any(|value| value.get("taskId").is_some()));
 }
 
 #[test]
@@ -96,11 +94,9 @@ fn task_limit_is_enforced() {
                 .unwrap(),
         );
     }
-    assert!(
-        context
-            .spawn_task(|_: TaskContext| Ok(Value::Null))
-            .is_err()
-    );
+    assert!(context
+        .spawn_task(|_: TaskContext| Ok(Value::Null))
+        .is_err());
     for handle in &handles {
         handle.cancel();
     }

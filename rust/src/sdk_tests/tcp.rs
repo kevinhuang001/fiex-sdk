@@ -1,4 +1,4 @@
-use super::mock::{Mock, context};
+use super::mock::{context, Mock};
 use crate::tcp::TcpStream;
 use std::{
     io::{Read, Write},
