@@ -50,16 +50,19 @@ function parseResourceMetadata(value: unknown): ResourceMetadata {
     throw new TypeError('Invalid resource metadata')
   }
   const size = optionalInteger(metadata.size, 'size')
+  const extension = optionalString(metadata.extension, 'extension')
+  const mime = optionalString(metadata.mime, 'mime')
+  const modified = optionalInteger(metadata.modified, 'modified')
   if (size !== undefined && size !== null && size < 0) {
     throw new TypeError('Invalid resource field: size')
   }
   return {
     name: metadata.name,
     kind: metadata.kind,
-    extension: optionalString(metadata.extension, 'extension'),
-    mime: optionalString(metadata.mime, 'mime'),
-    size,
-    modified: optionalInteger(metadata.modified, 'modified'),
+    ...(extension === undefined ? {} : { extension }),
+    ...(mime === undefined ? {} : { mime }),
+    ...(size === undefined ? {} : { size }),
+    ...(modified === undefined ? {} : { modified }),
   }
 }
 

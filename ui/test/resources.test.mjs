@@ -28,10 +28,7 @@ test('resource context results validate refs and optional metadata', () => {
       metadata: {
         name: 'notes.txt',
         kind: 'file',
-        extension: undefined,
-        mime: undefined,
         size: 12,
-        modified: undefined,
       },
     },
   )

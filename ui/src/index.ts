@@ -45,7 +45,7 @@ type Pending = {
   timer: ReturnType<typeof setTimeout>
 }
 export class FiexUiClient {
-  private port?: MessagePort
+  private port: MessagePort | undefined
   private sessionId = ''
   private currentLocale: Locale = 'zh-CN'
   private translateError = (value: string) => value
@@ -54,7 +54,7 @@ export class FiexUiClient {
   private listeners = new Map<string, Set<(value: JsonValue) => void>>()
   private readyPromise?: Promise<void>
   private closed = false
-  private stopHandshake?: () => void
+  private stopHandshake: (() => void) | undefined
   private readonly timeoutMs: number
   private readonly reportUnhandled: boolean
   private captured = 0
@@ -109,6 +109,7 @@ export class FiexUiClient {
           nonce?: string
           locale?: string
         } | null
+        const port = event.ports[0]
         if (
           event.source !== window.parent ||
           !d ||
@@ -116,19 +117,20 @@ export class FiexUiClient {
           d.bridgeVersion !== '1.0' ||
           !d.sessionId ||
           !d.nonce ||
-          event.ports.length !== 1
+          event.ports.length !== 1 ||
+          !port
         )
           return
         clearTimeout(timeout)
         window.removeEventListener('message', init)
         this.currentLocale = normalizeLocale(d.locale)
         document.documentElement.lang = this.currentLocale
-        this.port = event.ports[0]
+        this.port = port
         this.sessionId = d.sessionId
-        this.port.onmessage = (e) => this.onMessage(e.data)
-        this.port.onmessageerror = () => this.dispose('invalid_message')
-        this.port.start()
-        this.port.postMessage({
+        port.onmessage = (e) => this.onMessage(e.data)
+        port.onmessageerror = () => this.dispose('invalid_message')
+        port.start()
+        port.postMessage({
           type: 'fiex.bridge.ready',
           sessionId: d.sessionId,
           nonce: d.nonce,
