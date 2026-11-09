@@ -1,12 +1,12 @@
 use super::*;
-use crate::{context::StreamSession, RequestContext, RpcError};
-use serde_json::{json, Value};
+use crate::{RequestContext, RpcError, context::StreamSession};
+use serde_json::{Value, json};
 use std::{
     collections::HashMap,
     io::{Read, Write},
     sync::{
-        atomic::{AtomicU64, Ordering},
         Mutex,
+        atomic::{AtomicU64, Ordering},
     },
 };
 mod helpers;
@@ -196,7 +196,7 @@ impl FsServer {
                 skip_to(reader, cursor, offset)?;
                 let (bytes, eof) = read_chunk(reader, max_bytes)?;
                 *cursor = offset + bytes.len() as u64;
-                use base64::{engine::general_purpose::STANDARD, Engine};
+                use base64::{Engine, engine::general_purpose::STANDARD};
                 json!({"base64": STANDARD.encode(&bytes), "eof": eof})
             }
             "vfs.closeRead" => {

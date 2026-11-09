@@ -4,8 +4,8 @@
 //! reusable shared window per open handle; larger writes map one reusable
 //! staging window per open writer. Allocation failures fall back to bounded
 //! IPC without changing the public reader/writer types.
-use crate::{context::ContextInner, ipc, RpcError};
-use base64::{engine::general_purpose::STANDARD, Engine};
+use crate::{RpcError, context::ContextInner, ipc};
+use base64::{Engine, engine::general_purpose::STANDARD};
 use serde_json::json;
 use std::io;
 

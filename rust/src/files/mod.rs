@@ -3,9 +3,9 @@
 mod reader;
 mod writer;
 use crate::{
-    context::{rpc_to_io, ContextInner},
-    filesystem::FsOperation,
     ResourceContext, ResourceMetadata, ResourceRef,
+    context::{ContextInner, rpc_to_io},
+    filesystem::FsOperation,
 };
 pub use reader::FileReader;
 use serde_json::json;

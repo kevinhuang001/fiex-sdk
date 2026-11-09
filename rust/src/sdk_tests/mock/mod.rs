@@ -2,7 +2,7 @@ mod host;
 mod state;
 
 use crate::{context::ContextInner, runtime::session::Session, tasks::TaskManager};
-use std::{sync::atomic::AtomicBool, sync::Arc, sync::Mutex};
+use std::{sync::Arc, sync::Mutex, sync::atomic::AtomicBool};
 
 pub(super) use state::State;
 

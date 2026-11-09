@@ -1,6 +1,6 @@
 //! Shared matching evaluation for provider descriptor DTOs.
-use crate::dto::matching::{LocationMatch, MatchResource, ProviderMatchExclude, ProviderMatchRule};
 use crate::ResourceLocation;
+use crate::dto::matching::{LocationMatch, MatchResource, ProviderMatchExclude, ProviderMatchRule};
 use serde_json::Value;
 
 impl LocationMatch {

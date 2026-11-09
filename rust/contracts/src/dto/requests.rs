@@ -154,7 +154,7 @@ impl ProviderInput {
             Self::Hook(value) => &mut value.provider_id,
             Self::Toolbar(value) => &mut value.provider_id,
             Self::Unspecified => {
-                return Err("cannot bind provider ID to an unspecified event".into())
+                return Err("cannot bind provider ID to an unspecified event".into());
             }
         };
         *field = provider_id;

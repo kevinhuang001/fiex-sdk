@@ -425,9 +425,11 @@ mod preflight_registry_tests {
             .unwrap();
         assert_eq!(handlers.operations(), vec![PreflightOp::Rename]);
         assert!(!handlers.supports(PreflightOp::Remove));
-        assert!(handlers
-            .on_rename(|_, _, _| Ok(PreflightDecision::allow()))
-            .is_err());
+        assert!(
+            handlers
+                .on_rename(|_, _, _| Ok(PreflightDecision::allow()))
+                .is_err()
+        );
     }
 
     #[test]

@@ -8,17 +8,17 @@ pub(crate) mod session;
 pub(crate) mod transfer;
 
 use crate::{
+    PROTOCOL_VERSION, RpcError,
     context::{ContextInner, RequestContext},
     tasks::TaskManager,
-    RpcError, PROTOCOL_VERSION,
 };
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::{
     io::{self, BufReader},
-    panic::{catch_unwind, AssertUnwindSafe},
+    panic::{AssertUnwindSafe, catch_unwind},
     sync::{
-        atomic::{AtomicBool, Ordering},
         Arc, Condvar, Mutex,
+        atomic::{AtomicBool, Ordering},
     },
     thread,
     time::{Duration, Instant},

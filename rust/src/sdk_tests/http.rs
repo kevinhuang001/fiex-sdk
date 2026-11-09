@@ -1,6 +1,6 @@
-use super::mock::{context, Mock};
+use super::mock::{Mock, context};
 use crate::http::Response;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::sync::Arc;
 
 #[test]

@@ -63,7 +63,7 @@ pub(super) fn param_str<'a>(ctx: &'a RequestContext, key: &str) -> Result<&'a st
 }
 
 pub(super) fn decode_chunk(ctx: &RequestContext) -> Result<Vec<u8>, RpcError> {
-    use base64::{engine::general_purpose::STANDARD, Engine};
+    use base64::{Engine, engine::general_purpose::STANDARD};
     let encoded = param_str(ctx, "base64")?;
     let bytes = STANDARD
         .decode(encoded)

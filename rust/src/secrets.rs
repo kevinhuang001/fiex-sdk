@@ -1,8 +1,8 @@
 //! Host-selected credential service (local by default, optional OS keyring). Missing credentials are `Ok(None)`; denied access
 //! and an unavailable keychain are distinct typed errors. No secret is logged.
-use crate::{context::ContextInner, RpcError};
-use serde::{de::DeserializeOwned, Serialize};
-use serde_json::{json, Value};
+use crate::{RpcError, context::ContextInner};
+use serde::{Serialize, de::DeserializeOwned};
+use serde_json::{Value, json};
 const PREFIX: &str = "fiex-json:v1:";
 #[derive(Debug)]
 pub enum SecretError {

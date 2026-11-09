@@ -1,5 +1,5 @@
 //! A `Read + Seek + Send + 'static` reader over a Core-owned file handle.
-use crate::{context::ContextInner, runtime::transfer::ReadCache, RpcError};
+use crate::{RpcError, context::ContextInner, runtime::transfer::ReadCache};
 use serde_json::json;
 use std::io::{self, Read, Seek, SeekFrom};
 

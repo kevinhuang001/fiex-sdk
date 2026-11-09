@@ -135,12 +135,14 @@ mod tests {
     fn shared_registry_rejects_invalid_kind_and_duplicates_without_replacement() {
         let mut registry: ProviderInstances<dyn Handler> =
             ProviderInstances::new(ProviderKind::Info);
-        assert!(registry
-            .register(
-                descriptor("wrong", ProviderKind::Preview),
-                Arc::new(Native(1))
-            )
-            .is_err());
+        assert!(
+            registry
+                .register(
+                    descriptor("wrong", ProviderKind::Preview),
+                    Arc::new(Native(1))
+                )
+                .is_err()
+        );
         assert!(registry.is_empty());
         registry
             .register(
@@ -148,18 +150,22 @@ mod tests {
                 Arc::new(Native(7)),
             )
             .unwrap();
-        assert!(registry
-            .register(
-                descriptor("native", ProviderKind::Info),
-                Arc::new(Native(9))
-            )
-            .is_err());
-        assert!(registry
-            .register(
-                descriptor("invalid/id", ProviderKind::Info),
-                Arc::new(Native(9))
-            )
-            .is_err());
+        assert!(
+            registry
+                .register(
+                    descriptor("native", ProviderKind::Info),
+                    Arc::new(Native(9))
+                )
+                .is_err()
+        );
+        assert!(
+            registry
+                .register(
+                    descriptor("invalid/id", ProviderKind::Info),
+                    Arc::new(Native(9))
+                )
+                .is_err()
+        );
         assert_eq!(registry.len(), 1);
         assert_eq!(registry.get("native").unwrap().id(), 7);
         let handle = registry.get_arc("native").unwrap();

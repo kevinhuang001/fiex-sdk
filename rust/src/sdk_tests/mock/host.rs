@@ -1,7 +1,7 @@
-use super::{write_staged, Mock};
-use crate::{ipc::SharedBuffer, runtime::HostLink, RpcError};
-use base64::{engine::general_purpose::STANDARD, Engine};
-use serde_json::{json, Value};
+use super::{Mock, write_staged};
+use crate::{RpcError, ipc::SharedBuffer, runtime::HostLink};
+use base64::{Engine, engine::general_purpose::STANDARD};
+use serde_json::{Value, json};
 
 impl HostLink for Mock {
     fn call(&self, method: &str, params: Value) -> Result<Value, RpcError> {

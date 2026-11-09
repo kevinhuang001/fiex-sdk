@@ -1,7 +1,7 @@
 //! HTTP convenience API. Core owns connections, redirects and authorization.
-use crate::context::{rpc_to_io, ContextInner};
-use base64::{engine::general_purpose::STANDARD, Engine};
-use serde::{de::DeserializeOwned, Serialize};
+use crate::context::{ContextInner, rpc_to_io};
+use base64::{Engine, engine::general_purpose::STANDARD};
+use serde::{Serialize, de::DeserializeOwned};
 use serde_json::json;
 use std::{
     collections::BTreeMap,

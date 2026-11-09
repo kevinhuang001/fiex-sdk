@@ -13,7 +13,7 @@ mod matcher;
 pub use matcher::ProviderMatcher;
 
 mod endpoint;
-pub use endpoint::{event, Dispatch, Event};
+pub use endpoint::{Dispatch, Event, event};
 mod error;
 mod invocation;
 pub use invocation::ProviderInvocation;

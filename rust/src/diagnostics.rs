@@ -1,6 +1,6 @@
 //! SDK-owned best-effort diagnostics. Never record payloads, results or raw errors.
-use crate::{context::ContextInner, RequestContext, RpcError};
-use serde_json::{json, Value};
+use crate::{RequestContext, RpcError, context::ContextInner};
+use serde_json::{Value, json};
 use std::time::Instant;
 
 pub(crate) fn log(context: &ContextInner, level: &str, message: &str) {

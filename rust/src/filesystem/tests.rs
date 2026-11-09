@@ -1,15 +1,15 @@
 use super::*;
 use crate::{ProviderInvocationExt, RequestContext, RpcError};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use crate::{
     context::ContextInner,
-    runtime::{session::Session, HostLink},
+    runtime::{HostLink, session::Session},
     tasks::TaskManager,
 };
 use std::{
     io::Cursor,
-    sync::{atomic::AtomicBool, Arc},
+    sync::{Arc, atomic::AtomicBool},
 };
 
 struct NoopLink;
@@ -149,18 +149,24 @@ fn operation_registry_dispatches_only_registered_preflight_and_does_not_grant_wr
         )
         .unwrap_err();
     assert_eq!(unregistered.code, -32601);
-    assert!(server
-        .serve(
-            &Reviewed,
-            &request("vfs.beginWrite", json!({"parentId":"root","name":"x"}))
-        )
-        .is_err());
-    assert!(server
-        .serve(&ReadOnly, &request("vfs.preflight", params))
-        .is_err());
-    assert!(server
-        .serve(&Reviewed, &request("vfs.preflight", json!({})))
-        .is_err());
+    assert!(
+        server
+            .serve(
+                &Reviewed,
+                &request("vfs.beginWrite", json!({"parentId":"root","name":"x"}))
+            )
+            .is_err()
+    );
+    assert!(
+        server
+            .serve(&ReadOnly, &request("vfs.preflight", params))
+            .is_err()
+    );
+    assert!(
+        server
+            .serve(&Reviewed, &request("vfs.preflight", json!({})))
+            .is_err()
+    );
 }
 
 #[test]
@@ -268,18 +274,22 @@ fn discovery_is_connection_scoped_and_cannot_widen_the_ceiling() {
         .unwrap()
         .unwrap();
     assert_eq!(entry["allowedOps"], json!(["stat", "read"]));
-    assert!(server
-        .serve(&AccountFs, &request("vfs.beginWrite", read_only))
-        .is_err());
+    assert!(
+        server
+            .serve(&AccountFs, &request("vfs.beginWrite", read_only))
+            .is_err()
+    );
 }
 
 #[test]
 fn non_fs_methods_fall_through() {
     let server = FsServer::new();
-    assert!(server
-        .serve(&ReadOnly, &request("custom.thing", json!({})))
-        .unwrap()
-        .is_none());
+    assert!(
+        server
+            .serve(&ReadOnly, &request("custom.thing", json!({})))
+            .unwrap()
+            .is_none()
+    );
 }
 
 mod streams;

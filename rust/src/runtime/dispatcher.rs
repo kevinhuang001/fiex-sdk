@@ -3,14 +3,15 @@
 //! A single writer serializes complete frames. Host replies are matched by a
 //! unique request ID, so request worker threads never read the control channel
 //! and never steal another request's response.
-use crate::{read_frame, write_frame, RpcError};
-use serde_json::{json, Value};
+use crate::{RpcError, read_frame, write_frame};
+use serde_json::{Value, json};
 use std::{
     collections::HashMap,
     io::{BufRead, Write},
     sync::{
+        Mutex,
         atomic::{AtomicBool, AtomicU64, Ordering},
-        mpsc, Mutex,
+        mpsc,
     },
     time::Duration,
 };

@@ -1,10 +1,10 @@
 //! A `Write + Seek + Send + 'static` transactional writer. Core keeps the data
 //! private until `commit`; dropping an uncommitted writer aborts it.
 use crate::{
-    context::{rpc_to_io, ContextInner},
-    ipc,
-    runtime::transfer::{flush_pending, release_write_buffer, CHUNK},
     RpcError,
+    context::{ContextInner, rpc_to_io},
+    ipc,
+    runtime::transfer::{CHUNK, flush_pending, release_write_buffer},
 };
 use serde_json::json;
 use std::io::{self, Seek, SeekFrom, Write};

@@ -1,4 +1,4 @@
-use super::mock::{context, reference, Mock};
+use super::mock::{Mock, context, reference};
 use crate::FileReader;
 use std::{
     io::{Read, Seek, SeekFrom, Write},
@@ -44,10 +44,12 @@ fn mapped_file_resolution_uses_the_scoped_host_operation() {
     assert_eq!(reference.node_id, "mapped-node");
     let state = mock.state();
     assert_eq!(state.calls, vec!["host.fs.resolveMapped"]);
-    assert!(state
-        .authorizations
-        .iter()
-        .all(|authorization| !authorization.is_null()));
+    assert!(
+        state
+            .authorizations
+            .iter()
+            .all(|authorization| !authorization.is_null())
+    );
 }
 
 #[test]

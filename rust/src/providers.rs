@@ -5,10 +5,10 @@
 //! fallback handler. Provider implementations stay optional and composable;
 //! nothing forces a plugin to implement events it does not own.
 use crate::{
-    filesystem::{FsServer, PreflightHandlers, VfsProvider},
     RequestContext, RpcError,
+    filesystem::{FsServer, PreflightHandlers, VfsProvider},
 };
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 mod contracts;
 use contracts::unsupported;

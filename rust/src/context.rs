@@ -1,21 +1,21 @@
 //! Request and task contexts. These are the only handles plugins use to reach
 //! host-owned resources; the wire protocol and transfer strategy stay hidden.
 use crate::{
+    RpcError,
     files::Files,
     http::HttpClient,
     ipc::ProcessResult,
-    runtime::{session::Session, HostLink},
+    runtime::{HostLink, session::Session},
     tasks::{TaskHandle, TaskManager, TaskRecord},
     tcp::TcpClient,
-    RpcError,
 };
-use base64::{engine::general_purpose::STANDARD, Engine};
+use base64::{Engine, engine::general_purpose::STANDARD};
 use fiex_provider_contracts::{ProviderInvocation, ProviderRequestContext};
-use serde_json::{json, Map, Value};
+use serde_json::{Map, Value, json};
 use std::any::Any;
 use std::sync::{
-    atomic::{AtomicBool, AtomicU64, Ordering},
     Arc,
+    atomic::{AtomicBool, AtomicU64, Ordering},
 };
 
 /// Shared internals of a request or task context.
@@ -51,7 +51,7 @@ impl ContextInner {
             _ => {
                 return Err(RpcError::invalid_params(
                     "host call parameters must be a JSON object",
-                ))
+                ));
             }
         };
         object.insert("authorization".into(), self.session.authorization());
