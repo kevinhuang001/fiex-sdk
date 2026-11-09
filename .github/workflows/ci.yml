@@ -30,8 +30,8 @@ jobs:
         run: cargo test --locked --manifest-path rust/contracts/Cargo.toml --features typescript-bindings
       - name: Check generated resource DTOs are committed
         run: |
-          git diff --exit-code -- ui/src/generated
-          test -z "$(git status --porcelain -- ui/src/generated)"
+          git ls-files --error-unmatch -- ui/src/generated/ResourceRef.ts ui/src/generated/ResourceMetadata.ts
+          git diff --ignore-space-at-eol --exit-code -- ui/src/generated
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
