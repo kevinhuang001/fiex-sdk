@@ -1,16 +1,20 @@
 import { normalizeLocale, type Locale } from './i18n.js'
+import {
+  parseExplorerContext,
+  parseResourceContextList,
+  parseResourceContextResult,
+  parseResourcePickerOptions,
+  parseResourceRef,
+} from './resources.js'
+import type { ExplorerContext, ResourceContext, ResourceRef } from './resources.js'
+export type {
+  ExplorerContext,
+  ResourceContext,
+  ResourceMetadata,
+  ResourceRef,
+} from './resources.js'
 export * from './i18n.js'
 /** Fiex iframe API. Browser runtime only; no Node.js or Tauri dependencies. */
-export type ResourceRef = { mountId: string; nodeId: string }
-export type ResourceMetadata = {
-  name: string
-  kind: string
-  extension?: string
-  mime?: string
-  size?: number
-  modified?: number
-}
-export type ResourceContext = { ref: ResourceRef; metadata?: ResourceMetadata }
 export type JsonValue =
   null | string | number | boolean | JsonValue[] | { [key: string]: JsonValue }
 export type BridgeError = { code: string; message: string }
@@ -37,19 +41,6 @@ type BridgeEvent = {
   type: 'event'
   name: string
   payload: JsonValue
-}
-export type ExplorerContext = {
-  locale?: Locale
-  directory?: ResourceContext
-  targets: ResourceContext[]
-  windowId?: string
-  paneId?: string
-  /** Contribution id that opened this panel; lets one panel serve several
-   * toolbar or context-menu entries without duplicating its HTML. */
-  panelId?: string
-  panelTitle?: string
-  /** How the panel was opened. */
-  source?: 'toolbar' | 'contextMenu'
 }
 export class FiexBridgeError extends Error {
   constructor(
@@ -256,9 +247,9 @@ export class FiexUiClient {
   }
   get context() {
     return {
-      get: () => this.invoke<ExplorerContext>('context.get'),
+      get: async () => parseExplorerContext(await this.invoke<unknown>('context.get')),
       subscribe: (h: (ctx: ExplorerContext) => void) =>
-        this.on('context.changed', (v) => h(v as unknown as ExplorerContext)),
+        this.on('context.changed', (v) => h(parseExplorerContext(v))),
     }
   }
   get i18n() {
@@ -315,9 +306,10 @@ export class FiexUiClient {
   }
   get vfs() {
     return {
-      stat: (ref: ResourceRef) => this.invoke('vfs.stat', ref),
-      list: (ref: ResourceRef, cursor?: string) => this.invoke('vfs.list', { ...ref, cursor }),
-      open: (ref: ResourceRef) => this.invoke('vfs.open', ref),
+      stat: (ref: ResourceRef) => this.invoke('vfs.stat', parseResourceRef(ref)),
+      list: (ref: ResourceRef, cursor?: string) =>
+        this.invoke('vfs.list', { ...parseResourceRef(ref), cursor }),
+      open: (ref: ResourceRef) => this.invoke('vfs.open', parseResourceRef(ref)),
     }
   }
   get tasks() {
@@ -359,16 +351,24 @@ export class FiexUiClient {
           directory?: ResourceRef
           extensions?: string[]
         } = {},
-      ) => this.invoke<ResourceContext | null>('dialog.openFile', options),
+      ) =>
+        this.invoke<unknown>('dialog.openFile', parseResourcePickerOptions(options)).then(
+          parseResourceContextResult,
+        ),
       openFiles: (
         options: {
           title?: string
           directory?: ResourceRef
           extensions?: string[]
         } = {},
-      ) => this.invoke<ResourceContext[] | null>('dialog.openFiles', options),
+      ) =>
+        this.invoke<unknown>('dialog.openFiles', parseResourcePickerOptions(options)).then(
+          parseResourceContextList,
+        ),
       openDirectory: (options: { title?: string; directory?: ResourceRef } = {}) =>
-        this.invoke<ResourceContext | null>('dialog.openDirectory', options),
+        this.invoke<unknown>('dialog.openDirectory', parseResourcePickerOptions(options)).then(
+          parseResourceContextResult,
+        ),
       saveFile: (
         options: {
           title?: string
@@ -376,7 +376,10 @@ export class FiexUiClient {
           suggestedName?: string
           extensions?: string[]
         } = {},
-      ) => this.invoke<ResourceContext | null>('dialog.saveFile', options),
+      ) =>
+        this.invoke<unknown>('dialog.saveFile', parseResourcePickerOptions(options)).then(
+          parseResourceContextResult,
+        ),
     }
   }
   get panel() {

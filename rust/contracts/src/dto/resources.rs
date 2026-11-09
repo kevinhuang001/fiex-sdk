@@ -45,6 +45,8 @@ impl ResourceCapabilities {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-bindings", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript-bindings", ts(export))]
 #[serde(rename_all = "camelCase")]
 pub struct ResourceRef {
     pub mount_id: String,
@@ -63,6 +65,8 @@ impl ResourceRef {
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-bindings", derive(ts_rs::TS))]
+#[cfg_attr(feature = "typescript-bindings", ts(export))]
 #[serde(rename_all = "camelCase")]
 pub struct ResourceMetadata {
     pub name: String,
