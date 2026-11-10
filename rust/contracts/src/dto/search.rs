@@ -77,14 +77,18 @@ mod tests {
         let serialized = serde_json::to_value(&page).unwrap();
         assert!(serialized.get("truncated").is_none());
         assert!(serialized.get("nextCursor").is_none());
-        assert!(serde_json::from_value::<SearchResults>(
-            serde_json::json!({"entries":[], "truncated":"false"})
-        )
-        .is_err());
-        assert!(serde_json::from_value::<SearchResults>(
-            serde_json::json!({"entries":[], "truncated":null})
-        )
-        .is_err());
+        assert!(
+            serde_json::from_value::<SearchResults>(
+                serde_json::json!({"entries":[], "truncated":"false"})
+            )
+            .is_err()
+        );
+        assert!(
+            serde_json::from_value::<SearchResults>(
+                serde_json::json!({"entries":[], "truncated":null})
+            )
+            .is_err()
+        );
         let malformed = SearchResults {
             next_cursor: Some("x".repeat(2049)),
             ..Default::default()

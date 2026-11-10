@@ -1,7 +1,7 @@
 [package]
 name = "fiex-plugin-sdk"
 version = "0.3.4"
-edition = "2021"
+edition = "2024"
 rust-version = "1.90"
 license = "GPL-3.0-or-later"
 description = "Standalone native process protocol SDK for Fiex plugins"

@@ -6,18 +6,18 @@
 #[cfg(feature = "tokio")]
 mod asynchronous;
 mod deadline;
-use crate::context::{rpc_to_io, ContextInner};
+use crate::context::{ContextInner, rpc_to_io};
 #[cfg(feature = "tokio")]
 pub use asynchronous::AsyncTcpStream;
-use base64::{engine::general_purpose::STANDARD, Engine};
+use base64::{Engine, engine::general_purpose::STANDARD};
 use deadline::Deadline;
 use serde_json::json;
 use std::{
     io::{self, Read, Write},
     net::{Shutdown, SocketAddr},
     sync::{
-        atomic::{AtomicBool, Ordering},
         Arc, Mutex,
+        atomic::{AtomicBool, Ordering},
     },
     time::Instant,
 };

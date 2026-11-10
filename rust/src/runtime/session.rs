@@ -3,7 +3,7 @@
 //! The host never infers authorization from the current directory. Every
 //! `host.*` call carries the session that owns it, so overlapping requests and
 //! tasks cannot borrow each other's granted paths, connections or handles.
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum Session {

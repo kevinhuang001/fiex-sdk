@@ -151,10 +151,12 @@ mod tests {
         assert_eq!(image.kind, "image");
         assert_eq!(image.name.as_deref(), Some("image.png"));
         assert_eq!(image.path.as_deref(), Some("/brokered/image.png"));
-        assert!(serde_json::from_value::<PreviewView>(serde_json::json!({
-            "kind": "html",
-            "unexpected": true
-        }))
-        .is_err());
+        assert!(
+            serde_json::from_value::<PreviewView>(serde_json::json!({
+                "kind": "html",
+                "unexpected": true
+            }))
+            .is_err()
+        );
     }
 }

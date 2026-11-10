@@ -2,7 +2,7 @@
 //! Reads keep completed bytes across cancellation; writes accept an owned,
 //! bounded chunk synchronously and flush it in the background. A Pending
 //! poll_write never submits that call's bytes, preserving cancellation safety.
-use super::{TcpClient, TcpStream, CHUNK};
+use super::{CHUNK, TcpClient, TcpStream};
 use std::{
     collections::VecDeque,
     future::Future,

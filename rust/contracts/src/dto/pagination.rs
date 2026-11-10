@@ -18,10 +18,10 @@ pub struct VfsPage {
 }
 
 pub(crate) fn validate_cursor(cursor: Option<&str>) -> Result<(), String> {
-    if let Some(value) = cursor {
-        if value.is_empty() || value.len() > 2048 || value.chars().any(char::is_control) {
-            return Err("invalid pagination cursor".into());
-        }
+    if let Some(value) = cursor
+        && (value.is_empty() || value.len() > 2048 || value.chars().any(char::is_control))
+    {
+        return Err("invalid pagination cursor".into());
     }
     Ok(())
 }

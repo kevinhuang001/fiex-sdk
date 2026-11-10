@@ -210,10 +210,12 @@ mod tests {
 
     #[test]
     fn incomplete_body_is_rejected() {
-        assert!(read_frame(&mut BufReader::new(
-            b"Content-Length: 20\r\n\r\n{}".as_slice()
-        ))
-        .is_err());
+        assert!(
+            read_frame(&mut BufReader::new(
+                b"Content-Length: 20\r\n\r\n{}".as_slice()
+            ))
+            .is_err()
+        );
     }
 
     #[test]

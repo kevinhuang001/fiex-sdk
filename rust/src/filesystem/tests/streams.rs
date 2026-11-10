@@ -20,17 +20,19 @@ fn independent_vfs_instances_never_share_stream_identifiers() {
         .unwrap()
         .unwrap();
     assert_ne!(left_stream["streamId"], right_stream["streamId"]);
-    assert!(right
-        .serve(
-            &Memory { writable: true },
-            &request(
-                "vfs.readStream",
-                json!({
-                    "streamId":left_stream["streamId"], "offset":0, "maxBytes":1
-                })
+    assert!(
+        right
+            .serve(
+                &Memory { writable: true },
+                &request(
+                    "vfs.readStream",
+                    json!({
+                        "streamId":left_stream["streamId"], "offset":0, "maxBytes":1
+                    })
+                )
             )
-        )
-        .is_err());
+            .is_err()
+    );
 }
 
 #[test]
@@ -67,15 +69,17 @@ fn read_stream_honours_offsets_and_rejects_backward_seeks() {
         .unwrap()
         .unwrap();
     assert_eq!(second["base64"], "Y2Q=");
-    assert!(server
-        .serve(
-            &Memory { writable: true },
-            &request(
-                "vfs.readStream",
-                json!({"streamId": id, "offset": 1, "maxBytes": 2}),
-            ),
-        )
-        .is_err());
+    assert!(
+        server
+            .serve(
+                &Memory { writable: true },
+                &request(
+                    "vfs.readStream",
+                    json!({"streamId": id, "offset": 1, "maxBytes": 2}),
+                ),
+            )
+            .is_err()
+    );
     server
         .serve(
             &Memory { writable: true },
@@ -123,9 +127,11 @@ fn writes_commit_through_the_provider_callback() {
     server
         .serve(&provider, &request("vfs.abort", json!({"streamId": id})))
         .unwrap();
-    assert!(server
-        .serve(&provider, &request("vfs.commit", json!({"streamId": id})))
-        .is_err());
+    assert!(
+        server
+            .serve(&provider, &request("vfs.commit", json!({"streamId": id})))
+            .is_err()
+    );
 }
 
 #[test]
@@ -186,7 +192,7 @@ impl HostLink for StreamHost {
                 let end = (*position + size).min(self.bytes.len());
                 let chunk = &self.bytes[*position..end];
                 *position = end;
-                use base64::{engine::general_purpose::STANDARD, Engine};
+                use base64::{Engine, engine::general_purpose::STANDARD};
                 Ok(json!({"base64": STANDARD.encode(chunk), "size": chunk.len()}))
             }
             "host.net.http.close" => Ok(Value::Null),

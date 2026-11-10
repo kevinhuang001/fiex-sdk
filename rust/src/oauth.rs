@@ -1,6 +1,6 @@
 //! Browser authorization-code OAuth. Core owns the browser, loopback listener,
 //! CSRF state and PKCE; the plugin owns provider-specific token exchange.
-use crate::{context::ContextInner, RpcError};
+use crate::{RpcError, context::ContextInner};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 

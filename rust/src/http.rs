@@ -1,7 +1,7 @@
 //! HTTP convenience API. Core owns connections, redirects and authorization.
-use crate::context::{rpc_to_io, ContextInner};
-use base64::{engine::general_purpose::STANDARD, Engine};
-use serde::{de::DeserializeOwned, Serialize};
+use crate::context::{ContextInner, rpc_to_io};
+use base64::{Engine, engine::general_purpose::STANDARD};
+use serde::{Serialize, de::DeserializeOwned};
 use serde_json::json;
 use std::{
     collections::BTreeMap,
@@ -325,13 +325,13 @@ impl StreamingBody {
     /// Abort an unfinished body. Best effort: Core drops the request and the
     /// worker fails the streamed body. Idempotent.
     pub fn cancel(&mut self) {
-        if let Some(handle) = self.handle.take() {
-            if !self.client.context.closed() {
-                let _ = self
-                    .client
-                    .context
-                    .call("host.net.http.close", json!({"stream": handle}));
-            }
+        if let Some(handle) = self.handle.take()
+            && !self.client.context.closed()
+        {
+            let _ = self
+                .client
+                .context
+                .call("host.net.http.close", json!({"stream": handle}));
         }
         self.failed = true;
     }

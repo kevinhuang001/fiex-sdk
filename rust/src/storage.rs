@@ -1,8 +1,8 @@
 //! Plugin-private, typed persistent storage. CAS is serialized by Core, not by
 //! a plugin-local lock, so independent tasks/processes cannot lose updates.
-use crate::{context::ContextInner, RpcError};
-use serde::{de::DeserializeOwned, Serialize};
-use serde_json::{json, Value};
+use crate::{RpcError, context::ContextInner};
+use serde::{Serialize, de::DeserializeOwned};
+use serde_json::{Value, json};
 
 #[derive(Clone)]
 pub struct Storage {

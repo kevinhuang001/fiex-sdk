@@ -46,7 +46,8 @@ export function createI18n(catalogs: Partial<Record<Locale, Messages>>, initial:
 
 /** Translate a generated error message while leaving captured user data intact. */
 export function translateMessage(value: string, catalog: Messages): string {
-  if (Object.hasOwn(catalog, value)) return catalog[value]
+  const exact = catalog[value]
+  if (typeof exact === 'string') return exact
   const escape = (part: string) => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   for (const [source, target] of Object.entries(catalog)) {
     const slots = [...source.matchAll(/\{([\w]*)(?::[^}]*)?\}/g)]

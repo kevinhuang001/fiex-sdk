@@ -3,14 +3,15 @@
 //! A single writer serializes complete frames. Host replies are matched by a
 //! unique request ID, so request worker threads never read the control channel
 //! and never steal another request's response.
-use crate::{read_frame, write_frame, RpcError};
-use serde_json::{json, Value};
+use crate::{RpcError, read_frame, write_frame};
+use serde_json::{Value, json};
 use std::{
     collections::HashMap,
     io::{BufRead, Write},
     sync::{
+        Mutex,
         atomic::{AtomicBool, AtomicU64, Ordering},
-        mpsc, Mutex,
+        mpsc,
     },
     time::Duration,
 };
@@ -124,10 +125,10 @@ impl Dispatcher {
                 .cloned()
                 .ok_or_else(|| RpcError::internal("host response is missing its result"))
         };
-        if let Ok(mut pending) = self.pending.lock() {
-            if let Some(sender) = pending.remove(&id) {
-                let _ = sender.send(result);
-            }
+        if let Ok(mut pending) = self.pending.lock()
+            && let Some(sender) = pending.remove(&id)
+        {
+            let _ = sender.send(result);
         }
     }
 

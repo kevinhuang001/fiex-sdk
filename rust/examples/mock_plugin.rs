@@ -1,5 +1,5 @@
 use fiex_plugin_sdk::{self as sdk, Files, RpcError};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::sync::Mutex;
 
 static LATE_FILES: Mutex<Option<Files>> = Mutex::new(None);
@@ -43,9 +43,11 @@ fn dispatch(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
                 .reference
                 .clone();
             let files = ctx.files();
-            Ok(json!(files
-                .read_to_string(&path)
-                .map_err(|error| RpcError::internal(error.to_string()))?))
+            Ok(json!(
+                files
+                    .read_to_string(&path)
+                    .map_err(|error| RpcError::internal(error.to_string()))?
+            ))
         }
         "mock.spawnTask" => {
             let path = ctx

@@ -1,7 +1,7 @@
 //! aria2-backed streaming downloads. The API mirrors [`crate::http`]: build a
 //! GET request, set headers/timeout/connection options, then read the response.
-use crate::context::{rpc_to_io, ContextInner};
-use base64::{engine::general_purpose::STANDARD, Engine};
+use crate::context::{ContextInner, rpc_to_io};
+use base64::{Engine, engine::general_purpose::STANDARD};
 use serde_json::json;
 use std::{
     collections::BTreeMap,
@@ -206,16 +206,13 @@ impl Read for Aria2Response {
             }
             if bytes.is_empty() {
                 if value["eof"].as_bool() == Some(true) {
-                    if let Some(expected) = self.size {
-                        if self.read != expected {
-                            return Err(io::Error::new(
-                                io::ErrorKind::UnexpectedEof,
-                                format!(
-                                    "aria2 short download: {} of {} bytes",
-                                    self.read, expected
-                                ),
-                            ));
-                        }
+                    if let Some(expected) = self.size
+                        && self.read != expected
+                    {
+                        return Err(io::Error::new(
+                            io::ErrorKind::UnexpectedEof,
+                            format!("aria2 short download: {} of {} bytes", self.read, expected),
+                        ));
                     }
                     return Ok(0);
                 }
