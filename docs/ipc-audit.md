@@ -1,4 +1,4 @@
-# IPC coverage audit (protocol 7.0)
+# IPC coverage audit (protocol 8.0)
 
 This audit compares the Core host and UI bridge surface with the public Rust
 and UI SDKs. It is intentionally versioned with the SDK: add a row when Core
