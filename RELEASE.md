@@ -1,6 +1,6 @@
-# Unreleased — protocol 7.0
+# Unreleased — protocol 8.0
 
-- Replace eager Info responses with declarative field descriptions and exact `info.compute` requests; update the SDK protocol handshake to 7.0.
+- Replace visible Info section descriptors with one Provider presentation and invisible subsection routing; require protocol 8.0 and exact `info.compute` field requests.
 
 # Fiex SDK 0.3.4 — protocol 6
 

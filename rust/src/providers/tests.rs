@@ -10,9 +10,9 @@ impl InfoProvider for ExampleInfo {
     ) -> Result<Vec<InfoFieldResult>, RpcError> {
         Ok(fields
             .iter()
-            .filter(|field| field.section_id == "example" && field.field_id == "a")
+            .filter(|field| field.subsection_id == "example" && field.field_id == "a")
             .map(|field| InfoFieldResult {
-                section_id: field.section_id.clone(),
+                subsection_id: field.subsection_id.clone(),
                 field_id: field.field_id.clone(),
                 value: Some("B".into()),
                 unavailable: false,

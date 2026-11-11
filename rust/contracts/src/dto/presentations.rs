@@ -2,47 +2,8 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum InfoCompute {
-    OnOpen,
-    OnDemand,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct InfoFieldDescriptor {
-    pub id: String,
-    pub label: String,
-    pub compute: InfoCompute,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct InfoSectionDescriptor {
-    pub id: String,
-    pub title: String,
-    #[serde(default)]
-    pub fields: Vec<InfoFieldDescriptor>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct InfoFieldKey {
-    pub section_id: String,
-    pub field_id: String,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct InfoFieldResult {
-    pub section_id: String,
-    pub field_id: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub value: Option<String>,
-    #[serde(default)]
-    pub unavailable: bool,
-}
+mod info;
+pub use info::*;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -131,6 +92,52 @@ impl PreviewView {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn info_presentation_uses_invisible_subsections_and_rejects_old_section_wire_keys() {
+        let presentation: InfoProviderPresentation = serde_json::from_value(serde_json::json!({
+            "title": "Media",
+            "subsections": [{
+                "id": "audio",
+                "match": { "extensions": ["mp3"], "mimeTypes": ["audio/*"] },
+                "fields": [{ "id": "duration", "label": "Duration", "compute": "onDemand" }]
+            }]
+        }))
+        .unwrap();
+        assert_eq!(presentation.title, "Media");
+        assert_eq!(presentation.subsections[0].id, "audio");
+        assert_eq!(
+            presentation.subsections[0]
+                .r#match
+                .as_ref()
+                .unwrap()
+                .extensions,
+            ["mp3"]
+        );
+
+        assert!(
+            serde_json::from_value::<InfoProviderPresentation>(serde_json::json!({
+                "title": "Media",
+                "sections": [{ "id": "audio", "title": "Audio", "fields": [] }]
+            }))
+            .is_err()
+        );
+        assert!(
+            serde_json::from_value::<InfoSubsectionDescriptor>(serde_json::json!({
+                "id": "audio",
+                "title": "Audio",
+                "fields": []
+            }))
+            .is_err()
+        );
+        assert!(
+            serde_json::from_value::<InfoFieldKey>(serde_json::json!({
+                "sectionId": "audio",
+                "fieldId": "duration"
+            }))
+            .is_err()
+        );
+    }
 
     #[test]
     fn preview_html_is_package_confined() {

@@ -40,12 +40,12 @@ pub use contracts::{
     ContextMenuExecuteRequest, ContextMenuResolveRequest, CoreMenuAction, CoreMenuActionKind,
     DecorationBadge, DecorationContribution, DecorationField, DecorationStyle, EventContext,
     HookRequest, HookResult, InfoCompute, InfoComputeRequest, InfoFieldDescriptor, InfoFieldKey,
-    InfoFieldResult, InfoSectionDescriptor, MenuActivity, MenuActivityKind, MenuExecuteResult,
-    MenuHandledFlag, MenuHandledKind, MenuHandledKindTag, MenuItemKind, MenuPlacement,
-    NativeMenuAction, NativeMenuActionKind, PackageView, PluginPanelAction, PluginPanelActionKind,
-    PluginPanelSize, PreviewView, ProviderInput, RemoteMenuAction, RemoteMenuActionKind,
-    ResourceContext, ResourceEventRequest, ResourceMetadata, ResourceRef, SearchQueryRequest,
-    ToolbarRequest, VfsRequest,
+    InfoFieldResult, InfoProviderPresentation, InfoSubsectionDescriptor, InfoSubsectionMatch,
+    MenuActivity, MenuActivityKind, MenuExecuteResult, MenuHandledFlag, MenuHandledKind,
+    MenuHandledKindTag, MenuItemKind, MenuPlacement, NativeMenuAction, NativeMenuActionKind,
+    PackageView, PluginPanelAction, PluginPanelActionKind, PluginPanelSize, PreviewView,
+    ProviderInput, RemoteMenuAction, RemoteMenuActionKind, ResourceContext, ResourceEventRequest,
+    ResourceMetadata, ResourceRef, SearchQueryRequest, ToolbarRequest, VfsRequest,
 };
 
 pub use fiex_provider_contracts::{
@@ -67,7 +67,7 @@ pub use storage::Storage;
 pub use tasks::{TaskHandle, TaskStatus};
 pub use tcp::{TcpClient, TcpReadHalf, TcpStream, TcpWriteHalf};
 
-pub const PROTOCOL_VERSION: &str = "7.0";
+pub const PROTOCOL_VERSION: &str = "8.0";
 pub const MAX_FRAME: usize = 4 * 1024 * 1024;
 const MAX_HEADER: usize = 8192;
 
