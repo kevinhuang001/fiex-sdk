@@ -3,17 +3,14 @@
 //! A task inherits the operation's approved scope but not its request lifetime.
 //! Core keeps the scope alive until the task reports completion, cancellation
 //! or failure, then reclaims its file handles, sockets and shared memory.
-use crate::{
-    RpcError,
-    context::{ContextInner, TaskContext},
-    runtime::session::Session,
-};
+use crate::TaskContext;
+use crate::{RpcError, context::ContextInner, runtime::session::Session};
 use serde_json::{Value, json};
 use std::{
     collections::{HashMap, VecDeque},
     panic::{AssertUnwindSafe, catch_unwind},
     sync::{
-        Arc, Condvar, Mutex,
+        Arc, Mutex,
         atomic::{AtomicBool, Ordering},
     },
     thread,
@@ -29,138 +26,10 @@ pub enum TaskStatus {
     Cancelled,
 }
 
-struct TaskInner {
-    status: TaskStatus,
-    progress: (u64, Option<u64>),
-    result: Option<Result<Value, RpcError>>,
-    done: bool,
-}
-
-pub(crate) struct TaskRecord {
-    id: String,
-    inner: Mutex<TaskInner>,
-    changed: Condvar,
-    cancel: AtomicBool,
-}
-
-impl TaskRecord {
-    fn new(id: String) -> Self {
-        Self {
-            id,
-            inner: Mutex::new(TaskInner {
-                status: TaskStatus::Running,
-                progress: (0, None),
-                result: None,
-                done: false,
-            }),
-            changed: Condvar::new(),
-            cancel: AtomicBool::new(false),
-        }
-    }
-
-    pub(crate) fn id(&self) -> &str {
-        &self.id
-    }
-
-    pub(crate) fn cancel(&self) {
-        self.cancel.store(true, Ordering::Release);
-    }
-
-    pub(crate) fn is_cancelled(&self) -> bool {
-        self.cancel.load(Ordering::Acquire)
-    }
-
-    pub(crate) fn set_progress(&self, done: u64, total: Option<u64>) {
-        if let Ok(mut inner) = self.inner.lock() {
-            inner.progress = (done, total);
-        }
-    }
-
-    fn progress(&self) -> (u64, Option<u64>) {
-        self.inner
-            .lock()
-            .map(|inner| inner.progress)
-            .unwrap_or((0, None))
-    }
-
-    fn status(&self) -> TaskStatus {
-        self.inner
-            .lock()
-            .map(|inner| inner.status)
-            .unwrap_or(TaskStatus::Failed)
-    }
-
-    fn is_finished(&self) -> bool {
-        self.inner.lock().map(|inner| inner.done).unwrap_or(true)
-    }
-
-    fn complete(&self, status: TaskStatus, result: Result<Value, RpcError>) {
-        if let Ok(mut inner) = self.inner.lock() {
-            inner.status = status;
-            inner.result = Some(result);
-            inner.done = true;
-        }
-        self.changed.notify_all();
-    }
-
-    fn wait(&self) -> Result<Value, RpcError> {
-        let mut inner = self
-            .inner
-            .lock()
-            .map_err(|_| RpcError::internal("task state unavailable"))?;
-        while !inner.done {
-            inner = self
-                .changed
-                .wait(inner)
-                .map_err(|_| RpcError::internal("task state unavailable"))?;
-        }
-        inner
-            .result
-            .clone()
-            .unwrap_or_else(|| Err(RpcError::internal("task result missing")))
-    }
-}
-
-#[derive(Clone)]
-pub struct TaskHandle {
-    record: Arc<TaskRecord>,
-}
-
-impl TaskHandle {
-    fn new(record: Arc<TaskRecord>) -> Self {
-        Self { record }
-    }
-
-    pub fn id(&self) -> &str {
-        self.record.id()
-    }
-
-    /// Request cooperative cancellation. The task should poll `is_cancelled`.
-    pub fn cancel(&self) {
-        self.record.cancel();
-    }
-
-    pub fn is_cancelled(&self) -> bool {
-        self.record.is_cancelled()
-    }
-
-    pub fn is_finished(&self) -> bool {
-        self.record.is_finished()
-    }
-
-    pub fn status(&self) -> TaskStatus {
-        self.record.status()
-    }
-
-    pub fn progress(&self) -> (u64, Option<u64>) {
-        self.record.progress()
-    }
-
-    /// Block until the task completes or is cancelled.
-    pub fn wait(&self) -> Result<Value, RpcError> {
-        self.record.wait()
-    }
-}
+mod handle;
+mod record;
+pub use handle::TaskHandle;
+pub(crate) use record::TaskRecord;
 
 struct ManagerState {
     next: u64,
