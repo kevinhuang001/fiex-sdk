@@ -1,49 +1,20 @@
 import { normalizeLocale, type Locale } from './i18n.js'
-import * as r from './resources.js'
+import { createClientApis } from './clientApi.js'
+import { applyTheme, FiexBridgeError } from './protocol.js'
+import type { BridgeEvent, BridgeResponse, JsonValue, Pending } from './protocol.js'
+
 export type * from './resources.js'
 export * from './i18n.js'
+export { applyTheme, FiexBridgeError }
+export type {
+  BridgeError,
+  BridgeRequest,
+  BridgeResponse,
+  JsonValue,
+  ThemeSnapshot,
+} from './protocol.js'
+
 /** Fiex iframe API. Browser runtime only; no Node.js or Tauri dependencies. */
-export type JsonValue =
-  null | string | number | boolean | JsonValue[] | { [key: string]: JsonValue }
-export type BridgeError = { code: string; message: string }
-export type BridgeRequest = {
-  bridgeVersion: '1.0'
-  sessionId: string
-  requestId: string
-  type: 'request'
-  method: string
-  params?: unknown
-}
-export type BridgeResponse = {
-  bridgeVersion: '1.0'
-  sessionId: string
-  requestId: string
-  type: 'response'
-  result?: JsonValue
-  error?: BridgeError
-}
-type BridgeEvent = {
-  bridgeVersion: '1.0'
-  sessionId: string
-  subscriptionId: string
-  type: 'event'
-  name: string
-  payload: JsonValue
-}
-export class FiexBridgeError extends Error {
-  constructor(
-    readonly code: string,
-    message: string,
-  ) {
-    super(message)
-    this.name = 'FiexBridgeError'
-  }
-}
-type Pending = {
-  resolve(v: JsonValue): void
-  reject(e: Error): void
-  timer: ReturnType<typeof setTimeout>
-}
 export class FiexUiClient {
   private port: MessagePort | undefined
   private sessionId = ''
@@ -59,10 +30,25 @@ export class FiexUiClient {
   private readonly reportUnhandled: boolean
   private captured = 0
   private capturedAt = 0
+  private readonly api: ReturnType<typeof createClientApis>
+
   constructor(options: number | { timeoutMs?: number; reportUnhandledErrors?: boolean } = {}) {
     this.timeoutMs = typeof options === 'number' ? options : (options.timeoutMs ?? 15000)
     this.reportUnhandled =
       typeof options === 'number' ? true : (options.reportUnhandledErrors ?? true)
+    this.api = createClientApis({
+      invoke: <T = JsonValue>(
+        method: string,
+        params?: unknown,
+        options?: { signal?: AbortSignal; timeoutMs?: number },
+      ) => this.invoke<T>(method, params, options),
+      on: (name, handler) => this.on(name, handler),
+      ready: () => this.ready(),
+      getLocale: () => this.currentLocale,
+      setTranslateError: (translator) => {
+        this.translateError = translator
+      },
+    })
   }
 
   /** Failures the host cannot observe: uncaught UI exceptions. Rate limited so a
@@ -102,7 +88,7 @@ export class FiexUiClient {
           window.parent.postMessage({ type: 'fiex.bridge.listening' }, '*')
           return
         }
-        const d = event.data as {
+        const data = event.data as {
           type?: string
           bridgeVersion?: string
           sessionId?: string
@@ -112,28 +98,28 @@ export class FiexUiClient {
         const port = event.ports[0]
         if (
           event.source !== window.parent ||
-          !d ||
-          d.type !== 'fiex.bridge.init' ||
-          d.bridgeVersion !== '1.0' ||
-          !d.sessionId ||
-          !d.nonce ||
+          !data ||
+          data.type !== 'fiex.bridge.init' ||
+          data.bridgeVersion !== '1.0' ||
+          !data.sessionId ||
+          !data.nonce ||
           event.ports.length !== 1 ||
           !port
         )
           return
         clearTimeout(timeout)
         window.removeEventListener('message', init)
-        this.currentLocale = normalizeLocale(d.locale)
+        this.currentLocale = normalizeLocale(data.locale)
         document.documentElement.lang = this.currentLocale
         this.port = port
-        this.sessionId = d.sessionId
-        port.onmessage = (e) => this.onMessage(e.data)
+        this.sessionId = data.sessionId
+        port.onmessage = (message) => this.onMessage(message.data)
         port.onmessageerror = () => this.dispose('invalid_message')
         port.start()
         port.postMessage({
           type: 'fiex.bridge.ready',
-          sessionId: d.sessionId,
-          nonce: d.nonce,
+          sessionId: data.sessionId,
+          nonce: data.nonce,
           bridgeVersion: '1.0',
         })
         this.installErrorCapture()
@@ -149,29 +135,33 @@ export class FiexUiClient {
     })
     return this.readyPromise
   }
+
   private onMessage(raw: unknown): void {
     if (!raw || typeof raw !== 'object') return
-    const msg = raw as Partial<BridgeResponse> | Partial<BridgeEvent>
-    if (msg.bridgeVersion !== '1.0' || msg.sessionId !== this.sessionId) return
-    if (msg.type === 'response' && typeof msg.requestId === 'string') {
-      const pending = this.pending.get(msg.requestId)
+    const message = raw as Partial<BridgeResponse> | Partial<BridgeEvent>
+    if (message.bridgeVersion !== '1.0' || message.sessionId !== this.sessionId) return
+    if (message.type === 'response' && typeof message.requestId === 'string') {
+      const pending = this.pending.get(message.requestId)
       if (!pending) return
-      this.pending.delete(msg.requestId)
+      this.pending.delete(message.requestId)
       clearTimeout(pending.timer)
-      if (msg.error)
-        pending.reject(new FiexBridgeError(msg.error.code, this.translateError(msg.error.message)))
-      else pending.resolve(msg.result ?? null)
-    } else if (msg.type === 'event' && typeof msg.name === 'string') {
-      if (msg.name === 'locale.changed') {
-        this.currentLocale = normalizeLocale(msg.payload)
+      if (message.error)
+        pending.reject(
+          new FiexBridgeError(message.error.code, this.translateError(message.error.message)),
+        )
+      else pending.resolve(message.result ?? null)
+    } else if (message.type === 'event' && typeof message.name === 'string') {
+      if (message.name === 'locale.changed') {
+        this.currentLocale = normalizeLocale(message.payload)
         document.documentElement.lang = this.currentLocale
       }
-      if (msg.name === 'theme.changed') applyTheme(msg.payload ?? null)
-      if (msg.name === 'panel.visibility')
-        document.documentElement.dataset.panelVisible = String(msg.payload === true)
-      this.listeners.get(msg.name)?.forEach((listener) => listener(msg.payload ?? null))
+      if (message.name === 'theme.changed') applyTheme(message.payload ?? null)
+      if (message.name === 'panel.visibility')
+        document.documentElement.dataset.panelVisible = String(message.payload === true)
+      this.listeners.get(message.name)?.forEach((listener) => listener(message.payload ?? null))
     }
   }
+
   async invoke<T = JsonValue>(
     method: string,
     params?: unknown,
@@ -203,13 +193,13 @@ export class FiexUiClient {
       }, options?.timeoutMs ?? this.timeoutMs)
       this.pending.set(requestId, {
         timer,
-        resolve: (v) => {
+        resolve: (value) => {
           options?.signal?.removeEventListener('abort', abort)
-          resolve(v as T)
+          resolve(value as T)
         },
-        reject: (e) => {
+        reject: (error) => {
           options?.signal?.removeEventListener('abort', abort)
-          reject(e)
+          reject(error)
         },
       })
       options?.signal?.addEventListener('abort', abort, { once: true })
@@ -220,9 +210,10 @@ export class FiexUiClient {
         type: 'request',
         method,
         params,
-      } satisfies BridgeRequest)
+      })
     })
   }
+
   on(name: string, handler: (data: JsonValue) => void): () => void {
     let handlers = this.listeners.get(name)
     if (!handlers) {
@@ -235,176 +226,50 @@ export class FiexUiClient {
       if (!handlers!.size) this.listeners.delete(name)
     }
   }
+
   get context() {
-    return {
-      get: async () => r.parseExplorerContext(await this.invoke<unknown>('context.get')),
-      subscribe: (h: (ctx: r.ExplorerContext) => void) =>
-        this.on('context.changed', (v) => h(r.parseExplorerContext(v))),
-    }
+    return this.api.context
   }
   get i18n() {
-    return {
-      getLocale: async (): Promise<Locale> => {
-        await this.ready()
-        return this.currentLocale
-      },
-      subscribe: (listener: (locale: Locale) => void) =>
-        this.on('locale.changed', (value) => listener(normalizeLocale(value))),
-      bind: async (runtime: {
-        setLocale(value: unknown): void
-        translateMessage?: (value: string) => string
-      }): Promise<() => void> => {
-        await this.ready()
-        runtime.setLocale(this.currentLocale)
-        this.translateError = runtime.translateMessage ?? ((value) => value)
-        return this.on('locale.changed', (value) => runtime.setLocale(value))
-      },
-    }
+    return this.api.i18n
   }
   get plugin() {
-    return {
-      invoke: <T = JsonValue>(
-        command: string,
-        args?: JsonValue,
-        options?: { signal?: AbortSignal; timeoutMs?: number },
-      ) =>
-        this.invoke<T>(
-          'plugin.invoke',
-          { method: command, params: args ?? null },
-          { timeoutMs: 120000, ...options },
-        ),
-      /** Read a native task created by this plugin (or by its own native side). */
-      task: <T = JsonValue>(taskId: string) => this.invoke<T | null>('plugin.task', { taskId }),
-    }
+    return this.api.plugin
   }
   get clipboard() {
-    return {
-      writeText: (text: string) => this.invoke<null>('clipboard.writeText', { text }),
-    }
+    return this.api.clipboard
   }
   get navigation() {
-    return {
-      /** Navigate the host explorer to a Core-owned path or virtual URI. */
-      open: (path: string) => this.invoke<null>('navigation.open', { path }),
-    }
+    return this.api.navigation
   }
   get preview() {
-    return {
-      /** Mark a preview document ready so the host can hide its loading state. */
-      ready: () => this.invoke<null>('preview.ready'),
-    }
+    return this.api.preview
   }
   get vfs() {
-    return {
-      stat: (ref: r.ResourceRef) => this.invoke('vfs.stat', r.parseResourceRef(ref)),
-      list: (ref: r.ResourceRef, cursor?: string) =>
-        this.invoke('vfs.list', { ...r.parseResourceRef(ref), cursor }),
-      open: (ref: r.ResourceRef) => this.invoke('vfs.open', r.parseResourceRef(ref)),
-    }
+    return this.api.vfs
   }
   get tasks() {
-    return {
-      list: () => this.invoke('tasks.list'),
-      create: (
-        title: string,
-        options: {
-          detail?: string
-          progress?: number
-          indeterminate?: boolean
-        } = {},
-      ) => this.invoke<{ taskId: string }>('tasks.create', { title, ...options }),
-      spinner: (title: string, options: { detail?: string } = {}) =>
-        this.invoke<{ taskId: string }>('tasks.spinner', { title, ...options }),
-      update: (
-        taskId: string,
-        patch: {
-          label?: string
-          detail?: string
-          progress?: number
-          indeterminate?: boolean
-          done?: number
-          total?: number
-          step?: string
-        },
-      ) => this.invoke('tasks.update', { taskId, ...patch }),
-      finish: (taskId: string, options: { error?: string; detail?: string } = {}) =>
-        this.invoke('tasks.finish', { taskId, ...options }),
-      cancel: (taskId: string) => this.invoke('tasks.cancel', { taskId }),
-    }
+    return this.api.tasks
   }
-  /** Native file chooser is rendered by Fiex, never by plugin HTML. */
   get dialog() {
-    return {
-      openFile: (
-        options: {
-          title?: string
-          directory?: r.ResourceRef
-          extensions?: string[]
-        } = {},
-      ) =>
-        this.invoke<unknown>('dialog.openFile', r.parseResourcePickerOptions(options)).then(
-          r.parseResourceContextResult,
-        ),
-      openFiles: (
-        options: {
-          title?: string
-          directory?: r.ResourceRef
-          extensions?: string[]
-        } = {},
-      ) =>
-        this.invoke<unknown>('dialog.openFiles', r.parseResourcePickerOptions(options)).then(
-          r.parseResourceContextList,
-        ),
-      openDirectory: (options: { title?: string; directory?: r.ResourceRef } = {}) =>
-        this.invoke<unknown>('dialog.openDirectory', r.parseResourcePickerOptions(options)).then(
-          r.parseResourceContextResult,
-        ),
-      saveFile: (
-        options: {
-          title?: string
-          directory?: r.ResourceRef
-          suggestedName?: string
-          extensions?: string[]
-        } = {},
-      ) =>
-        this.invoke<unknown>('dialog.saveFile', r.parseResourcePickerOptions(options)).then(
-          r.parseResourceContextResult,
-        ),
-    }
+    return this.api.dialog
   }
   get panel() {
-    return {
-      resize: (width: number, height: number) => this.invoke('panel.resize', { width, height }),
-      close: () => this.invoke('panel.close'),
-    }
+    return this.api.panel
   }
-  /** Best-effort logging through the native SDK. Never opens an error dialog. */
   get logs() {
-    return {
-      write: (level: 'trace' | 'debug' | 'info' | 'warn' | 'error', message: string) =>
-        this.plugin.invoke('diagnostics.log', { level, message }).catch(() => null),
-    }
+    return this.api.logs
   }
-  /** Explicit render/background failure, not a second report of a rejected RPC. */
   get errors() {
-    return {
-      report: (message: string, detail?: string) =>
-        this.plugin
-          .invoke('diagnostics.report', { message, ...(detail === undefined ? {} : { detail }) })
-          .catch(() => null),
-    }
+    return this.api.errors
   }
   get theme() {
-    return {
-      get: () => this.invoke('theme.get'),
-      subscribe: (h: (v: JsonValue) => void) => this.on('theme.changed', h),
-    }
+    return this.api.theme
   }
   get events() {
-    return {
-      on: (name: string, h: (v: JsonValue) => void) => this.on(name, h),
-    }
+    return this.api.events
   }
+
   dispose(reason = 'closed'): void {
     this.closed = true
     this.stopHandshake?.()
@@ -419,24 +284,5 @@ export class FiexUiClient {
     this.listeners.clear()
   }
 }
-export const fiex = new FiexUiClient()
 
-export type ThemeSnapshot = {
-  mode: 'light' | 'dark'
-  tokens: Record<string, string>
-}
-export function applyTheme(value: JsonValue): void {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return
-  const theme = value as unknown as ThemeSnapshot
-  if (theme.mode !== 'dark' && theme.mode !== 'light') return
-  document.documentElement.style.colorScheme = theme.mode
-  document.documentElement.classList.toggle('dark', theme.mode === 'dark')
-  for (const [key, token] of Object.entries(theme.tokens || {})) {
-    if (
-      /^[a-z][a-z0-9-]*$/.test(key) &&
-      typeof token === 'string' &&
-      !/[;{}]|url\s*\(/i.test(token)
-    )
-      document.documentElement.style.setProperty('--' + key, token)
-  }
-}
+export const fiex = new FiexUiClient()

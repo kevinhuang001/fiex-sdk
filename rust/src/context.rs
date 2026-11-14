@@ -6,13 +6,11 @@ use crate::{
     http::HttpClient,
     ipc::ProcessResult,
     runtime::{HostLink, session::Session},
-    tasks::{TaskHandle, TaskManager, TaskRecord},
+    tasks::TaskManager,
     tcp::TcpClient,
 };
 use base64::{Engine, engine::general_purpose::STANDARD};
-use fiex_provider_contracts::{ProviderInvocation, ProviderRequestContext};
 use serde_json::{Map, Value, json};
-use std::any::Any;
 use std::sync::{
     Arc,
     atomic::{AtomicBool, AtomicU64, Ordering},
@@ -192,7 +190,7 @@ pub(crate) fn rpc_to_io(error: RpcError) -> std::io::Error {
     }
 }
 
-fn decode_output(mut result: ProcessResult) -> Result<ProcessResult, RpcError> {
+pub(crate) fn decode_output(mut result: ProcessResult) -> Result<ProcessResult, RpcError> {
     if let Some(encoded) = &result.stdout_base64 {
         result.stdout = String::from_utf8_lossy(
             &STANDARD
@@ -212,430 +210,7 @@ fn decode_output(mut result: ProcessResult) -> Result<ProcessResult, RpcError> {
     Ok(result)
 }
 
-/// One host request. Dropping it does not revoke the operation; Core revokes
-/// authorization when the operation or its owning task ends.
-pub struct RequestContext {
-    inner: ContextInner,
-    request: ProviderRequestContext,
-    params: Value,
-    locale: crate::i18n::Locale,
-}
-
-impl RequestContext {
-    pub(crate) fn diagnostic_context(&self) -> ContextInner {
-        self.inner.clone()
-    }
-    pub(crate) fn enable_diagnostics(mut self) -> Self {
-        self.inner.diagnostics = true;
-        self
-    }
-    pub(crate) fn new(inner: ContextInner, method: String, params: Value) -> Self {
-        let locale = crate::i18n::current_locale();
-        let request = ProviderRequestContext::from_params(method, &params, locale.as_str());
-        Self {
-            inner,
-            request,
-            params,
-            locale,
-        }
-    }
-
-    /// The method and payload stay identical; only the authorization changes.
-    /// The SDK uses it to serve a stream under a longer-lived session.
-    pub(crate) fn derive(&self, inner: ContextInner) -> Self {
-        Self {
-            inner,
-            request: self.request.clone(),
-            params: self.params.clone(),
-            locale: self.locale,
-        }
-    }
-
-    pub(crate) fn inner(&self) -> &ContextInner {
-        &self.inner
-    }
-
-    /// Language captured for this request, separate from business parameters.
-    pub fn locale(&self) -> crate::i18n::Locale {
-        self.locale
-    }
-
-    pub fn method(&self) -> &str {
-        &self.request.method
-    }
-
-    pub fn params(&self) -> &Value {
-        &self.params
-    }
-
-    /// Resources affected by this system event. A custom plugin RPC method
-    /// may have no targets; no filesystem or network call is made here.
-    pub fn targets(&self) -> &[crate::contracts::ResourceContext] {
-        &self.request.targets
-    }
-
-    pub fn target(&self) -> Option<&crate::ResourceContext> {
-        self.request.target()
-    }
-    pub fn directory(&self) -> Option<crate::ResourceContext> {
-        self.request.directory.clone()
-    }
-
-    pub fn files(&self) -> Files {
-        self.inner.files()
-    }
-
-    pub fn http(&self) -> HttpClient {
-        self.inner.http()
-    }
-
-    pub fn aria2(&self) -> crate::Aria2 {
-        self.inner.aria2()
-    }
-
-    pub fn tcp(&self) -> TcpClient {
-        self.inner.tcp()
-    }
-
-    pub fn invoke(&self, method: &str, params: Value) -> Result<Value, RpcError> {
-        self.inner.call(method, params)
-    }
-
-    /// Open a lightweight view of this plugin's explicit `extensions.vfs`
-    /// item. Core checks the current selected-resource scope and returns its URI.
-    /// Connections use their Core-assigned instance mount instead.
-    pub fn open_vfs_view(
-        &self,
-        contribution_id: &str,
-        resource_root: &crate::ResourceRef,
-        view_context: Value,
-    ) -> Result<String, RpcError> {
-        let result = self.invoke("host.vfs.openView", serde_json::json!({"contributionId":contribution_id,"resourceRoot":resource_root,"viewContext":view_context}))?;
-        result
-            .as_str()
-            .map(str::to_string)
-            .ok_or_else(|| RpcError::internal("Core returned no view URI"))
-    }
-
-    /// Report a structured diagnostic without treating it as a user-facing error.
-    pub fn log(&self, level: &str, message: &str) -> Result<(), RpcError> {
-        report_log(&self.inner, level, message)
-    }
-
-    pub fn report_error(
-        &self,
-        code: &str,
-        message: &str,
-        detail: Option<&str>,
-    ) -> Result<(), RpcError> {
-        report_error(&self.inner, code, message, detail)
-    }
-
-    pub fn process_run_at(
-        &self,
-        directory: &crate::ResourceRef,
-        command: &str,
-        args: &[String],
-        stdin: Option<&str>,
-    ) -> Result<ProcessResult, RpcError> {
-        let value = self.inner.call(
-            "host.process.run",
-            json!({"command":command,"args":args,"stdin":stdin,"cwd":directory}),
-        )?;
-        decode_output(
-            serde_json::from_value(value).map_err(|error| RpcError::internal(error.to_string()))?,
-        )
-    }
-
-    pub fn process_run(
-        &self,
-        command: &str,
-        args: &[String],
-        stdin: Option<&str>,
-    ) -> Result<ProcessResult, RpcError> {
-        process_run(&self.inner, command, args, stdin)
-    }
-
-    pub fn oauth(&self) -> crate::OAuth {
-        crate::OAuth::new(self.inner.clone())
-    }
-    pub fn storage(&self) -> crate::Storage {
-        crate::Storage::new(self.inner.clone())
-    }
-    pub fn secrets(&self) -> crate::Secrets {
-        crate::Secrets::new(self.inner.clone())
-    }
-
-    /// Start work that owns an independent lifecycle. The task inherits the
-    /// operation's approved authorization scope but not its request lifetime.
-    pub fn spawn_task<F>(&self, work: F) -> Result<TaskHandle, RpcError>
-    where
-        F: FnOnce(TaskContext) -> Result<Value, RpcError> + Send + 'static,
-    {
-        self.spawn_task_with_label(self.method(), work)
-    }
-
-    /// Same as [`RequestContext::spawn_task`] with a user-facing label for the
-    /// status centre instead of the request method.
-    pub fn spawn_task_with_label<F>(&self, label: &str, work: F) -> Result<TaskHandle, RpcError>
-    where
-        F: FnOnce(TaskContext) -> Result<Value, RpcError> + Send + 'static,
-    {
-        let locale = self.locale();
-        TaskManager::spawn(&self.inner, label, false, locale, move |task| {
-            crate::i18n::with_locale(locale, || work(task))
-        })
-    }
-
-    /// Start a background task that is an implementation detail rather than a
-    /// user-visible operation. Core keeps its authorization but the status
-    /// centre does not create an entry for it.
-    pub fn spawn_internal_task<F>(&self, label: &str, work: F) -> Result<TaskHandle, RpcError>
-    where
-        F: FnOnce(TaskContext) -> Result<Value, RpcError> + Send + 'static,
-    {
-        let locale = self.locale();
-        TaskManager::spawn(&self.inner, label, true, locale, move |task| {
-            crate::i18n::with_locale(locale, || work(task))
-        })
-    }
-
-    pub fn is_cancelled(&self) -> bool {
-        self.inner
-            .cancelled()
-            .load(std::sync::atomic::Ordering::Acquire)
-    }
-}
-
-impl ProviderInvocation for RequestContext {
-    fn request(&self) -> &ProviderRequestContext {
-        &self.request
-    }
-
-    fn local_service_handle(&self) -> Option<&dyn Any> {
-        Some(self)
-    }
-}
-
-/// SDK-only convenience methods for shared provider invocations. The common
-/// context remains runtime-independent; these accessors recover only the
-/// current plugin process's authorized Host services.
-pub trait ProviderInvocationExt: ProviderInvocation {
-    fn sdk_context(&self) -> &RequestContext {
-        self.local_service_handle()
-            .and_then(|value| value.downcast_ref::<RequestContext>())
-            .expect("SDK Host services are available only in the plugin process")
-    }
-    fn files(&self) -> Files {
-        self.sdk_context().files()
-    }
-    fn http(&self) -> HttpClient {
-        self.sdk_context().http()
-    }
-    fn aria2(&self) -> crate::Aria2 {
-        self.sdk_context().aria2()
-    }
-    fn tcp(&self) -> TcpClient {
-        self.sdk_context().tcp()
-    }
-    fn invoke(&self, method: &str, params: Value) -> Result<Value, RpcError> {
-        self.sdk_context().invoke(method, params)
-    }
-    fn open_vfs_view(
-        &self,
-        contribution_id: &str,
-        resource_root: &crate::ResourceRef,
-        view_context: Value,
-    ) -> Result<String, RpcError> {
-        self.sdk_context()
-            .open_vfs_view(contribution_id, resource_root, view_context)
-    }
-    fn locale(&self) -> crate::i18n::Locale {
-        self.sdk_context().locale()
-    }
-    fn process_run_at(
-        &self,
-        directory: &crate::ResourceRef,
-        command: &str,
-        args: &[String],
-        stdin: Option<&str>,
-    ) -> Result<ProcessResult, RpcError> {
-        self.sdk_context()
-            .process_run_at(directory, command, args, stdin)
-    }
-    fn process_run(
-        &self,
-        command: &str,
-        args: &[String],
-        stdin: Option<&str>,
-    ) -> Result<ProcessResult, RpcError> {
-        self.sdk_context().process_run(command, args, stdin)
-    }
-    fn oauth(&self) -> crate::OAuth {
-        self.sdk_context().oauth()
-    }
-    fn storage(&self) -> crate::Storage {
-        self.sdk_context().storage()
-    }
-    fn secrets(&self) -> crate::Secrets {
-        self.sdk_context().secrets()
-    }
-    fn log(&self, level: &str, message: &str) -> Result<(), RpcError> {
-        self.sdk_context().log(level, message)
-    }
-    fn report_error(
-        &self,
-        code: &str,
-        message: &str,
-        detail: Option<&str>,
-    ) -> Result<(), RpcError> {
-        self.sdk_context().report_error(code, message, detail)
-    }
-    fn spawn_task<F>(&self, work: F) -> Result<TaskHandle, RpcError>
-    where
-        F: FnOnce(TaskContext) -> Result<Value, RpcError> + Send + 'static,
-    {
-        self.sdk_context().spawn_task(work)
-    }
-    fn spawn_task_with_label<F>(&self, label: &str, work: F) -> Result<TaskHandle, RpcError>
-    where
-        F: FnOnce(TaskContext) -> Result<Value, RpcError> + Send + 'static,
-    {
-        self.sdk_context().spawn_task_with_label(label, work)
-    }
-    fn spawn_internal_task<F>(&self, label: &str, work: F) -> Result<TaskHandle, RpcError>
-    where
-        F: FnOnce(TaskContext) -> Result<Value, RpcError> + Send + 'static,
-    {
-        self.sdk_context().spawn_internal_task(label, work)
-    }
-    fn is_cancelled(&self) -> bool {
-        self.sdk_context().is_cancelled()
-    }
-}
-
-impl<T: ProviderInvocation + ?Sized> ProviderInvocationExt for T {}
-
-/// Context passed to background work started with [`RequestContext::spawn_task`].
-pub struct TaskContext {
-    inner: ContextInner,
-    record: Arc<TaskRecord>,
-    locale: crate::i18n::Locale,
-}
-
-impl TaskContext {
-    pub fn locale(&self) -> crate::i18n::Locale {
-        self.locale
-    }
-    pub(crate) fn new(
-        inner: ContextInner,
-        record: Arc<TaskRecord>,
-        locale: crate::i18n::Locale,
-    ) -> Self {
-        Self {
-            inner,
-            record,
-            locale,
-        }
-    }
-
-    pub fn id(&self) -> &str {
-        self.record.id()
-    }
-
-    pub fn files(&self) -> Files {
-        self.inner.files()
-    }
-
-    pub fn http(&self) -> HttpClient {
-        self.inner.http()
-    }
-
-    pub fn aria2(&self) -> crate::Aria2 {
-        self.inner.aria2()
-    }
-
-    pub fn tcp(&self) -> TcpClient {
-        self.inner.tcp()
-    }
-
-    pub fn invoke(&self, method: &str, params: Value) -> Result<Value, RpcError> {
-        self.inner.call(method, params)
-    }
-
-    /// Report a structured diagnostic without treating it as a user-facing error.
-    pub fn log(&self, level: &str, message: &str) -> Result<(), RpcError> {
-        report_log(&self.inner, level, message)
-    }
-
-    pub fn report_error(
-        &self,
-        code: &str,
-        message: &str,
-        detail: Option<&str>,
-    ) -> Result<(), RpcError> {
-        report_error(&self.inner, code, message, detail)
-    }
-
-    pub fn process_run_at(
-        &self,
-        directory: &crate::ResourceRef,
-        command: &str,
-        args: &[String],
-        stdin: Option<&str>,
-    ) -> Result<ProcessResult, RpcError> {
-        let value = self.inner.call(
-            "host.process.run",
-            json!({"command":command,"args":args,"stdin":stdin,"cwd":directory}),
-        )?;
-        decode_output(
-            serde_json::from_value(value).map_err(|error| RpcError::internal(error.to_string()))?,
-        )
-    }
-
-    pub fn process_run(
-        &self,
-        command: &str,
-        args: &[String],
-        stdin: Option<&str>,
-    ) -> Result<ProcessResult, RpcError> {
-        process_run(&self.inner, command, args, stdin)
-    }
-
-    pub fn oauth(&self) -> crate::OAuth {
-        crate::OAuth::new(self.inner.clone())
-    }
-    pub fn storage(&self) -> crate::Storage {
-        crate::Storage::new(self.inner.clone())
-    }
-    pub fn secrets(&self) -> crate::Secrets {
-        crate::Secrets::new(self.inner.clone())
-    }
-
-    /// Mark cancellation. Long operations should poll [`TaskContext::is_cancelled`].
-    pub fn cancel(&self) {
-        self.record.cancel();
-    }
-
-    pub fn is_cancelled(&self) -> bool {
-        self.record.is_cancelled()
-            || self
-                .inner
-                .cancelled()
-                .load(std::sync::atomic::Ordering::Acquire)
-    }
-
-    /// Best-effort progress for the host and for [`TaskHandle::progress`].
-    pub fn progress(&self, done: u64, total: Option<u64>) {
-        self.record.set_progress(done, total);
-        let _ = self.inner.call(
-            "host.task.progress",
-            json!({"taskId": self.record.id(), "done": done, "total": total}),
-        );
-    }
-}
-
-fn report_log(inner: &ContextInner, level: &str, message: &str) -> Result<(), RpcError> {
+pub(crate) fn report_log(inner: &ContextInner, level: &str, message: &str) -> Result<(), RpcError> {
     if !matches!(level, "trace" | "debug" | "info" | "warn" | "error") {
         return Err(RpcError::invalid_params("invalid log level"));
     }
@@ -643,7 +218,7 @@ fn report_log(inner: &ContextInner, level: &str, message: &str) -> Result<(), Rp
     Ok(())
 }
 
-fn report_error(
+pub(crate) fn report_error(
     inner: &ContextInner,
     code: &str,
     message: &str,
@@ -657,7 +232,7 @@ fn report_error(
     Ok(())
 }
 
-fn process_run(
+pub(crate) fn process_run(
     inner: &ContextInner,
     command: &str,
     args: &[String],
@@ -671,3 +246,10 @@ fn process_run(
         .map_err(|error| RpcError::internal(format!("invalid process result: {error}")))?;
     decode_output(result)
 }
+
+mod invocation;
+mod request;
+mod task;
+pub use invocation::ProviderInvocationExt;
+pub use request::RequestContext;
+pub use task::TaskContext;
