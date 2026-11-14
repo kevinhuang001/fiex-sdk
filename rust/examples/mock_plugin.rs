@@ -8,6 +8,8 @@ fn dispatch(ctx: sdk::RequestContext) -> Result<Value, RpcError> {
     match ctx.method() {
         "mock.locale" => Ok(json!({"locale": ctx.locale().as_str(), "params": ctx.params()})),
         "mock.echo" => Ok(json!({"echo": ctx.params()})),
+        // Used by Core host integration tests to exercise EOF/disconnect recovery.
+        "mock.crash" => std::process::exit(86),
         "mock.directExec" => match std::process::Command::new("git").arg("--version").output() {
             Ok(_) => Err(RpcError::internal(
                 "plugin process was allowed to execute git",
