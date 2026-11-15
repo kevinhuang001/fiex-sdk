@@ -17,6 +17,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
+          # 1.99.1 is the last Windows toolchain with a successful full SDK run.
+          toolchain: ${{ matrix.os == 'windows-latest' && '1.99.1' || 'stable' }}
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
         with:
